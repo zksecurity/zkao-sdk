@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+
+      # The SDK types are generated from openapi/v1.yaml. Regenerate and fail if
+      # the committed output is stale (keeps the SDK in lockstep with the spec).
+      - run: bun run generate
+      - name: Check generated SDK types are up to date
+        run: git diff --exit-code packages/sdk/src/generated/types.ts
+
+      - run: bun run lint:openapi
+      # Build before typecheck: the CLI resolves @zksecurity/zkao-sdk types from
+      # the SDK's dist/, which doesn't exist on a fresh checkout.
+      - run: bun run build
+      - run: bun run typecheck

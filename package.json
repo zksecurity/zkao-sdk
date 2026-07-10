@@ -1,0 +1,17 @@
+{
+  "name": "zkao-sdk-workspace",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "generate": "bun run --filter '@zksecurity/zkao-sdk' generate",
+    "build": "bun run --filter '*' build",
+    "typecheck": "bun run --filter '*' typecheck",
+    "lint:openapi": "redocly lint openapi/v1.yaml"
+  },
+  "devDependencies": {
+    "@redocly/cli": "^2.0.0",
+    "typescript": "^5.7.0"
+  }
+}

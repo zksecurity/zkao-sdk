@@ -1,0 +1,46 @@
+{
+  "name": "@zksecurity/zkao-cli",
+  "version": "0.1.0",
+  "description": "Command-line interface for the zkao Project API",
+  "license": "MIT",
+  "author": "zkSecurity",
+  "homepage": "https://github.com/zksecurity/zkao-sdk#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zksecurity/zkao-sdk.git",
+    "directory": "packages/cli"
+  },
+  "bugs": "https://github.com/zksecurity/zkao-sdk/issues",
+  "keywords": [
+    "zkao",
+    "security",
+    "audit",
+    "cli",
+    "scanner"
+  ],
+  "type": "module",
+  "bin": {
+    "zkao": "./dist/index.js"
+  },
+  "files": ["dist", "LICENSE", "README.md"],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "node -e \"if (!(process.env.npm_config_user_agent || '').includes('bun/')) { console.error('Publish with bun publish: npm ships the literal workspace:* dependency and breaks installs.'); process.exit(1); }\""
+  },
+  "dependencies": {
+    "@zksecurity/zkao-sdk": "workspace:*",
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.7.0"
+  }
+}

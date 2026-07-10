@@ -1,0 +1,11 @@
+{
+  "name": "zkao",
+  "owner": { "name": "zkSecurity" },
+  "plugins": [
+    {
+      "name": "zkao",
+      "source": "./",
+      "description": "Skill + guidance for driving a zkao project (scans, findings, triage, publishing) via its API."
+    }
+  ]
+}
