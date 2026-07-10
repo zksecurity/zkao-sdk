@@ -29,7 +29,11 @@ binary. For a one-off without installing, prefix any command with
 `npx @zksecurity/zkao-cli`. `zkao --help` and `zkao <group> --help` are the
 authoritative, always-current list of commands.
 
-Two ways to get credentials:
+Two ways to get credentials. If the user asks to "create/get a token" and
+browser approval is acceptable, **prefer the CLI device flow first** (option 1
+below). Do **not** ask them to manually create or copy an API token unless the
+device flow is unavailable or they specifically request a long-lived/manual
+token.
 
 - **Browser approval (no token to copy):** authorize over the device flow when
   nothing is configured yet. Don't run a bare `zkao login`: it blocks for
