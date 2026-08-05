@@ -138,4 +138,14 @@ cd packages/sdk && bun publish
 cd ../cli && bun publish
 ```
 
-Bump the version in each package before publishing.
+Bump the version in each package before publishing, then regenerate the
+lockfile (`rm bun.lock && bun install`). `bun.lock` records each workspace
+package's version, and neither `bun install` nor `bun install --force` refreshes
+it after a bump: publishing against a stale lock ships a CLI that depends on the
+PREVIOUS SDK version, which installs cleanly and then fails on any method the
+new release added. Verify before publishing:
+
+```bash
+cd packages/cli && bun pm pack --destination /tmp
+tar -xzOf /tmp/zksecurity-zkao-cli-*.tgz package/package.json | grep zkao-sdk
+```
