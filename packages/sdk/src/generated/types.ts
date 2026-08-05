@@ -66,7 +66,8 @@ export interface paths {
          * @description Requires scope: `scans:launch`. Reserves `creditBudget` credits from the
          *     project balance. The repo must be in the token's allowlist (when set) and
          *     ACTIVE. Discover valid `presetRef` / `optInFlowIds` via the discovery
-         *     endpoints. Per-token spend limits and the project plan are enforced.
+         *     endpoints. Per-token spend limits are enforced, and the project must have
+         *     enough prepaid credits to cover the budget (otherwise `402`).
          */
         post: operations["launchScan"];
         delete?: never;
@@ -315,14 +316,112 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{projectId}/billing/balance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Current prepaid credit balance
+         * @description Requires scope: `read`. All amounts are in credits.
+         */
+        get: operations["getBillingBalance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/billing/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Credit usage events
+         * @description Requires scope: `read`. Signed credit delta per ledger event. Defaults to the last 30 days; newest first; max 1000 rows.
+         */
+        get: operations["getBillingUsage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/billing/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Monthly spend and purchase summary
+         * @description Requires scope: `read`. Per-month net scan spend and net purchases, in credits, newest first.
+         */
+        get: operations["getBillingSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        BillingBalance: {
+            /** @description Total prepaid credit balance. */
+            balanceCredits: number;
+            /** @description Balance minus credits reserved by in-flight scans. */
+            availableCredits: number;
+            /** @description Credits held by queued/running scans. */
+            reservedCredits: number;
+        };
+        /** @enum {string} */
+        UsageEventType: "SCAN_DEDUCTION" | "SCAN_REFUND" | "PURCHASE" | "STRIPE_REFUND" | "ADMIN_ADJUSTMENT";
+        UsageEvent: {
+            id: string;
+            /** Format: date-time */
+            at: string;
+            type: components["schemas"]["UsageEventType"];
+            /** @description Signed credit delta: negative = spent/clawed back, positive = added/refunded. */
+            credits: number;
+            scanId: string | null;
+            description: string;
+        };
+        BillingUsage: {
+            /** Format: date-time */
+            from: string;
+            /** Format: date-time */
+            to: string;
+            events: components["schemas"]["UsageEvent"][];
+        };
+        UsageMonthSummary: {
+            /** @description YYYY-MM (UTC). */
+            month: string;
+            /** @description Net scan spend (deductions less refunds), in credits. */
+            spentCredits: number;
+            /** @description Net purchases (purchases less clawbacks), in credits. */
+            purchasedCredits: number;
+        };
+        BillingSummary: {
+            months: components["schemas"]["UsageMonthSummary"][];
+        };
         Error: {
             error: {
                 /** @enum {string} */
-                code: "unauthorized" | "forbidden" | "not_found" | "bad_request" | "conflict" | "plan_inactive" | "rate_limited" | "internal";
+                code: "unauthorized" | "forbidden" | "not_found" | "bad_request" | "conflict" | "insufficient_credits" | "rate_limited" | "internal";
                 message: string;
             };
         };
@@ -356,6 +455,17 @@ export interface components {
             startedAt?: string | null;
             /** Format: date-time */
             completedAt?: string | null;
+            /** @description Phase progress while the scan is in flight. Null once the scan reaches a terminal state, and null before it has been dispatched (no phases exist yet). */
+            progress?: components["schemas"]["ScanProgress"] | null;
+        };
+        /** @description How far a running scan has got through its phases. Deliberately not a time estimate: a phase's duration moves with the guidance it was given, the repository, and the model that ran it. */
+        ScanProgress: {
+            /** @description Phases that reached a terminal state (completed, failed, or skipped). */
+            phasesCompleted: number;
+            /** @description Phases this scan will run, fixed when it was dispatched. */
+            phasesTotal: number;
+            /** @description Weighted completion. Each phase counts for its share of the scan budget, so this does not simply equal phasesCompleted / phasesTotal. */
+            percent: number;
         };
         ScanDetail: components["schemas"]["Scan"] & {
             branch?: string | null;
@@ -508,6 +618,14 @@ export interface components {
             findingId: string;
             resolutionStatus: components["schemas"]["ResolutionStatus"];
         };
+        /**
+         * @description Short code for why a finding is being closed, chosen from the set offered for the `resolutionStatus` it is sent with; a code belonging to a different status is rejected with 400. Ignored for the open statuses (`NOT_STARTED`, `IN_PROGRESS`) and when `note` is also given. It is not stored as a field: it is recorded as a comment on the finding stating what was chosen, which is returned by the notes endpoints.
+         *
+         *     Codes per status. `RESOLVED`: fixed_in_code, fixed_upstream, code_removed. `MITIGATED`: compensating_control, limited_exposure, monitored. `FALSE_POSITIVE`: not_reachable, guarded_elsewhere, intended_behavior, misread_code, bad_assumption. `WONT_FIX`: risk_accepted, out_of_scope, not_worth_fixing, code_being_removed. `DUPLICATE`: duplicate_of_finding, same_root_cause.
+         * @example not_reachable
+         * @enum {string}
+         */
+        ResolutionReason: "fixed_in_code" | "fixed_upstream" | "code_removed" | "compensating_control" | "limited_exposure" | "monitored" | "not_reachable" | "guarded_elsewhere" | "intended_behavior" | "misread_code" | "bad_assumption" | "risk_accepted" | "out_of_scope" | "not_worth_fixing" | "code_being_removed" | "duplicate_of_finding" | "same_root_cause";
         PublishFindingRequest: {
             /** @description A note id on the finding to pin as the published note. */
             noteId?: string;
@@ -538,6 +656,15 @@ export interface components {
         };
         /** @description Missing, malformed, expired, or revoked token */
         Unauthorized: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description The project does not have enough prepaid credits to cover the scan budget. Top up credits and retry. (code `insufficient_credits`) */
+        InsufficientCredits: {
             headers: {
                 [name: string]: unknown;
             };
@@ -737,6 +864,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            402: components["responses"]["InsufficientCredits"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             429: components["responses"]["RateLimited"];
@@ -977,6 +1105,7 @@ export interface operations {
                 "application/json": {
                     resolutionStatus: components["schemas"]["ResolutionStatus"];
                     note?: components["schemas"]["ChangeNote"];
+                    reason?: components["schemas"]["ResolutionReason"];
                 };
             };
         };
@@ -1105,6 +1234,88 @@ export interface operations {
                     "application/json": {
                         optionalFlows: components["schemas"]["OptionalFlow"][];
                     };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getBillingBalance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingBalance"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getBillingUsage: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingUsage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getBillingSummary: {
+        parameters: {
+            query?: {
+                months?: number;
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingSummary"];
                 };
             };
             401: components["responses"]["Unauthorized"];

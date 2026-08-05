@@ -41,11 +41,15 @@ zkao login                                       # browser approval; saves crede
 
 zkao repos
 zkao findings list
+zkao findings resolution <findingId> WONT_FIX --reason risk_accepted
 zkao scans launch --repo <repoId> --budget 500 --preset <ref>
 zkao scans wait <scanId>                         # block until the scan finishes
 zkao scans cancel <scanId>                       # cancel a running or queued scan
 zkao guidance get <repoId>                       # read a repo's guidance
 zkao guidance set <repoId> <file|->              # update it (guidance:write scope)
+zkao billing balance                             # credits available for new scans
+zkao billing usage                               # credit ledger, last 30 days
+zkao billing summary                             # credits spent/purchased per month
 ```
 
 `zkao --help` lists every command. All output is JSON.

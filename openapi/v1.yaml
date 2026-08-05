@@ -23,8 +23,8 @@ info:
 
     A token may also be restricted to a subset of the project's repositories
     (a repo allowlist). Any resource outside the token's project or repo
-    allowlist responds `404` (never confirmed to exist). A token only works while
-    the project's plan is active.
+    allowlist responds `404` (never confirmed to exist). Launching a scan
+    requires the project to have prepaid credits.
 
     ## Errors
     All errors share the envelope `{ "error": { "code": "...", "message": "..." } }`.
@@ -53,6 +53,8 @@ tags:
     description: Publish findings and scans as public artifacts
   - name: Discovery
     description: Scan presets and optional flows for launching
+  - name: Billing
+    description: Prepaid credit balance and usage
 
 paths:
   /projects/{projectId}/repositories:
@@ -160,7 +162,8 @@ paths:
         Requires scope: `scans:launch`. Reserves `creditBudget` credits from the
         project balance. The repo must be in the token's allowlist (when set) and
         ACTIVE. Discover valid `presetRef` / `optInFlowIds` via the discovery
-        endpoints. Per-token spend limits and the project plan are enforced.
+        endpoints. Per-token spend limits are enforced, and the project must have
+        enough prepaid credits to cover the budget (otherwise `402`).
       parameters:
         - $ref: "#/components/parameters/ProjectId"
       requestBody:
@@ -176,6 +179,7 @@ paths:
               schema: { $ref: "#/components/schemas/LaunchScanResult" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "402": { $ref: "#/components/responses/InsufficientCredits" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
         "429": { $ref: "#/components/responses/RateLimited" }
@@ -407,6 +411,7 @@ paths:
               properties:
                 resolutionStatus: { $ref: "#/components/schemas/ResolutionStatus" }
                 note: { $ref: "#/components/schemas/ChangeNote" }
+                reason: { $ref: "#/components/schemas/ResolutionReason" }
       responses:
         "200":
           description: OK
@@ -516,6 +521,77 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /projects/{projectId}/billing/balance:
+    get:
+      tags: [Billing]
+      operationId: getBillingBalance
+      summary: Current prepaid credit balance
+      description: "Requires scope: `read`. All amounts are in credits."
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BillingBalance" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /projects/{projectId}/billing/usage:
+    get:
+      tags: [Billing]
+      operationId: getBillingUsage
+      summary: Credit usage events
+      description: "Requires scope: `read`. Signed credit delta per ledger event. Defaults to the last 30 days; newest first; max 1000 rows."
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - name: from
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 1000 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BillingUsage" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /projects/{projectId}/billing/summary:
+    get:
+      tags: [Billing]
+      operationId: getBillingSummary
+      summary: Monthly spend and purchase summary
+      description: "Requires scope: `read`. Per-month net scan spend and net purchases, in credits, newest first."
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - name: months
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 24 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BillingSummary" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -566,6 +642,13 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
+    InsufficientCredits:
+      description: >-
+        The project does not have enough prepaid credits to cover the scan
+        budget. Top up credits and retry. (code `insufficient_credits`)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
     Forbidden:
       description: The token lacks the required scope
       content:
@@ -597,6 +680,49 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
 
   schemas:
+    BillingBalance:
+      type: object
+      required: [balanceCredits, availableCredits, reservedCredits]
+      properties:
+        balanceCredits: { type: integer, description: "Total prepaid credit balance." }
+        availableCredits: { type: integer, description: "Balance minus credits reserved by in-flight scans." }
+        reservedCredits: { type: integer, description: "Credits held by queued/running scans." }
+    UsageEventType:
+      type: string
+      enum: [SCAN_DEDUCTION, SCAN_REFUND, PURCHASE, STRIPE_REFUND, ADMIN_ADJUSTMENT]
+    UsageEvent:
+      type: object
+      required: [id, at, type, credits, scanId, description]
+      properties:
+        id: { type: string }
+        at: { type: string, format: date-time }
+        type: { $ref: "#/components/schemas/UsageEventType" }
+        credits: { type: integer, description: "Signed credit delta: negative = spent/clawed back, positive = added/refunded." }
+        scanId: { type: [string, "null"] }
+        description: { type: string }
+    BillingUsage:
+      type: object
+      required: [from, to, events]
+      properties:
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+        events:
+          type: array
+          items: { $ref: "#/components/schemas/UsageEvent" }
+    UsageMonthSummary:
+      type: object
+      required: [month, spentCredits, purchasedCredits]
+      properties:
+        month: { type: string, description: "YYYY-MM (UTC)." }
+        spentCredits: { type: integer, description: "Net scan spend (deductions less refunds), in credits." }
+        purchasedCredits: { type: integer, description: "Net purchases (purchases less clawbacks), in credits." }
+    BillingSummary:
+      type: object
+      required: [months]
+      properties:
+        months:
+          type: array
+          items: { $ref: "#/components/schemas/UsageMonthSummary" }
     Error:
       type: object
       required: [error]
@@ -607,7 +733,7 @@ components:
           properties:
             code:
               type: string
-              enum: [unauthorized, forbidden, not_found, bad_request, conflict, plan_inactive, rate_limited, internal]
+              enum: [unauthorized, forbidden, not_found, bad_request, conflict, insufficient_credits, rate_limited, internal]
             message: { type: string }
 
     Severity:
@@ -647,6 +773,36 @@ components:
         createdAt: { type: string, format: date-time }
         startedAt: { type: [string, "null"], format: date-time }
         completedAt: { type: [string, "null"], format: date-time }
+        progress:
+          oneOf:
+            - $ref: "#/components/schemas/ScanProgress"
+            - type: "null"
+          description: >
+            Phase progress while the scan is in flight. Null once the scan
+            reaches a terminal state, and null before it has been dispatched
+            (no phases exist yet).
+
+    ScanProgress:
+      type: object
+      required: [phasesCompleted, phasesTotal, percent]
+      description: >
+        How far a running scan has got through its phases. Deliberately not a
+        time estimate: a phase's duration moves with the guidance it was given,
+        the repository, and the model that ran it.
+      properties:
+        phasesCompleted:
+          type: integer
+          description: Phases that reached a terminal state (completed, failed, or skipped).
+        phasesTotal:
+          type: integer
+          description: Phases this scan will run, fixed when it was dispatched.
+        percent:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: >
+            Weighted completion. Each phase counts for its share of the scan
+            budget, so this does not simply equal phasesCompleted / phasesTotal.
 
     ScanDetail:
       allOf:
@@ -889,6 +1045,45 @@ components:
       properties:
         findingId: { type: string }
         resolutionStatus: { $ref: "#/components/schemas/ResolutionStatus" }
+
+    ResolutionReason:
+      type: string
+      description: >
+        Short code for why a finding is being closed, chosen from the set
+        offered for the `resolutionStatus` it is sent with; a code belonging to
+        a different status is rejected with 400. Ignored for the open statuses
+        (`NOT_STARTED`, `IN_PROGRESS`) and when `note` is also given. It is not
+        stored as a field: it is recorded as a comment on the finding stating
+        what was chosen, which is returned by the notes endpoints.
+
+
+        Codes per status.
+        `RESOLVED`: fixed_in_code, fixed_upstream, code_removed.
+        `MITIGATED`: compensating_control, limited_exposure, monitored.
+        `FALSE_POSITIVE`: not_reachable, guarded_elsewhere, intended_behavior,
+        misread_code, bad_assumption.
+        `WONT_FIX`: risk_accepted, out_of_scope, not_worth_fixing,
+        code_being_removed.
+        `DUPLICATE`: duplicate_of_finding, same_root_cause.
+      enum:
+        - fixed_in_code
+        - fixed_upstream
+        - code_removed
+        - compensating_control
+        - limited_exposure
+        - monitored
+        - not_reachable
+        - guarded_elsewhere
+        - intended_behavior
+        - misread_code
+        - bad_assumption
+        - risk_accepted
+        - out_of_scope
+        - not_worth_fixing
+        - code_being_removed
+        - duplicate_of_finding
+        - same_root_cause
+      example: not_reachable
 
     PublishFindingRequest:
       type: object

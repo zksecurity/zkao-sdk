@@ -20,11 +20,18 @@ export type CancelScanResult = Schemas["CancelScanResult"];
 export type ChangeNote = Schemas["ChangeNote"];
 export type Severity = Schemas["Severity"];
 export type ResolutionStatus = Schemas["ResolutionStatus"];
+export type ResolutionReason = Schemas["ResolutionReason"];
 export type TriageStatus = Schemas["TriageStatus"];
 export type ScanStatus = Schemas["ScanStatus"];
 export type PublishArtifactResult = Schemas["PublishArtifactResult"];
 export type RepositoryGuidance = Schemas["RepositoryGuidance"];
 export type SetGuidanceResult = Schemas["SetGuidanceResult"];
+export type BillingBalance = Schemas["BillingBalance"];
+export type BillingUsage = Schemas["BillingUsage"];
+export type UsageEvent = Schemas["UsageEvent"];
+export type UsageEventType = Schemas["UsageEventType"];
+export type BillingSummary = Schemas["BillingSummary"];
+export type UsageMonthSummary = Schemas["UsageMonthSummary"];
 export type Paginated<T> = { items: T[]; page: number; limit: number; total: number };
 
 export type ZkaoClientOptions = {
@@ -314,14 +321,23 @@ export class ZkaoClient {
     return unwrap(res);
   }
 
+  /**
+   * Change a finding's resolution status (requires the `findings:write` scope).
+   *
+   * `note` attaches free text in the same call. `reason` picks a catalog code
+   * instead, recorded as a generated comment; the codes offered depend on the
+   * status, and a code from another status is rejected with 400. A `note` takes
+   * precedence: pass one or the other. Both are ignored for the open statuses
+   * (`NOT_STARTED`, `IN_PROGRESS`).
+   */
   async setFindingResolution(
     findingId: string,
     resolutionStatus: ResolutionStatus,
-    note?: ChangeNote
+    opts: { note?: ChangeNote; reason?: ResolutionReason } = {}
   ): Promise<{ findingId: string; resolutionStatus: ResolutionStatus }> {
     const res = await this.http.PATCH("/projects/{projectId}/findings/{findingId}/resolution", {
       params: { path: { ...this.path, findingId } },
-      body: { resolutionStatus, note },
+      body: { resolutionStatus, note: opts.note, reason: opts.reason },
     });
     return unwrap(res);
   }
@@ -351,6 +367,52 @@ export class ZkaoClient {
       params: { path: this.path },
     });
     return unwrap(res).optionalFlows;
+  }
+
+  // --- Billing ------------------------------------------------------------
+
+  /**
+   * Get the project's prepaid credit balance (requires the `read` scope). zkao
+   * is pay-as-you-go: `balanceCredits` is the total, `reservedCredits` is held
+   * by active scans, and `availableCredits` is what remains for new scans.
+   */
+  async getBillingBalance(): Promise<BillingBalance> {
+    const res = await this.http.GET("/projects/{projectId}/billing/balance", {
+      params: { path: this.path },
+    });
+    return unwrap(res);
+  }
+
+  /**
+   * List credit-ledger movements for reconciliation (requires the `read`
+   * scope). `credits` on each event is signed (negative = spent). Defaults to
+   * the last 30 days when `from`/`to` are omitted; the range actually used is
+   * echoed back on the response.
+   */
+  async getBillingUsage(
+    opts: { from?: string; to?: string; limit?: number } = {}
+  ): Promise<BillingUsage> {
+    const res = await this.http.GET("/projects/{projectId}/billing/usage", {
+      params: {
+        path: this.path,
+        query: { from: opts.from, to: opts.to, limit: opts.limit },
+      },
+    });
+    return unwrap(res);
+  }
+
+  /**
+   * Per-calendar-month (UTC) totals of net credits spent on scans and net
+   * credits purchased (requires the `read` scope). Quiet months are returned as
+   * zeros; newest month first.
+   */
+  async getBillingSummary(
+    opts: { months?: number } = {}
+  ): Promise<UsageMonthSummary[]> {
+    const res = await this.http.GET("/projects/{projectId}/billing/summary", {
+      params: { path: this.path, query: { months: opts.months } },
+    });
+    return unwrap(res).months;
   }
 }
 

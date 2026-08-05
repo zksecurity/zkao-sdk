@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import { Command } from "commander";
 import {
   type LaunchScanRequest,
+  type ResolutionReason,
   type ResolutionStatus,
   type Severity,
   ZkaoApiError,
@@ -329,8 +330,18 @@ findings
 findings
   .command("resolution <findingId> <status>")
   .description("Set resolution status (e.g. RESOLVED, WONT_FIX, FALSE_POSITIVE)")
-  .action((findingId: string, status: string) =>
-    run((c) => c.setFindingResolution(findingId, status.toUpperCase() as ResolutionStatus))
+  .option("--note <text>", "record the why as a comment in the same call")
+  .option(
+    "--reason <code>",
+    "record the why as a catalog code instead (codes depend on the status; a wrong one is rejected with the valid list)"
+  )
+  .action((findingId: string, status: string, opts: { note?: string; reason?: string }) =>
+    run((c) =>
+      c.setFindingResolution(findingId, status.toUpperCase() as ResolutionStatus, {
+        note: opts.note ? { content: opts.note } : undefined,
+        reason: opts.reason as ResolutionReason | undefined,
+      })
+    )
   );
 findings
   .command("publish <findingId>")
@@ -339,6 +350,32 @@ findings
   .option("--password", "generate an access password")
   .action((findingId: string, opts: { note?: string; password?: boolean }) =>
     run((c) => c.publishFinding(findingId, { noteId: opts.note, withPassword: opts.password }))
+  );
+
+// --- billing --------------------------------------------------------------
+
+const billing = program
+  .command("billing")
+  .description("Read the project's credit balance and usage");
+billing
+  .command("balance")
+  .description("Credit balance, what active scans hold, and what is available")
+  .action(() => run((c) => c.getBillingBalance()));
+billing
+  .command("usage")
+  .description("Credit ledger movements (defaults to the last 30 days)")
+  .option("--from <date>", "ISO date or timestamp to start from")
+  .option("--to <date>", "ISO date or timestamp to stop at")
+  .option("--limit <n>", "max events to return", toInt)
+  .action((opts: { from?: string; to?: string; limit?: number }) =>
+    run((c) => c.getBillingUsage(opts))
+  );
+billing
+  .command("summary")
+  .description("Per-month credits spent and purchased, newest first")
+  .option("--months <n>", "how many months to return", toInt)
+  .action((opts: { months?: number }) =>
+    run((c) => c.getBillingSummary({ months: opts.months }))
   );
 
 // --- discovery ------------------------------------------------------------

@@ -4,9 +4,10 @@ description: >-
   Control a zkao security-audit project programmatically: list repositories,
   list/launch/poll scans, list and read findings, triage findings (comment,
   change severity, change resolution status, pin a note), read and update a
-  repository's guidance, and publish findings or scans. Use when the user asks
-  to drive their zkao project, check scan status, review or triage findings,
-  kick off a scan, edit repo guidance, or publish results.
+  repository's guidance, check the credit balance and usage, and publish
+  findings or scans. Use when the user asks to drive their zkao project, check
+  scan status, review or triage findings, kick off a scan, edit repo guidance,
+  check credits or spend, or publish results.
 ---
 
 # zkao project API
@@ -87,12 +88,15 @@ zkao findings list [--scan <scanId>]
 zkao findings get <findingId>                     # full detail incl. PoC + notes
 zkao findings comment <findingId> "<text>"
 zkao findings severity <findingId> <CRITICAL|HIGH|MEDIUM|LOW|INFO|none>
-zkao findings resolution <findingId> <RESOLVED|WONT_FIX|FALSE_POSITIVE|...>
+zkao findings resolution <findingId> <RESOLVED|WONT_FIX|FALSE_POSITIVE|...> [--note "<text>"] [--reason <code>]
 zkao findings publish <findingId> [--note <noteId>] [--password]
 zkao scans publish <scanId> [--password]
 zkao guidance get <repoId>                        # show a repo's configured guidance
 zkao guidance set <repoId> <file|->               # set guidance from a file or stdin
 zkao guidance clear <repoId>                      # remove a repo's guidance
+zkao billing balance                              # credits available for new scans
+zkao billing usage [--from <d>] [--to <d>]        # credit ledger, last 30 days by default
+zkao billing summary [--months <n>]               # credits spent/purchased per month
 ```
 
 `zkao scans launch` also takes `--guidance <file|->` to set per-scan guidance.
@@ -109,9 +113,15 @@ Every command prints JSON. `zkao <group> --help` lists subcommands.
    `zkao findings resolution ...`.
 
 When the user gives a reason or extra context for a resolution or severity
-change, record it as a comment on the finding alongside the change: the status
-alone captures the outcome, not the why. Over HTTP/SDK, the resolution PATCH
-also accepts an inline `note` so the reasoning is attached in the same call.
+change, record it alongside the change: the status alone captures the outcome,
+not the why. `zkao findings resolution <id> <status> --note "<text>"` attaches
+it in the same call (the resolution PATCH takes the same `note` over HTTP/SDK).
+
+For a plain, categorical why, `--reason <code>` records a catalog entry instead.
+The codes offered depend on the status, and a code from another status is
+rejected with the valid list in the error. See the `ResolutionReason` enum in
+the OpenAPI spec for the full set. Prefer `--note` when the reasoning has any
+detail worth keeping; a code alone loses it.
 
 **Route durable repo knowledge into guidance**
 
@@ -141,6 +151,15 @@ a single scan, replacing the stored repo guidance for that run only.
    manual `zkao scans get` loop: scans take minutes, and a tight poll loop is
    rejected with `429`. If you must poll by hand, honor the `Retry-After` header
    on the scan response (the SDK's `waitForScan` does this for you).
+
+**Check what a scan can cost before launching**
+
+zkao is pay-as-you-go: a scan reserves its budget in credits up front, and a
+launch fails when the project cannot cover it. `zkao billing balance` reports
+`availableCredits` (what is left after active scans hold their reservations),
+so check it before choosing `--budget`. `zkao billing usage` lists the ledger
+movements behind a balance the user disputes, and `zkao billing summary` gives
+per-month spend. Credits are the only unit here: never convert them to money.
 
 ## Direct HTTP (no CLI)
 

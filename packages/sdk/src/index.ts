@@ -24,9 +24,18 @@ export {
   type ChangeNote,
   type Severity,
   type ResolutionStatus,
+  type ResolutionReason,
   type TriageStatus,
   type ScanStatus,
   type PublishArtifactResult,
+  type RepositoryGuidance,
+  type SetGuidanceResult,
   type Paginated,
+  type BillingBalance,
+  type BillingUsage,
+  type UsageEvent,
+  type UsageEventType,
+  type BillingSummary,
+  type UsageMonthSummary,
 } from "./client";
 export type { components, paths } from "./generated/types";
