@@ -1,6 +1,6 @@
 {
   "name": "zkao",
   "description": "Control a zkao security-audit project: scans, findings, triage, and publishing via the zkao API.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": { "name": "zkSecurity" }
 }
