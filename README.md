@@ -52,7 +52,13 @@ zkao billing usage                               # credit ledger, last 30 days
 zkao billing summary                             # credits spent/purchased per month
 ```
 
-`zkao --help` lists every command. All output is JSON.
+`zkao --help` lists every command. All output is JSON on stdout.
+
+When a newer CLI has been published, commands print a one-line notice on stderr
+(the registry is read at most once a day, after the command's own output, so it
+never slows anything down or touches stdout). The notice is also how an agent
+running from an older copy of `skills/zkao/SKILL.md` learns that its skill is
+behind. Set `ZKAO_NO_UPDATE_CHECK=1` to turn it off.
 
 For non-interactive callers (agents, CI), split the login so nothing blocks:
 `zkao login --no-wait --no-browser` prints the URL/code and exits, then

@@ -101,7 +101,12 @@ zkao billing summary [--months <n>]               # credits spent/purchased per 
 
 `zkao scans launch` also takes `--guidance <file|->` to set per-scan guidance.
 
-Every command prints JSON. `zkao <group> --help` lists subcommands.
+Every command prints JSON on stdout. `zkao <group> --help` lists subcommands.
+
+A `zkao: version X is available` line on stderr means this file is behind the
+API too. Install the newer CLI and refresh this skill from
+`https://github.com/zksecurity/zkao-sdk`: recent releases may add commands and
+capabilities described nowhere here.
 
 ## Common workflows
 

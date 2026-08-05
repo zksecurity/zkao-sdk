@@ -11,6 +11,7 @@ import {
 } from "@zksecurity/zkao-sdk";
 import { configPath, resolveConfig, writeConfig } from "./config";
 import { login, resumeLogin } from "./login";
+import { printUpdateNotice, refreshUpdateCache } from "./update-check";
 
 // Resolved at runtime relative to the built dist/index.js, so the reported
 // version can never drift from the published package.json.
@@ -405,7 +406,15 @@ function errorMessage(err: unknown): string {
   return err.cause ? `${message}: ${errorMessage(err.cause)}` : message;
 }
 
-program.parseAsync().catch((err) => {
-  console.error(errorMessage(err));
-  process.exit(1);
-});
+// From the cached registry answer only, so this costs one file read.
+printUpdateNotice(version);
+
+program
+  .parseAsync()
+  // After the command's own output, so a stale cache never delays it. `fail()`
+  // exits the process, so this refreshes on the paths that succeed.
+  .then(() => refreshUpdateCache())
+  .catch((err) => {
+    console.error(errorMessage(err));
+    process.exit(1);
+  });
