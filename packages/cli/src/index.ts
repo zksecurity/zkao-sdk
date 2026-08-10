@@ -170,6 +170,18 @@ program
   .description("List repositories in the project")
   .action(() => run((c) => c.listRepositories()));
 
+program
+  .command("repos:wait <repositoryId>")
+  .description("Wait until a repository is ready to scan")
+  .option("--timeout <ms>", "give up after this long", toInt)
+  .action((repositoryId: string, opts: { timeout?: number }) =>
+    run((c) =>
+      c.waitForRepositoryReady(repositoryId, {
+        ...(opts.timeout !== undefined ? { timeoutMs: opts.timeout } : {}),
+      })
+    )
+  );
+
 // --- guidance --------------------------------------------------------------
 
 const guidance = program

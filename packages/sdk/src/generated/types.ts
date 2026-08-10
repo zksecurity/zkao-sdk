@@ -68,6 +68,10 @@ export interface paths {
          *     ACTIVE. Discover valid `presetRef` / `optInFlowIds` via the discovery
          *     endpoints. Per-token spend limits are enforced, and the project must have
          *     enough prepaid credits to cover the budget (otherwise `402`).
+         *
+         *     A repository added moments ago may still be analyzing, in which case
+         *     this returns `409 repository_initializing`. Wait for its `readiness` to
+         *     be `ready` in `GET /repositories` and launch again.
          */
         post: operations["launchScan"];
         delete?: never;
@@ -421,7 +425,7 @@ export interface components {
         Error: {
             error: {
                 /** @enum {string} */
-                code: "unauthorized" | "forbidden" | "not_found" | "bad_request" | "conflict" | "insufficient_credits" | "rate_limited" | "internal";
+                code: "unauthorized" | "forbidden" | "not_found" | "bad_request" | "conflict" | "insufficient_credits" | "repository_initializing" | "rate_limited" | "internal";
                 message: string;
             };
         };
@@ -441,6 +445,11 @@ export interface components {
             defaultBranch?: string | null;
             /** @description ACTIVE | MARKED_FOR_DELETION */
             status: string;
+            /**
+             * @description Whether a scan can start on this repository. A newly added repository is `analyzing` until a one-time pass over it finishes; launching a scan meanwhile fails with `repository_initializing`. Poll this endpoint rather than retrying the launch blind.
+             * @enum {string}
+             */
+            readiness: "ready" | "analyzing";
         };
         Scan: {
             id: string;
@@ -672,6 +681,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description The repository is still being analyzed and cannot be scanned yet. The same request succeeds once `GET /repositories` reports its `readiness` as `ready`. (code `repository_initializing`) */
+        RepositoryInitializing: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description The token lacks the required scope */
         Forbidden: {
             headers: {
@@ -867,6 +885,7 @@ export interface operations {
             402: components["responses"]["InsufficientCredits"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["RepositoryInitializing"];
             429: components["responses"]["RateLimited"];
         };
     };

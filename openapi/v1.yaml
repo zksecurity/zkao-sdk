@@ -164,6 +164,10 @@ paths:
         ACTIVE. Discover valid `presetRef` / `optInFlowIds` via the discovery
         endpoints. Per-token spend limits are enforced, and the project must have
         enough prepaid credits to cover the budget (otherwise `402`).
+
+        A repository added moments ago may still be analyzing, in which case
+        this returns `409 repository_initializing`. Wait for its `readiness` to
+        be `ready` in `GET /repositories` and launch again.
       parameters:
         - $ref: "#/components/parameters/ProjectId"
       requestBody:
@@ -182,6 +186,7 @@ paths:
         "402": { $ref: "#/components/responses/InsufficientCredits" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/RepositoryInitializing" }
         "429": { $ref: "#/components/responses/RateLimited" }
 
   /projects/{projectId}/scans/{scanId}:
@@ -649,6 +654,14 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
+    RepositoryInitializing:
+      description: >-
+        The repository is still being analyzed and cannot be scanned yet. The
+        same request succeeds once `GET /repositories` reports its `readiness`
+        as `ready`. (code `repository_initializing`)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
     Forbidden:
       description: The token lacks the required scope
       content:
@@ -733,7 +746,7 @@ components:
           properties:
             code:
               type: string
-              enum: [unauthorized, forbidden, not_found, bad_request, conflict, insufficient_credits, rate_limited, internal]
+              enum: [unauthorized, forbidden, not_found, bad_request, conflict, insufficient_credits, repository_initializing, rate_limited, internal]
             message: { type: string }
 
     Severity:
@@ -751,7 +764,7 @@ components:
 
     Repository:
       type: object
-      required: [id, owner, name, url, status]
+      required: [id, owner, name, url, status, readiness]
       properties:
         id: { type: string }
         owner: { type: string }
@@ -759,6 +772,14 @@ components:
         url: { type: string }
         defaultBranch: { type: [string, "null"] }
         status: { type: string, description: "ACTIVE | MARKED_FOR_DELETION" }
+        readiness:
+          type: string
+          enum: [ready, analyzing]
+          description: >
+            Whether a scan can start on this repository. A newly added
+            repository is `analyzing` until a one-time pass over it finishes;
+            launching a scan meanwhile fails with `repository_initializing`.
+            Poll this endpoint rather than retrying the launch blind.
 
     Scan:
       type: object

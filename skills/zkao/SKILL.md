@@ -77,6 +77,7 @@ Install once with `npm install -g @zksecurity/zkao-cli` (provides the `zkao` com
 zkao login                                        # browser device flow; saves token + project
 zkao config set --token <token> --project <id>    # or set credentials directly / use env vars
 zkao repos                                        # list repositories
+zkao repos:wait <repoId>                          # wait until a repo can be scanned
 zkao presets                                      # scan presets (use a ref to launch)
 zkao flows                                        # opt-in flows
 zkao scans launch --repo <repoId> --budget <credits> [--preset <ref>] [--branch <b>] [--flow <id>]
@@ -152,6 +153,10 @@ a single scan, replacing the stored repo guidance for that run only.
 **Launch a scan and wait for it**
 1. `zkao repos` → repo id; `zkao presets` → a preset `ref`.
 2. `zkao scans launch --repo <id> --budget <credits> --preset <ref>` → `scanId`.
+   A repository added moments ago is still being analyzed and its launch fails
+   with `repository_initializing`. `zkao repos` reports `readiness`; wait for
+   `ready` with `zkao repos:wait <repoId>` (the SDK's
+   `waitForRepositoryReady`) instead of retrying the launch.
 3. `zkao scans wait <scanId>` to block until it finishes. Prefer this over a
    manual `zkao scans get` loop: scans take minutes, and a tight poll loop is
    rejected with `429`. If you must poll by hand, honor the `Retry-After` header

@@ -60,6 +60,17 @@ export function isTerminalScanStatus(status: ScanStatus): boolean {
   return TERMINAL_SCAN_STATUSES.includes(status);
 }
 
+export type WaitForRepositoryReadyOptions = {
+  /** First poll delay, in ms (default 5000). Grows with backoff up to maxIntervalMs. */
+  intervalMs?: number;
+  /** Cap on the poll delay, in ms (default 30000). */
+  maxIntervalMs?: number;
+  /** Give up after this long, in ms (default 30m). Throws on timeout. */
+  timeoutMs?: number;
+  /** Abort the wait (e.g. on Ctrl-C). Rejects with the abort reason. */
+  signal?: AbortSignal;
+};
+
 export type WaitForScanOptions = {
   /** First poll delay, in ms (default 5000). Grows with backoff up to maxIntervalMs. */
   intervalMs?: number;
@@ -133,6 +144,64 @@ export class ZkaoClient {
       params: { path: this.path },
     });
     return unwrap(res).repositories;
+  }
+
+  /**
+   * Block until a repository is ready to scan, then return it.
+   *
+   * A repository added moments ago is still being analyzed, and launching a
+   * scan against it fails with `repository_initializing`. Call this between
+   * adding a repository and launching its first scan rather than retrying the
+   * launch and swallowing the error.
+   */
+  async waitForRepositoryReady(
+    repositoryId: string,
+    opts: WaitForRepositoryReadyOptions = {}
+  ): Promise<Repository> {
+    const intervalMs = opts.intervalMs ?? 5000;
+    const maxIntervalMs = opts.maxIntervalMs ?? 30_000;
+    const timeoutMs = opts.timeoutMs ?? 30 * 60 * 1000;
+    const deadline = Date.now() + timeoutMs;
+
+    for (let attempt = 0; ; attempt++) {
+      throwIfAborted(opts.signal);
+
+      const res = await this.http.GET("/projects/{projectId}/repositories", {
+        params: { path: this.path },
+        signal: opts.signal,
+      });
+      const retryAfterMs = parseRetryAfterMs(
+        res.response.headers.get("retry-after")
+      );
+
+      if (res.response.status !== 429) {
+        const repository = unwrap(res).repositories.find(
+          (candidate) => candidate.id === repositoryId
+        );
+        if (!repository) {
+          throw new Error(
+            `Repository ${repositoryId} is not in this project (or this token's allowlist)`
+          );
+        }
+        if (repository.readiness === "ready") {
+          return repository;
+        }
+      }
+
+      const backoffMs = Math.min(
+        maxIntervalMs,
+        Math.round(intervalMs * 1.5 ** attempt)
+      );
+      const baseMs = retryAfterMs ?? backoffMs;
+      const delayMs = baseMs + Math.round(Math.random() * baseMs * 0.2);
+
+      if (Date.now() + delayMs > deadline) {
+        throw new Error(
+          `Timed out waiting for repository ${repositoryId} to be ready after ${timeoutMs}ms`
+        );
+      }
+      await sleep(delayMs, opts.signal);
+    }
   }
 
   /** Read a repository's configured guidance (requires the `read` scope). */

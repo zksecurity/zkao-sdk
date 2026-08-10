@@ -8,6 +8,7 @@ export {
   DEFAULT_BASE_URL,
   isTerminalScanStatus,
   TERMINAL_SCAN_STATUSES,
+  type WaitForRepositoryReadyOptions,
   type WaitForScanOptions,
   type ZkaoClientOptions,
   type Repository,
