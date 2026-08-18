@@ -507,7 +507,9 @@ paths:
       tags: [Discovery]
       operationId: listOptionalFlows
       summary: List opt-in flows available at launch
-      description: "Requires scope: `read`. Pass the chosen ids as `optInFlowIds` when launching."
+      description: >-
+        Requires scope: `read`. Pass the chosen ids as `optInFlowIds` when
+        launching. A flow marked `rotating` may run without being asked for.
       parameters:
         - $ref: "#/components/parameters/ProjectId"
       responses:
@@ -928,12 +930,20 @@ components:
 
     OptionalFlow:
       type: object
-      required: [id, flowId, title, description]
+      required: [id, flowId, title, description, rotating]
       properties:
         id: { type: string, description: "Pass in `optInFlowIds` when launching." }
         flowId: { type: string }
         title: { type: string }
         description: { type: string }
+        rotating:
+          type: boolean
+          description: >-
+            True when this flow belongs to a group the preset rotates through.
+            Some of the group runs on every scan without being asked for, and
+            which members depends on the repository. Naming it in
+            `optInFlowIds` adds it whether or not the rotation picked it, and
+            raises the scan's minimum budget.
 
     LaunchScanRequest:
       type: object
@@ -957,7 +967,9 @@ components:
         optInFlowIds:
           type: array
           items: { type: string }
-          description: Optional-flow ids from /optional-flows.
+          description: >-
+            Optional-flow ids from /optional-flows, added to the scan on top of
+            whatever a rotating group already contributes.
         guidance:
           type: [string, "null"]
           maxLength: 100000

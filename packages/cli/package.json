@@ -1,6 +1,6 @@
 {
   "name": "@zksecurity/zkao-cli",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Command-line interface for the zkao Project API",
   "license": "MIT",
   "author": "zkSecurity",
@@ -22,7 +22,11 @@
   "bin": {
     "zkao": "./dist/index.js"
   },
-  "files": ["dist", "LICENSE", "README.md"],
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
   "engines": {
     "node": ">=18"
   },

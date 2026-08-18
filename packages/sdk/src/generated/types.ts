@@ -309,7 +309,7 @@ export interface paths {
         };
         /**
          * List opt-in flows available at launch
-         * @description Requires scope: `read`. Pass the chosen ids as `optInFlowIds` when launching.
+         * @description Requires scope: `read`. Pass the chosen ids as `optInFlowIds` when launching. A flow marked `rotating` may run without being asked for.
          */
         get: operations["listOptionalFlows"];
         put?: never;
@@ -552,6 +552,8 @@ export interface components {
             flowId: string;
             title: string;
             description: string;
+            /** @description True when this flow belongs to a group the preset rotates through. Some of the group runs on every scan without being asked for, and which members depends on the repository. Naming it in `optInFlowIds` adds it whether or not the rotation picked it, and raises the scan's minimum budget. */
+            rotating: boolean;
         };
         LaunchScanRequest: {
             repositoryId: string;
@@ -564,7 +566,7 @@ export interface components {
             /** @description Pin a specific commit SHA (7-40 hex chars). */
             commitHash?: string | null;
             commitMessage?: string | null;
-            /** @description Optional-flow ids from /optional-flows. */
+            /** @description Optional-flow ids from /optional-flows, added to the scan on top of whatever a rotating group already contributes. */
             optInFlowIds?: string[];
             /** @description Guidance for this scan only, replacing the repository's configured guidance layer (it is still layered over any committed zkao.md). Omit the field to inherit the repository's guidance; send null to scan with no guidance layer. */
             guidance?: string | null;
