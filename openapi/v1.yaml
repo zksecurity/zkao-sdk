@@ -17,7 +17,7 @@ info:
     **scopes**:
       - `read` — list/show repositories, scans, findings, presets, optional flows
       - `findings:write` — comment, change severity, change resolution, pin a note
-      - `guidance:write` — read and update a repository's guidance
+      - `guidance:write` — read and update a repository's guidance, and manage its audit areas
       - `scans:launch` — start a scan
       - `publish` — publish a finding or a scan
 
@@ -130,6 +130,94 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/SetGuidanceResult" }
         "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /projects/{projectId}/repositories/{repositoryId}/audit-areas:
+    get:
+      tags: [Repositories]
+      operationId: listAuditAreas
+      summary: List a repository's audit areas
+      description: >-
+        Requires scope: `read`. Audit areas are the named subsystems a scan can
+        be scoped to (`auditAreaKeys` on launch). Each scan that maps the
+        repository keeps the list current; sizes come from one branch's map, so
+        an area that map no longer names is returned without one.
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/RepositoryId"
+        - name: branch
+          in: query
+          required: false
+          schema: { type: string }
+          description: Branch whose map the sizes come from. Defaults to the repository's default branch.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuditAreaList" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [Repositories]
+      operationId: createAuditArea
+      summary: Add a custom audit area
+      description: >-
+        Requires scope: `guidance:write`. An area is a name and a description,
+        never a file list: a scan resolves it against the code at the commit it
+        runs on. The `key` is derived from the name and disambiguated on
+        collision.
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/RepositoryId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateAuditAreaRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [area]
+                properties:
+                  area: { $ref: "#/components/schemas/AuditArea" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /projects/{projectId}/repositories/{repositoryId}/audit-areas/{areaKey}:
+    delete:
+      tags: [Repositories]
+      operationId: deleteAuditArea
+      summary: Delete a custom audit area
+      description: >-
+        Requires scope: `guidance:write`. Only an area with `source: custom` can
+        be deleted; a discovered one is the map's own account of the repository
+        and is refused with `409`. Scans that already ran keep the scope they ran
+        with.
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/RepositoryId"
+        - name: areaKey
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeleteAuditAreaResult" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
@@ -970,6 +1058,15 @@ components:
           description: >-
             Optional-flow ids from /optional-flows, added to the scan on top of
             whatever a rotating group already contributes.
+        auditAreaKeys:
+          type: array
+          items: { type: string }
+          description: >-
+            Area keys from /audit-areas to scope this scan to. Omit or send an
+            empty array to scan the whole repository. A key the repository's
+            current map no longer names fails the launch rather than being
+            dropped, so a scan budgeted for one subsystem never silently runs
+            against everything.
         guidance:
           type: [string, "null"]
           maxLength: 100000
@@ -1027,6 +1124,69 @@ components:
         unchanged:
           type: boolean
           description: True when the content already matched (no revision recorded).
+
+    AuditArea:
+      type: object
+      required: [key, name, description, source, inLatestMap, files, lines]
+      properties:
+        key:
+          type: string
+          description: Stable slug, unique per repository. Pass it in `auditAreaKeys` when launching a scan.
+        name: { type: string }
+        description: { type: [string, "null"] }
+        source:
+          type: string
+          enum: [discovered, custom]
+          description: >-
+            `discovered` was named by a scan's map of the repository; `custom`
+            was added through this API or the app.
+        inLatestMap:
+          type: boolean
+          description: Whether the branch's latest map still names this area.
+        files:
+          type: [integer, "null"]
+          description: Files this area covers at that map. Null when the map does not name it.
+        lines:
+          type: [integer, "null"]
+          description: Lines this area covers at that map. Null when the map does not name it.
+
+    AuditAreaList:
+      type: object
+      required: [repositoryId, branch, mapped, totalFiles, totalLines, areas]
+      properties:
+        repositoryId: { type: string }
+        branch:
+          type: [string, "null"]
+          description: Branch the sizes were read from.
+        mapped:
+          type: boolean
+          description: Whether that branch has a stored map at all.
+        totalFiles: { type: [integer, "null"] }
+        totalLines: { type: [integer, "null"] }
+        areas:
+          type: array
+          description: The map's own audit order first, then the areas it no longer names.
+          items: { $ref: "#/components/schemas/AuditArea" }
+
+    CreateAuditAreaRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 120
+        description:
+          type: [string, "null"]
+          maxLength: 500
+          description: What this part of the code does.
+
+    DeleteAuditAreaResult:
+      type: object
+      required: [repositoryId, key, deleted]
+      properties:
+        repositoryId: { type: string }
+        key: { type: string }
+        deleted: { type: boolean }
 
     CancelScanResult:
       type: object

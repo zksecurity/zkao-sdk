@@ -48,6 +48,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{projectId}/repositories/{repositoryId}/audit-areas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List a repository's audit areas
+         * @description Requires scope: `read`. Audit areas are the named subsystems a scan can be scoped to (`auditAreaKeys` on launch). Each scan that maps the repository keeps the list current; sizes come from one branch's map, so an area that map no longer names is returned without one.
+         */
+        get: operations["listAuditAreas"];
+        put?: never;
+        /**
+         * Add a custom audit area
+         * @description Requires scope: `guidance:write`. An area is a name and a description, never a file list: a scan resolves it against the code at the commit it runs on. The `key` is derived from the name and disambiguated on collision.
+         */
+        post: operations["createAuditArea"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/repositories/{repositoryId}/audit-areas/{areaKey}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a custom audit area
+         * @description Requires scope: `guidance:write`. Only an area with `source: custom` can be deleted; a discovered one is the map's own account of the repository and is refused with `409`. Scans that already ran keep the scope they ran with.
+         */
+        delete: operations["deleteAuditArea"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{projectId}/scans": {
         parameters: {
             query?: never;
@@ -568,6 +612,8 @@ export interface components {
             commitMessage?: string | null;
             /** @description Optional-flow ids from /optional-flows, added to the scan on top of whatever a rotating group already contributes. */
             optInFlowIds?: string[];
+            /** @description Area keys from /audit-areas to scope this scan to. Omit or send an empty array to scan the whole repository. A key the repository's current map no longer names fails the launch rather than being dropped, so a scan budgeted for one subsystem never silently runs against everything. */
+            auditAreaKeys?: string[];
             /** @description Guidance for this scan only, replacing the repository's configured guidance layer (it is still layered over any committed zkao.md). Omit the field to inherit the repository's guidance; send null to scan with no guidance layer. */
             guidance?: string | null;
         };
@@ -597,6 +643,44 @@ export interface components {
             revisionId: string | null;
             /** @description True when the content already matched (no revision recorded). */
             unchanged: boolean;
+        };
+        AuditArea: {
+            /** @description Stable slug, unique per repository. Pass it in `auditAreaKeys` when launching a scan. */
+            key: string;
+            name: string;
+            description: string | null;
+            /**
+             * @description `discovered` was named by a scan's map of the repository; `custom` was added through this API or the app.
+             * @enum {string}
+             */
+            source: "discovered" | "custom";
+            /** @description Whether the branch's latest map still names this area. */
+            inLatestMap: boolean;
+            /** @description Files this area covers at that map. Null when the map does not name it. */
+            files: number | null;
+            /** @description Lines this area covers at that map. Null when the map does not name it. */
+            lines: number | null;
+        };
+        AuditAreaList: {
+            repositoryId: string;
+            /** @description Branch the sizes were read from. */
+            branch: string | null;
+            /** @description Whether that branch has a stored map at all. */
+            mapped: boolean;
+            totalFiles: number | null;
+            totalLines: number | null;
+            /** @description The map's own audit order first, then the areas it no longer names. */
+            areas: components["schemas"]["AuditArea"][];
+        };
+        CreateAuditAreaRequest: {
+            name: string;
+            /** @description What this part of the code does. */
+            description?: string | null;
+        };
+        DeleteAuditAreaResult: {
+            repositoryId: string;
+            key: string;
+            deleted: boolean;
         };
         CancelScanResult: {
             scanId: string;
@@ -824,6 +908,97 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listAuditAreas: {
+        parameters: {
+            query?: {
+                /** @description Branch whose map the sizes come from. Defaults to the repository's default branch. */
+                branch?: string;
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                repositoryId: components["parameters"]["RepositoryId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditAreaList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createAuditArea: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                repositoryId: components["parameters"]["RepositoryId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAuditAreaRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        area: components["schemas"]["AuditArea"];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    deleteAuditArea: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                repositoryId: components["parameters"]["RepositoryId"];
+                areaKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeleteAuditAreaResult"];
+                };
+            };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];

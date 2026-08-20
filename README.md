@@ -47,6 +47,8 @@ zkao scans wait <scanId>                         # block until the scan finishes
 zkao scans cancel <scanId>                       # cancel a running or queued scan
 zkao guidance get <repoId>                       # read a repo's guidance
 zkao guidance set <repoId> <file|->              # update it (guidance:write scope)
+zkao areas list <repoId>                         # subsystems a scan can be scoped to
+zkao areas add <repoId> "<name>"                 # add a custom area (guidance:write scope)
 zkao billing balance                             # credits available for new scans
 zkao billing usage                               # credit ledger, last 30 days
 zkao billing summary                             # credits spent/purchased per month

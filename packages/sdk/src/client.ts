@@ -25,6 +25,9 @@ export type TriageStatus = Schemas["TriageStatus"];
 export type ScanStatus = Schemas["ScanStatus"];
 export type PublishArtifactResult = Schemas["PublishArtifactResult"];
 export type RepositoryGuidance = Schemas["RepositoryGuidance"];
+export type AuditArea = Schemas["AuditArea"];
+export type AuditAreaList = Schemas["AuditAreaList"];
+export type DeleteAuditAreaResult = Schemas["DeleteAuditAreaResult"];
 export type SetGuidanceResult = Schemas["SetGuidanceResult"];
 export type BillingBalance = Schemas["BillingBalance"];
 export type BillingUsage = Schemas["BillingUsage"];
@@ -234,6 +237,69 @@ export class ZkaoClient {
             ? { content, expectedContent: opts.expectedContent }
             : { content },
       }
+    );
+    return unwrap(res);
+  }
+
+  // --- Audit areas --------------------------------------------------------
+
+  /**
+   * List a repository's audit areas (requires the `read` scope).
+   *
+   * An area is a named subsystem a scan can be scoped to: pass its `key` in
+   * `auditAreaKeys` when launching. Sizes come from one branch's map, so an
+   * area that map no longer names is returned without one. Defaults to the
+   * repository's default branch.
+   */
+  async listAuditAreas(
+    repositoryId: string,
+    opts: { branch?: string } = {}
+  ): Promise<AuditAreaList> {
+    const res = await this.http.GET(
+      "/projects/{projectId}/repositories/{repositoryId}/audit-areas",
+      {
+        params: {
+          path: { ...this.path, repositoryId },
+          query: opts.branch === undefined ? {} : { branch: opts.branch },
+        },
+      }
+    );
+    return unwrap(res);
+  }
+
+  /**
+   * Add a custom audit area (requires the `guidance:write` scope).
+   *
+   * An area is a name and a description, never a file list: a scan resolves it
+   * against the code at the commit it runs on. The returned `key` is derived
+   * from the name.
+   */
+  async createAuditArea(
+    repositoryId: string,
+    name: string,
+    description?: string | null
+  ): Promise<AuditArea> {
+    const res = await this.http.POST(
+      "/projects/{projectId}/repositories/{repositoryId}/audit-areas",
+      {
+        params: { path: { ...this.path, repositoryId } },
+        body: { name, description: description ?? null },
+      }
+    );
+    return unwrap(res).area;
+  }
+
+  /**
+   * Delete a custom audit area (requires the `guidance:write` scope). An area
+   * a scan's map named is refused with a `409`.
+   */
+  async deleteAuditArea(
+    repositoryId: string,
+    areaKey: string
+  ): Promise<DeleteAuditAreaResult> {
+    const res = await this.http.DELETE(
+      "/projects/{projectId}/repositories/{repositoryId}/audit-areas/{areaKey}",
+      { params: { path: { ...this.path, repositoryId, areaKey } } }
     );
     return unwrap(res);
   }

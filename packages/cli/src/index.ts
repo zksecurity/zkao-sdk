@@ -229,6 +229,36 @@ guidance
     })
   );
 
+// --- areas -----------------------------------------------------------------
+
+const areas = program
+  .command("areas")
+  .description("List and manage a repository's audit areas");
+areas
+  .command("list <repoId>")
+  .description("Show the subsystems a scan can be scoped to")
+  .option("--branch <branch>", "read sizes from this branch's map")
+  .action((repoId: string, opts: { branch?: string }) =>
+    run((c) =>
+      c.listAuditAreas(repoId, {
+        ...(opts.branch === undefined ? {} : { branch: opts.branch }),
+      })
+    )
+  );
+areas
+  .command("add <repoId> <name>")
+  .description("Add a custom audit area")
+  .option("--description <text>", "what this part of the code does")
+  .action((repoId: string, name: string, opts: { description?: string }) =>
+    run((c) => c.createAuditArea(repoId, name, opts.description ?? null))
+  );
+areas
+  .command("rm <repoId> <areaKey>")
+  .description("Delete a custom audit area")
+  .action((repoId: string, areaKey: string) =>
+    run((c) => c.deleteAuditArea(repoId, areaKey))
+  );
+
 // --- scans ----------------------------------------------------------------
 
 const scans = program.command("scans").description("Launch, list, and poll scans");
@@ -276,6 +306,12 @@ scans
     "--guidance <file|->",
     "per-scan guidance from a file (or - for stdin); replaces the repo's guidance for this scan"
   )
+  .option(
+    "--area <key>",
+    "audit area to scope the scan to (repeatable; see `zkao areas list`)",
+    collect,
+    []
+  )
   .action(
     (opts: {
       repo: string;
@@ -285,6 +321,7 @@ scans
       commit?: string;
       message?: string;
       flow: string[];
+      area: string[];
       guidance?: string;
     }) => {
       const body: LaunchScanRequest = {
@@ -295,6 +332,7 @@ scans
         commitHash: opts.commit ?? null,
         commitMessage: opts.message ?? null,
         optInFlowIds: opts.flow.length > 0 ? opts.flow : undefined,
+        auditAreaKeys: opts.area.length > 0 ? opts.area : undefined,
         ...(opts.guidance !== undefined
           ? { guidance: readContentArg(opts.guidance) }
           : {}),

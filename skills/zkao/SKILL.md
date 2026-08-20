@@ -95,12 +95,17 @@ zkao scans publish <scanId> [--password]
 zkao guidance get <repoId>                        # show a repo's configured guidance
 zkao guidance set <repoId> <file|->               # set guidance from a file or stdin
 zkao guidance clear <repoId>                      # remove a repo's guidance
+zkao areas list <repoId> [--branch <branch>]      # subsystems a scan can be scoped to
+zkao areas add <repoId> "<name>" [--description <text>]
+zkao areas rm <repoId> <areaKey>                  # delete a custom area
 zkao billing balance                              # credits available for new scans
 zkao billing usage [--from <d>] [--to <d>]        # credit ledger, last 30 days by default
 zkao billing summary [--months <n>]               # credits spent/purchased per month
 ```
 
-`zkao scans launch` also takes `--guidance <file|->` to set per-scan guidance.
+`zkao scans launch` also takes `--guidance <file|->` to set per-scan guidance,
+and `--area <key>` (repeatable) to scan only those areas instead of the whole
+repository.
 
 Every command prints JSON on stdout. `zkao <group> --help` lists subcommands.
 
