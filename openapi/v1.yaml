@@ -1013,7 +1013,9 @@ components:
         ref: { type: string, description: "Pass as `presetRef` when launching." }
         name: { type: string }
         description: { type: [string, "null"] }
-        minCredits: { type: integer, description: "0 = use the default floor." }
+        minCredits:
+          type: integer
+          description: "Minimum budget for a launch that names no optInFlowIds. Adding a flow raises it. 0 = use the default floor."
         modelTier: { type: string }
 
     OptionalFlow:

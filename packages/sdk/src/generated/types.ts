@@ -586,7 +586,7 @@ export interface components {
             ref: string;
             name: string;
             description?: string | null;
-            /** @description 0 = use the default floor. */
+            /** @description Minimum budget for a launch that names no optInFlowIds. Adding a flow raises it. 0 = use the default floor. */
             minCredits: number;
             modelTier: string;
         };
