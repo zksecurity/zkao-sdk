@@ -109,6 +109,9 @@ repository.
 
 Every command prints JSON on stdout. `zkao <group> --help` lists subcommands.
 
+`<findingId>` also accepts the `ZK-` label a finding page shows (the id's last
+eight characters). A label that matches two findings is refused; use the full id.
+
 A `zkao: version X is available` line on stderr means this file is behind the
 API too. Install the newer CLI and refresh this skill from
 `https://github.com/zksecurity/zkao-sdk`: recent releases may add commands and

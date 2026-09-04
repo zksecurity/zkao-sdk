@@ -384,6 +384,7 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
 
   /projects/{projectId}/findings/{findingId}/notes:
     post:
@@ -416,6 +417,7 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
 
   /projects/{projectId}/findings/{findingId}/notes/{noteId}/pin:
     post:
@@ -451,6 +453,7 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
 
   /projects/{projectId}/findings/{findingId}/severity:
     patch:
@@ -484,6 +487,7 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
 
   /projects/{projectId}/findings/{findingId}/resolution:
     patch:
@@ -515,6 +519,7 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
 
   /projects/{projectId}/findings/{findingId}/publish:
     post:
@@ -540,6 +545,7 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
 
   /projects/{projectId}/scans/{scanId}/publish:
     post:
@@ -709,6 +715,7 @@ components:
       name: findingId
       in: path
       required: true
+      description: "The finding id, or the `ZK-` label shown on the finding page (the id's last eight characters, prefix optional). A label that matches more than one finding in the project is refused with `409 conflict`; use the full id."
       schema: { type: string }
     RepositoryId:
       name: repositoryId

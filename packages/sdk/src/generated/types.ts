@@ -818,6 +818,7 @@ export interface components {
     parameters: {
         ProjectId: string;
         ScanId: string;
+        /** @description The finding id, or the `ZK-` label shown on the finding page (the id's last eight characters, prefix optional). A label that matches more than one finding in the project is refused with `409 conflict`; use the full id. */
         FindingId: string;
         RepositoryId: string;
         Page: number;
@@ -1161,6 +1162,7 @@ export interface operations {
             header?: never;
             path: {
                 projectId: components["parameters"]["ProjectId"];
+                /** @description The finding id, or the `ZK-` label shown on the finding page (the id's last eight characters, prefix optional). A label that matches more than one finding in the project is refused with `409 conflict`; use the full id. */
                 findingId: components["parameters"]["FindingId"];
             };
             cookie?: never;
@@ -1181,6 +1183,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     addFindingNote: {
@@ -1189,6 +1192,7 @@ export interface operations {
             header?: never;
             path: {
                 projectId: components["parameters"]["ProjectId"];
+                /** @description The finding id, or the `ZK-` label shown on the finding page (the id's last eight characters, prefix optional). A label that matches more than one finding in the project is refused with `409 conflict`; use the full id. */
                 findingId: components["parameters"]["FindingId"];
             };
             cookie?: never;
@@ -1215,6 +1219,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     pinFindingNote: {
@@ -1223,6 +1228,7 @@ export interface operations {
             header?: never;
             path: {
                 projectId: components["parameters"]["ProjectId"];
+                /** @description The finding id, or the `ZK-` label shown on the finding page (the id's last eight characters, prefix optional). A label that matches more than one finding in the project is refused with `409 conflict`; use the full id. */
                 findingId: components["parameters"]["FindingId"];
                 noteId: string;
             };
@@ -1250,6 +1256,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     updateFindingSeverity: {
@@ -1258,6 +1265,7 @@ export interface operations {
             header?: never;
             path: {
                 projectId: components["parameters"]["ProjectId"];
+                /** @description The finding id, or the `ZK-` label shown on the finding page (the id's last eight characters, prefix optional). A label that matches more than one finding in the project is refused with `409 conflict`; use the full id. */
                 findingId: components["parameters"]["FindingId"];
             };
             cookie?: never;
@@ -1284,6 +1292,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     updateFindingResolution: {
@@ -1292,6 +1301,7 @@ export interface operations {
             header?: never;
             path: {
                 projectId: components["parameters"]["ProjectId"];
+                /** @description The finding id, or the `ZK-` label shown on the finding page (the id's last eight characters, prefix optional). A label that matches more than one finding in the project is refused with `409 conflict`; use the full id. */
                 findingId: components["parameters"]["FindingId"];
             };
             cookie?: never;
@@ -1319,6 +1329,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     publishFinding: {
@@ -1327,6 +1338,7 @@ export interface operations {
             header?: never;
             path: {
                 projectId: components["parameters"]["ProjectId"];
+                /** @description The finding id, or the `ZK-` label shown on the finding page (the id's last eight characters, prefix optional). A label that matches more than one finding in the project is refused with `409 conflict`; use the full id. */
                 findingId: components["parameters"]["FindingId"];
             };
             cookie?: never;
@@ -1350,6 +1362,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     publishScan: {
