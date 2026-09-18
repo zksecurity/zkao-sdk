@@ -37,6 +37,27 @@ export type BillingSummary = Schemas["BillingSummary"];
 export type UsageMonthSummary = Schemas["UsageMonthSummary"];
 export type Paginated<T> = { items: T[]; page: number; limit: number; total: number };
 
+/**
+ * Body of `createManualAudit`. Not part of the published OpenAPI spec: the
+ * endpoint needs the `admin` scope, which only a zkao site admin can grant.
+ */
+export type ManualAuditRequest = {
+  /** Repository the audit covers. */
+  repositoryId: string;
+  /** Commit the audit reviewed (7-64 hex characters). */
+  commitHash: string;
+  commitMessage?: string | null;
+  /** Findings YAML, as report-tool's `just export-findings <slug>` prints it. */
+  findingsYaml: string;
+  /** Report body markdown, shown on the scan page. */
+  reportMarkdown?: string | null;
+};
+
+export type ManualAuditResult = {
+  scanId: string;
+  findingsCreated: number;
+};
+
 export type ZkaoClientOptions = {
   /** A project API token: `zkao_proj_<keyId>_<secret>`. */
   token: string;
@@ -126,14 +147,46 @@ function unwrap<T>(result: FetchResult<T>): T {
 export class ZkaoClient {
   private readonly http: Client<paths>;
   private readonly projectId: string;
+  private readonly baseUrl: string;
+  private readonly token: string;
+  private readonly fetchImpl: typeof fetch;
 
   constructor(options: ZkaoClientOptions) {
     this.projectId = options.projectId;
+    this.baseUrl = options.baseUrl ?? resolveBaseUrlFromEnv() ?? DEFAULT_BASE_URL;
+    this.token = options.token;
+    this.fetchImpl = options.fetch ?? fetch;
     this.http = createClient<paths>({
-      baseUrl: options.baseUrl ?? resolveBaseUrlFromEnv() ?? DEFAULT_BASE_URL,
-      headers: { Authorization: `Bearer ${options.token}` },
+      baseUrl: this.baseUrl,
+      headers: { Authorization: `Bearer ${this.token}` },
       ...(options.fetch ? { fetch: options.fetch } : {}),
     });
+  }
+
+  /**
+   * POST a JSON body to a project route that is not in the generated `paths`.
+   * Same error envelope handling as the typed calls.
+   */
+  private async postUntyped<T>(path: string, body: unknown): Promise<T> {
+    const url = `${this.baseUrl.replace(/\/+$/, "")}/projects/${encodeURIComponent(this.projectId)}${path}`;
+    const response = await this.fetchImpl(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${this.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch {
+      payload = undefined;
+    }
+    if (response.ok && payload !== undefined) {
+      return payload as T;
+    }
+    return unwrap<T>({ error: payload, response });
   }
 
   private get path() {
@@ -402,6 +455,15 @@ export class ZkaoClient {
       body: { withPassword: opts.withPassword },
     });
     return unwrap(res);
+  }
+
+  /**
+   * Record a zkSecurity audit report on the project as a manual audit: a
+   * completed scan whose findings are pre-confirmed. Requires the `admin`
+   * scope, which only a zkao site admin can grant; any other token gets 404.
+   */
+  async createManualAudit(body: ManualAuditRequest): Promise<ManualAuditResult> {
+    return this.postUntyped<ManualAuditResult>("/manual-audits", body);
   }
 
   // --- Findings -----------------------------------------------------------

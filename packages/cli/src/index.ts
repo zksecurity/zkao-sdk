@@ -429,6 +429,43 @@ billing
     run((c) => c.getBillingSummary({ months: opts.months }))
   );
 
+// --- site admin -----------------------------------------------------------
+
+// Hidden from `--help`: these need the `admin` scope, which only a zkao site
+// admin can grant. `zkao admin --help` still documents them.
+const admin = program
+  .command("admin", { hidden: true })
+  .description("Site-admin operations on the project");
+admin
+  .command("manual-audit")
+  .description("Record a zkSecurity audit report as a manual audit")
+  .requiredOption("--repo <id>", "repository id")
+  .requiredOption("--commit <sha>", "commit the audit reviewed")
+  .requiredOption(
+    "--findings <file|->",
+    "findings YAML (report-tool: `just export-findings <slug>`)"
+  )
+  .option("--report <file|->", "report body markdown (report-tool: `just export-overview <slug>`)")
+  .option("--commit-message <text>", "commit message to show with the commit")
+  .action(
+    (opts: {
+      repo: string;
+      commit: string;
+      findings: string;
+      report?: string;
+      commitMessage?: string;
+    }) =>
+      run((c) =>
+        c.createManualAudit({
+          repositoryId: opts.repo,
+          commitHash: opts.commit,
+          findingsYaml: readContentArg(opts.findings),
+          reportMarkdown: opts.report === undefined ? null : readContentArg(opts.report),
+          commitMessage: opts.commitMessage ?? null,
+        })
+      )
+  );
+
 // --- discovery ------------------------------------------------------------
 
 program

@@ -22,6 +22,8 @@ export {
   type LaunchScanRequest,
   type LaunchScanResult,
   type CancelScanResult,
+  type ManualAuditRequest,
+  type ManualAuditResult,
   type ChangeNote,
   type Severity,
   type ResolutionStatus,
