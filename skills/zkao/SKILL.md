@@ -173,9 +173,11 @@ a single scan, replacing the stored repo guidance for that run only.
 **Check what a scan can cost before launching**
 
 zkao is pay-as-you-go: a scan reserves its budget in credits up front, and a
-launch fails when the project cannot cover it. `zkao billing balance` reports
-`availableCredits` (what is left after active scans hold their reservations),
-so check it before choosing `--budget`. `zkao billing usage` lists the ledger
+launch fails when the balance cannot cover it. The balance belongs to the
+project's organization and is shared by all of its projects; `zkao billing
+balance` names that organization and reports `availableCredits` (what is left
+after active scans across the organization hold their reservations), so check
+it before choosing `--budget`. `zkao billing usage` lists the ledger
 movements behind a balance the user disputes, and `zkao billing summary` gives
 per-month spend. Credits are the only unit here: never convert them to money.
 

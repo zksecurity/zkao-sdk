@@ -24,7 +24,15 @@ info:
     A token may also be restricted to a subset of the project's repositories
     (a repo allowlist). Any resource outside the token's project or repo
     allowlist responds `404` (never confirmed to exist). Launching a scan
-    requires the project to have prepaid credits.
+    requires the project's organization to have prepaid credits.
+
+    ## Organizations
+    Every project belongs to an **organization**, which holds the prepaid credit
+    balance shared by all of its projects. Tokens stay project-scoped: the
+    billing endpoints report the organization's balance as seen from this
+    project, and usage attributed to this project. Projects and repositories
+    also carry a `slug`, the readable segment used in app URLs
+    (`/orgs/<org>/projects/<project>/repos/<repo>`).
 
     ## Errors
     All errors share the envelope `{ "error": { "code": "...", "message": "..." } }`.
@@ -54,7 +62,7 @@ tags:
   - name: Discovery
     description: Scan presets and optional flows for launching
   - name: Billing
-    description: Prepaid credit balance and usage
+    description: The organization's prepaid credit balance, and this project's usage
 
 paths:
   /projects/{projectId}/repositories:
@@ -626,8 +634,8 @@ paths:
     get:
       tags: [Billing]
       operationId: getBillingBalance
-      summary: Current prepaid credit balance
-      description: "Requires scope: `read`. All amounts are in credits."
+      summary: Credits available to this project
+      description: "Requires scope: `read`. The organization's shared prepaid balance, available to this project and to the organization's other projects. All amounts are in credits."
       parameters:
         - $ref: "#/components/parameters/ProjectId"
       responses:
@@ -644,8 +652,8 @@ paths:
     get:
       tags: [Billing]
       operationId: getBillingUsage
-      summary: Credit usage events
-      description: "Requires scope: `read`. Signed credit delta per ledger event. Defaults to the last 30 days; newest first; max 1000 rows."
+      summary: Credit usage events attributed to this project
+      description: "Requires scope: `read`. Signed credit delta per ledger event attributed to this project; organization-wide movements such as a top-up made outside any project are not included. Defaults to the last 30 days; newest first; max 1000 rows."
       parameters:
         - $ref: "#/components/parameters/ProjectId"
         - name: from
@@ -675,8 +683,8 @@ paths:
     get:
       tags: [Billing]
       operationId: getBillingSummary
-      summary: Monthly spend and purchase summary
-      description: "Requires scope: `read`. Per-month net scan spend and net purchases, in credits, newest first."
+      summary: Monthly spend and purchase summary for this project
+      description: "Requires scope: `read`. Per-month net scan spend and net purchases attributed to this project, in credits, newest first. Purchases land in the organization's shared balance."
       parameters:
         - $ref: "#/components/parameters/ProjectId"
         - name: months
@@ -790,13 +798,24 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
 
   schemas:
+    Organization:
+      type: object
+      description: The organization a project belongs to. Credits are held and billed at this level and shared by every project in it.
+      required: [id, slug, name]
+      properties:
+        id: { type: string }
+        slug: { type: string, description: "URL segment of the organization (`/orgs/<slug>`), unique across zkao." }
+        name: { type: string }
     BillingBalance:
       type: object
-      required: [balanceCredits, availableCredits, reservedCredits]
+      required: [organization, balanceCredits, availableCredits, reservedCredits]
       properties:
-        balanceCredits: { type: integer, description: "Total prepaid credit balance." }
-        availableCredits: { type: integer, description: "Balance minus credits reserved by in-flight scans." }
-        reservedCredits: { type: integer, description: "Credits held by queued/running scans." }
+        organization:
+          $ref: "#/components/schemas/Organization"
+          description: The organization whose shared balance this is.
+        balanceCredits: { type: integer, description: "The organization's total prepaid credit balance, shared by all of its projects." }
+        availableCredits: { type: integer, description: "Balance minus credits reserved by the organization's in-flight scans." }
+        reservedCredits: { type: integer, description: "Credits held by the organization's queued/running scans." }
     UsageEventType:
       type: string
       enum: [SCAN_DEDUCTION, SCAN_REFUND, PURCHASE, STRIPE_REFUND, ADMIN_ADJUSTMENT]
@@ -828,8 +847,11 @@ components:
         purchasedCredits: { type: integer, description: "Net purchases (purchases less clawbacks), in credits." }
     BillingSummary:
       type: object
-      required: [months]
+      required: [organization, months]
       properties:
+        organization:
+          $ref: "#/components/schemas/Organization"
+          description: The organization whose shared balance the purchases were made into.
         months:
           type: array
           items: { $ref: "#/components/schemas/UsageMonthSummary" }
@@ -861,9 +883,10 @@ components:
 
     Repository:
       type: object
-      required: [id, owner, name, url, status, readiness]
+      required: [id, slug, owner, name, url, status, readiness]
       properties:
         id: { type: string }
+        slug: { type: string, description: "URL segment of the repository inside its project (`/orgs/<org>/projects/<project>/repos/<slug>`). Unique per project." }
         owner: { type: string }
         name: { type: string }
         url: { type: string }
@@ -1044,13 +1067,17 @@ components:
 
     LaunchScanRequest:
       type: object
-      required: [repositoryId, creditBudget]
+      required: [repositoryId]
       properties:
         repositoryId: { type: string }
         creditBudget:
           type: integer
           minimum: 1
-          description: Max budget for the scan, in credits. Reserved at launch.
+          description: >-
+            Max budget for the scan, in credits. Reserved at launch. Omit it to
+            launch at the budget zkao recommends for this scan type on this
+            repository: sized from what past scans of it spent, or the scan
+            type's minimum on the first.
         presetRef:
           type: string
           description: A preset ref from /scan-presets. Defaults to the first active preset.
@@ -1087,10 +1114,13 @@ components:
 
     LaunchScanResult:
       type: object
-      required: [scanId, queued]
+      required: [scanId, queued, creditBudget]
       properties:
         scanId: { type: string }
         queued: { type: boolean }
+        creditBudget:
+          type: integer
+          description: The budget the scan was launched with, in credits.
 
     RepositoryGuidance:
       type: object

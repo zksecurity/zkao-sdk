@@ -296,7 +296,11 @@ scans
   .command("launch")
   .description("Launch a scan")
   .requiredOption("--repo <id>", "repository id")
-  .requiredOption("--budget <credits>", "max budget, in credits", toInt)
+  .option(
+    "--budget <credits>",
+    "max budget, in credits (default: the budget zkao recommends for this scan type on this repository)",
+    toInt
+  )
   .option("--preset <ref>", "scan preset ref (see `zkao presets`)")
   .option("--branch <name>", "branch to scan")
   .option("--commit <sha>", "specific commit to scan")
@@ -407,10 +411,10 @@ findings
 
 const billing = program
   .command("billing")
-  .description("Read the project's credit balance and usage");
+  .description("Read the credit balance available to the project and its usage");
 billing
   .command("balance")
-  .description("Credit balance, what active scans hold, and what is available")
+  .description("The organization's shared credit balance, what active scans hold, and what is available")
   .action(() => run((c) => c.getBillingBalance()));
 billing
   .command("usage")

@@ -372,8 +372,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Current prepaid credit balance
-         * @description Requires scope: `read`. All amounts are in credits.
+         * Credits available to this project
+         * @description Requires scope: `read`. The organization's shared prepaid balance, available to this project and to the organization's other projects. All amounts are in credits.
          */
         get: operations["getBillingBalance"];
         put?: never;
@@ -392,8 +392,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Credit usage events
-         * @description Requires scope: `read`. Signed credit delta per ledger event. Defaults to the last 30 days; newest first; max 1000 rows.
+         * Credit usage events attributed to this project
+         * @description Requires scope: `read`. Signed credit delta per ledger event attributed to this project; organization-wide movements such as a top-up made outside any project are not included. Defaults to the last 30 days; newest first; max 1000 rows.
          */
         get: operations["getBillingUsage"];
         put?: never;
@@ -412,8 +412,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Monthly spend and purchase summary
-         * @description Requires scope: `read`. Per-month net scan spend and net purchases, in credits, newest first.
+         * Monthly spend and purchase summary for this project
+         * @description Requires scope: `read`. Per-month net scan spend and net purchases attributed to this project, in credits, newest first. Purchases land in the organization's shared balance.
          */
         get: operations["getBillingSummary"];
         put?: never;
@@ -428,12 +428,21 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description The organization a project belongs to. Credits are held and billed at this level and shared by every project in it. */
+        Organization: {
+            id: string;
+            /** @description URL segment of the organization (`/orgs/<slug>`), unique across zkao. */
+            slug: string;
+            name: string;
+        };
         BillingBalance: {
-            /** @description Total prepaid credit balance. */
+            /** @description The organization whose shared balance this is. */
+            organization: components["schemas"]["Organization"];
+            /** @description The organization's total prepaid credit balance, shared by all of its projects. */
             balanceCredits: number;
-            /** @description Balance minus credits reserved by in-flight scans. */
+            /** @description Balance minus credits reserved by the organization's in-flight scans. */
             availableCredits: number;
-            /** @description Credits held by queued/running scans. */
+            /** @description Credits held by the organization's queued/running scans. */
             reservedCredits: number;
         };
         /** @enum {string} */
@@ -464,6 +473,8 @@ export interface components {
             purchasedCredits: number;
         };
         BillingSummary: {
+            /** @description The organization whose shared balance the purchases were made into. */
+            organization: components["schemas"]["Organization"];
             months: components["schemas"]["UsageMonthSummary"][];
         };
         Error: {
@@ -483,6 +494,8 @@ export interface components {
         ScanStatus: "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED" | "CANCELLED";
         Repository: {
             id: string;
+            /** @description URL segment of the repository inside its project (`/orgs/<org>/projects/<project>/repos/<slug>`). Unique per project. */
+            slug: string;
             owner: string;
             name: string;
             url: string;
@@ -601,8 +614,8 @@ export interface components {
         };
         LaunchScanRequest: {
             repositoryId: string;
-            /** @description Max budget for the scan, in credits. Reserved at launch. */
-            creditBudget: number;
+            /** @description Max budget for the scan, in credits. Reserved at launch. Omit it to launch at the budget zkao recommends for this scan type on this repository: sized from what past scans of it spent, or the scan type's minimum on the first. */
+            creditBudget?: number;
             /** @description A preset ref from /scan-presets. Defaults to the first active preset. */
             presetRef?: string;
             /** @description Branch to scan (resolved to its head commit server-side). Ignored if commitHash is set. */
@@ -620,6 +633,8 @@ export interface components {
         LaunchScanResult: {
             scanId: string;
             queued: boolean;
+            /** @description The budget the scan was launched with, in credits. */
+            creditBudget: number;
         };
         RepositoryGuidance: {
             repositoryId: string;
