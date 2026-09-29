@@ -975,6 +975,10 @@ components:
           description: Effective severity (user override if set, else AI severity).
         category: { type: string }
         triageStatus: { $ref: "#/components/schemas/TriageStatus" }
+        confirmationEvidence:
+          type: [string, "null"]
+          enum: [POC, ANALYSIS, null]
+          description: What backs a CONFIRMED verdict. POC means a proof of concept ran and demonstrated the issue. ANALYSIS means it was confirmed by code analysis alone. Null for other statuses or when not recorded.
         resolutionStatus: { $ref: "#/components/schemas/ResolutionStatus" }
         notesCount: { type: integer }
 

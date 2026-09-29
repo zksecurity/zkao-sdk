@@ -553,6 +553,11 @@ export interface components {
             severity: components["schemas"]["Severity"];
             category: string;
             triageStatus: components["schemas"]["TriageStatus"];
+            /**
+             * @description What backs a CONFIRMED verdict. POC means a proof of concept ran and demonstrated the issue. ANALYSIS means it was confirmed by code analysis alone. Null for other statuses or when not recorded.
+             * @enum {string|null}
+             */
+            confirmationEvidence?: "POC" | "ANALYSIS" | null;
             resolutionStatus: components["schemas"]["ResolutionStatus"];
             notesCount: number;
         };
