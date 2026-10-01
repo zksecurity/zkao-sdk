@@ -13,7 +13,6 @@ export type Finding = Schemas["Finding"];
 export type FindingDetail = Schemas["FindingDetail"];
 export type FindingNote = Schemas["FindingNote"];
 export type ScanPreset = Schemas["ScanPreset"];
-export type OptionalFlow = Schemas["OptionalFlow"];
 export type LaunchScanRequest = Schemas["LaunchScanRequest"];
 export type LaunchScanResult = Schemas["LaunchScanResult"];
 export type CancelScanResult = Schemas["CancelScanResult"];
@@ -557,13 +556,6 @@ export class ZkaoClient {
       params: { path: this.path },
     });
     return unwrap(res).presets;
-  }
-
-  async listOptionalFlows(): Promise<OptionalFlow[]> {
-    const res = await this.http.GET("/projects/{projectId}/optional-flows", {
-      params: { path: this.path },
-    });
-    return unwrap(res).optionalFlows;
   }
 
   // --- Billing ------------------------------------------------------------

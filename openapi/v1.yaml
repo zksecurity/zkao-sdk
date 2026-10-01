@@ -15,7 +15,7 @@ info:
     ## Scoping (what a token can do)
     Every token belongs to exactly one project and carries a subset of these
     **scopes**:
-      - `read` — list/show repositories, scans, findings, presets, optional flows
+      - `read` — list/show repositories, scans, findings, presets
       - `findings:write` — comment, change severity, change resolution, pin a note
       - `guidance:write` — read and update a repository's guidance, and manage its audit areas
       - `scans:launch` — start a scan
@@ -60,7 +60,7 @@ tags:
   - name: Publishing
     description: Publish findings and scans as public artifacts
   - name: Discovery
-    description: Scan presets and optional flows for launching
+    description: Scan presets for launching
   - name: Billing
     description: The organization's prepaid credit balance, and this project's usage
 
@@ -257,9 +257,10 @@ paths:
       description: |
         Requires scope: `scans:launch`. Reserves `creditBudget` credits from the
         project balance. The repo must be in the token's allowlist (when set) and
-        ACTIVE. Discover valid `presetRef` / `optInFlowIds` via the discovery
-        endpoints. Per-token spend limits are enforced, and the project must have
-        enough prepaid credits to cover the budget (otherwise `402`).
+        ACTIVE. Discover valid `presetRef` values via `/scan-presets`. Each scan
+        type runs a fixed set of flows. Per-token spend limits are enforced, and
+        the project must have enough prepaid credits to cover the budget
+        (otherwise `402`).
 
         A repository added moments ago may still be analyzing, in which case
         this returns `409 repository_initializing`. Wait for its `readiness` to
@@ -608,32 +609,6 @@ paths:
                   presets:
                     type: array
                     items: { $ref: "#/components/schemas/ScanPreset" }
-        "401": { $ref: "#/components/responses/Unauthorized" }
-        "403": { $ref: "#/components/responses/Forbidden" }
-        "404": { $ref: "#/components/responses/NotFound" }
-
-  /projects/{projectId}/optional-flows:
-    get:
-      tags: [Discovery]
-      operationId: listOptionalFlows
-      summary: List opt-in flows available at launch
-      description: >-
-        Requires scope: `read`. Pass the chosen ids as `optInFlowIds` when
-        launching. A flow marked `rotating` may run without being asked for.
-      parameters:
-        - $ref: "#/components/parameters/ProjectId"
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [optionalFlows]
-                properties:
-                  optionalFlows:
-                    type: array
-                    items: { $ref: "#/components/schemas/OptionalFlow" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
@@ -1069,25 +1044,8 @@ components:
         description: { type: [string, "null"] }
         minCredits:
           type: integer
-          description: "Minimum budget for a launch that names no optInFlowIds. Adding a flow raises it. 0 = use the default floor."
+          description: "Minimum budget for a launch. 0 = use the default floor."
         modelTier: { type: string }
-
-    OptionalFlow:
-      type: object
-      required: [id, flowId, title, description, rotating]
-      properties:
-        id: { type: string, description: "Pass in `optInFlowIds` when launching." }
-        flowId: { type: string }
-        title: { type: string }
-        description: { type: string }
-        rotating:
-          type: boolean
-          description: >-
-            True when this flow belongs to a group the preset rotates through.
-            Some of the group runs on every scan without being asked for, and
-            which members depends on the repository. Naming it in
-            `optInFlowIds` adds it whether or not the rotation picked it, and
-            raises the scan's minimum budget.
 
     LaunchScanRequest:
       type: object
@@ -1119,12 +1077,6 @@ components:
             What a diff scan's change is measured from: a commit SHA, branch, or
             tag. Required by a diff scan preset and refused by every other. The
             scan records the merge base of this and the scanned commit.
-        optInFlowIds:
-          type: array
-          items: { type: string }
-          description: >-
-            Optional-flow ids from /optional-flows, added to the scan on top of
-            whatever a rotating group already contributes.
         auditAreaKeys:
           type: array
           items: { type: string }

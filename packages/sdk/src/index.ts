@@ -18,7 +18,6 @@ export {
   type FindingDetail,
   type FindingNote,
   type ScanPreset,
-  type OptionalFlow,
   type LaunchScanRequest,
   type LaunchScanResult,
   type CancelScanResult,

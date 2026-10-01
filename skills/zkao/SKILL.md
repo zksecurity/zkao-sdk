@@ -80,8 +80,7 @@ zkao config set --token <token> --project <id>    # or set credentials directly 
 zkao repos                                        # list repositories
 zkao repos:wait <repoId>                          # wait until a repo can be scanned
 zkao presets                                      # scan presets (use a ref to launch)
-zkao flows                                        # opt-in flows
-zkao scans launch --repo <repoId> --budget <credits> [--preset <ref>] [--branch <b>] [--flow <id>] [--base <ref>]
+zkao scans launch --repo <repoId> --budget <credits> [--preset <ref>] [--branch <b>] [--base <ref>]
 zkao scans get <scanId>                           # one-shot status (QUEUED→PROCESSING→COMPLETED)
 zkao scans wait <scanId>                          # block until the scan finishes (paced backoff)
 zkao scans cancel <scanId>                         # cancel a running or queued scan

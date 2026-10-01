@@ -309,7 +309,6 @@ scans
     "base commit or ref of a diff scan; the scan audits only the change from it (requires a diff preset)"
   )
   .option("--message <text>", "commit message (metadata)")
-  .option("--flow <id>", "optional-flow id to opt into (repeatable)", collect, [])
   .option(
     "--guidance <file|->",
     "per-scan guidance from a file (or - for stdin); replaces the repo's guidance for this scan"
@@ -329,7 +328,6 @@ scans
       commit?: string;
       base?: string;
       message?: string;
-      flow: string[];
       area: string[];
       guidance?: string;
     }) => {
@@ -341,7 +339,6 @@ scans
         commitHash: opts.commit ?? null,
         baseCommit: opts.base,
         commitMessage: opts.message ?? null,
-        optInFlowIds: opts.flow.length > 0 ? opts.flow : undefined,
         auditAreaKeys: opts.area.length > 0 ? opts.area : undefined,
         ...(opts.guidance !== undefined
           ? { guidance: readContentArg(opts.guidance) }
@@ -482,10 +479,6 @@ program
   .command("presets")
   .description("List scan presets the project can launch")
   .action(() => run((c) => c.listScanPresets()));
-program
-  .command("flows")
-  .description("List opt-in flows available at launch")
-  .action(() => run((c) => c.listOptionalFlows()));
 
 /**
  * Node's fetch rejects connection failures with a bare TypeError("fetch

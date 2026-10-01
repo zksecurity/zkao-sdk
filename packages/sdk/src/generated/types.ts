@@ -109,9 +109,10 @@ export interface paths {
          * Launch a scan
          * @description Requires scope: `scans:launch`. Reserves `creditBudget` credits from the
          *     project balance. The repo must be in the token's allowlist (when set) and
-         *     ACTIVE. Discover valid `presetRef` / `optInFlowIds` via the discovery
-         *     endpoints. Per-token spend limits are enforced, and the project must have
-         *     enough prepaid credits to cover the budget (otherwise `402`).
+         *     ACTIVE. Discover valid `presetRef` values via `/scan-presets`. Each scan
+         *     type runs a fixed set of flows. Per-token spend limits are enforced, and
+         *     the project must have enough prepaid credits to cover the budget
+         *     (otherwise `402`).
          *
          *     A repository added moments ago may still be analyzing, in which case
          *     this returns `409 repository_initializing`. Wait for its `readiness` to
@@ -343,26 +344,6 @@ export interface paths {
          * @description Requires scope: `read`. Use a preset's `ref` as `presetRef` when launching.
          */
         get: operations["listScanPresets"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/projects/{projectId}/optional-flows": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List opt-in flows available at launch
-         * @description Requires scope: `read`. Pass the chosen ids as `optInFlowIds` when launching. A flow marked `rotating` may run without being asked for.
-         */
-        get: operations["listOptionalFlows"];
         put?: never;
         post?: never;
         delete?: never;
@@ -613,18 +594,9 @@ export interface components {
             ref: string;
             name: string;
             description?: string | null;
-            /** @description Minimum budget for a launch that names no optInFlowIds. Adding a flow raises it. 0 = use the default floor. */
+            /** @description Minimum budget for a launch. 0 = use the default floor. */
             minCredits: number;
             modelTier: string;
-        };
-        OptionalFlow: {
-            /** @description Pass in `optInFlowIds` when launching. */
-            id: string;
-            flowId: string;
-            title: string;
-            description: string;
-            /** @description True when this flow belongs to a group the preset rotates through. Some of the group runs on every scan without being asked for, and which members depends on the repository. Naming it in `optInFlowIds` adds it whether or not the rotation picked it, and raises the scan's minimum budget. */
-            rotating: boolean;
         };
         LaunchScanRequest: {
             repositoryId: string;
@@ -639,8 +611,6 @@ export interface components {
             commitMessage?: string | null;
             /** @description What a diff scan's change is measured from: a commit SHA, branch, or tag. Required by a diff scan preset and refused by every other. The scan records the merge base of this and the scanned commit. */
             baseCommit?: string | null;
-            /** @description Optional-flow ids from /optional-flows, added to the scan on top of whatever a rotating group already contributes. */
-            optInFlowIds?: string[];
             /** @description Area keys from /audit-areas to scope this scan to. Omit or send an empty array to scan the whole repository. A key the repository's current map no longer names fails the launch rather than being dropped, so a scan budgeted for one subsystem never silently runs against everything. */
             auditAreaKeys?: string[];
             /** @description Guidance for this scan only, replacing the repository's configured guidance layer (it is still layered over any committed zkao.md). Omit the field to inherit the repository's guidance; send null to scan with no guidance layer. */
@@ -1456,33 +1426,6 @@ export interface operations {
                 content: {
                     "application/json": {
                         presets: components["schemas"]["ScanPreset"][];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    listOptionalFlows: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                projectId: components["parameters"]["ProjectId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        optionalFlows: components["schemas"]["OptionalFlow"][];
                     };
                 };
             };
