@@ -264,6 +264,13 @@ paths:
         A repository added moments ago may still be analyzing, in which case
         this returns `409 repository_initializing`. Wait for its `readiness` to
         be `ready` in `GET /repositories` and launch again.
+
+        A diff scan preset audits only the change from `baseCommit` to the
+        scanned commit, and requires `baseCommit`. Every other preset refuses
+        it. A malformed, unknown, or misplaced base is a `400` with code
+        `diff_base_required`, `diff_base_not_allowed`, or `diff_base_invalid`.
+        A diff scan also needs an earlier full scan of the branch, and a
+        change to audit (otherwise `422`).
       parameters:
         - $ref: "#/components/parameters/ProjectId"
       requestBody:
@@ -283,6 +290,7 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/RepositoryInitializing" }
+        "422": { $ref: "#/components/responses/DiffUnavailable" }
         "429": { $ref: "#/components/responses/RateLimited" }
 
   /projects/{projectId}/scans/{scanId}:
@@ -767,6 +775,15 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
+    DiffUnavailable:
+      description: >-
+        The diff scan cannot run on this repository yet. Code `diff_empty`: the
+        base and the scanned commit have no change between them. Code
+        `diff_overview_missing`: no earlier full scan of the branch (or the
+        default branch) exists to compare against. Run a full scan first.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
     Forbidden:
       description: The token lacks the required scope
       content:
@@ -865,7 +882,7 @@ components:
           properties:
             code:
               type: string
-              enum: [unauthorized, forbidden, not_found, bad_request, conflict, insufficient_credits, repository_initializing, rate_limited, internal]
+              enum: [unauthorized, forbidden, not_found, bad_request, conflict, insufficient_credits, repository_initializing, diff_base_required, diff_base_not_allowed, diff_base_invalid, diff_empty, diff_overview_missing, rate_limited, internal]
             message: { type: string }
 
     Severity:
@@ -909,6 +926,9 @@ components:
         status: { $ref: "#/components/schemas/ScanStatus" }
         repositoryId: { type: string }
         commitHash: { type: [string, "null"] }
+        baseCommit:
+          type: [string, "null"]
+          description: A diff scan's base, as the merge base SHA its change is measured from. Null for other scans.
         commitMessage: { type: [string, "null"] }
         presetName: { type: [string, "null"] }
         createdAt: { type: string, format: date-time }
@@ -1093,6 +1113,12 @@ components:
           type: [string, "null"]
           description: Pin a specific commit SHA (7-40 hex chars).
         commitMessage: { type: [string, "null"] }
+        baseCommit:
+          type: [string, "null"]
+          description: >-
+            What a diff scan's change is measured from: a commit SHA, branch, or
+            tag. Required by a diff scan preset and refused by every other. The
+            scan records the merge base of this and the scanned commit.
         optInFlowIds:
           type: array
           items: { type: string }

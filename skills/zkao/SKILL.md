@@ -178,7 +178,7 @@ cheap and fast. After a complicated task involving cryptography, ask the user
 whether they want a diff scan of the change.
 
 1. Push the head commit to GitHub. The scan reads it from there.
-2. `zkao scans launch --repo <id> --preset "builtin:Diff Scan" --base <base> --commit <head sha>`.
+2. `zkao scans launch --repo <id> --budget <credits> --preset "builtin:Diff Scan" --base <base> --commit <head sha>`.
    The base is a commit or ref. The scan diffs from its merge base with the head.
 3. `zkao scans wait <scanId>`.
 

@@ -116,6 +116,13 @@ export interface paths {
          *     A repository added moments ago may still be analyzing, in which case
          *     this returns `409 repository_initializing`. Wait for its `readiness` to
          *     be `ready` in `GET /repositories` and launch again.
+         *
+         *     A diff scan preset audits only the change from `baseCommit` to the
+         *     scanned commit, and requires `baseCommit`. Every other preset refuses
+         *     it. A malformed, unknown, or misplaced base is a `400` with code
+         *     `diff_base_required`, `diff_base_not_allowed`, or `diff_base_invalid`.
+         *     A diff scan also needs an earlier full scan of the branch, and a
+         *     change to audit (otherwise `422`).
          */
         post: operations["launchScan"];
         delete?: never;
@@ -480,7 +487,7 @@ export interface components {
         Error: {
             error: {
                 /** @enum {string} */
-                code: "unauthorized" | "forbidden" | "not_found" | "bad_request" | "conflict" | "insufficient_credits" | "repository_initializing" | "rate_limited" | "internal";
+                code: "unauthorized" | "forbidden" | "not_found" | "bad_request" | "conflict" | "insufficient_credits" | "repository_initializing" | "diff_base_required" | "diff_base_not_allowed" | "diff_base_invalid" | "diff_empty" | "diff_overview_missing" | "rate_limited" | "internal";
                 message: string;
             };
         };
@@ -513,6 +520,8 @@ export interface components {
             status: components["schemas"]["ScanStatus"];
             repositoryId: string;
             commitHash?: string | null;
+            /** @description A diff scan's base, as the merge base SHA its change is measured from. Null for other scans. */
+            baseCommit?: string | null;
             commitMessage?: string | null;
             presetName?: string | null;
             /** Format: date-time */
@@ -628,6 +637,8 @@ export interface components {
             /** @description Pin a specific commit SHA (7-40 hex chars). */
             commitHash?: string | null;
             commitMessage?: string | null;
+            /** @description What a diff scan's change is measured from: a commit SHA, branch, or tag. Required by a diff scan preset and refused by every other. The scan records the merge base of this and the scanned commit. */
+            baseCommit?: string | null;
             /** @description Optional-flow ids from /optional-flows, added to the scan on top of whatever a rotating group already contributes. */
             optInFlowIds?: string[];
             /** @description Area keys from /audit-areas to scope this scan to. Omit or send an empty array to scan the whole repository. A key the repository's current map no longer names fails the launch rather than being dropped, so a scan budgeted for one subsystem never silently runs against everything. */
@@ -789,6 +800,15 @@ export interface components {
         };
         /** @description The repository is still being analyzed and cannot be scanned yet. The same request succeeds once `GET /repositories` reports its `readiness` as `ready`. (code `repository_initializing`) */
         RepositoryInitializing: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description The diff scan cannot run on this repository yet. Code `diff_empty`: the base and the scanned commit have no change between them. Code `diff_overview_missing`: no earlier full scan of the branch (or the default branch) exists to compare against. Run a full scan first. */
+        DiffUnavailable: {
             headers: {
                 [name: string]: unknown;
             };
@@ -1084,6 +1104,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["RepositoryInitializing"];
+            422: components["responses"]["DiffUnavailable"];
             429: components["responses"]["RateLimited"];
         };
     };
