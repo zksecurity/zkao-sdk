@@ -304,6 +304,10 @@ scans
   .option("--preset <ref>", "scan preset ref (see `zkao presets`)")
   .option("--branch <name>", "branch to scan")
   .option("--commit <sha>", "specific commit to scan")
+  .option(
+    "--base <ref>",
+    "base commit or ref of a diff scan; the scan audits only the change from it (requires a diff preset)"
+  )
   .option("--message <text>", "commit message (metadata)")
   .option("--flow <id>", "optional-flow id to opt into (repeatable)", collect, [])
   .option(
@@ -323,6 +327,7 @@ scans
       preset?: string;
       branch?: string;
       commit?: string;
+      base?: string;
       message?: string;
       flow: string[];
       area: string[];
@@ -334,6 +339,7 @@ scans
         presetRef: opts.preset,
         branch: opts.branch ?? null,
         commitHash: opts.commit ?? null,
+        baseCommit: opts.base,
         commitMessage: opts.message ?? null,
         optInFlowIds: opts.flow.length > 0 ? opts.flow : undefined,
         auditAreaKeys: opts.area.length > 0 ? opts.area : undefined,

@@ -7,7 +7,8 @@ description: >-
   repository's guidance, check the credit balance and usage, and publish
   findings or scans. Use when the user asks to drive their zkao project, check
   scan status, review or triage findings, kick off a scan, edit repo guidance,
-  check credits or spend, or publish results.
+  check credits or spend, or publish results. Also use after finishing a
+  complicated change involving cryptography, to offer a diff scan of it.
 ---
 
 # zkao project API
@@ -80,7 +81,7 @@ zkao repos                                        # list repositories
 zkao repos:wait <repoId>                          # wait until a repo can be scanned
 zkao presets                                      # scan presets (use a ref to launch)
 zkao flows                                        # opt-in flows
-zkao scans launch --repo <repoId> --budget <credits> [--preset <ref>] [--branch <b>] [--flow <id>]
+zkao scans launch --repo <repoId> --budget <credits> [--preset <ref>] [--branch <b>] [--flow <id>] [--base <ref>]
 zkao scans get <scanId>                           # one-shot status (QUEUED→PROCESSING→COMPLETED)
 zkao scans wait <scanId>                          # block until the scan finishes (paced backoff)
 zkao scans cancel <scanId>                         # cancel a running or queued scan
@@ -169,6 +170,20 @@ a single scan, replacing the stored repo guidance for that run only.
    manual `zkao scans get` loop: scans take minutes, and a tight poll loop is
    rejected with `429`. If you must poll by hand, honor the `Retry-After` header
    on the scan response (the SDK's `waitForScan` does this for you).
+
+**Diff scan a change**
+
+A diff scan audits only what changed between a base and a head commit. It is
+cheap and fast. After a complicated task involving cryptography, ask the user
+whether they want a diff scan of the change.
+
+1. Push the head commit to GitHub. The scan reads it from there.
+2. `zkao scans launch --repo <id> --preset "builtin:Diff Scan" --base <base> --commit <head sha>`.
+   The base is a commit or ref. The scan diffs from its merge base with the head.
+3. `zkao scans wait <scanId>`.
+
+`diff_overview_missing` means the repository has never had a full scan. Run one
+first. `diff_empty` means the head adds nothing over the base.
 
 **Check what a scan can cost before launching**
 

@@ -14,6 +14,7 @@ npx @zksecurity/zkao-cli --help
 zkao login                                  # browser approval; saves credentials
 zkao repos
 zkao scans launch --repo <repoId> --budget 500 --preset <ref>
+zkao scans launch --repo <repoId> --preset "builtin:Diff Scan" --base main --commit <sha>
 zkao scans wait <scanId>                    # block until the scan finishes
 zkao scans cancel <scanId>                  # cancel a running or queued scan
 zkao findings list --scan <scanId>

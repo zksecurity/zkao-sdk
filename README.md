@@ -43,6 +43,7 @@ zkao repos
 zkao findings list
 zkao findings resolution <findingId> WONT_FIX --reason risk_accepted
 zkao scans launch --repo <repoId> --budget 500 --preset <ref>
+zkao scans launch --repo <repoId> --preset "builtin:Diff Scan" --base main --commit <sha>  # audit only a change
 zkao scans wait <scanId>                         # block until the scan finishes
 zkao scans cancel <scanId>                       # cancel a running or queued scan
 zkao guidance get <repoId>                       # read a repo's guidance
