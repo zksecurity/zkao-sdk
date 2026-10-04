@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The calling token and its project
+         * @description Any valid token may call this, whatever its scopes. Use it to learn which project (and organization) a token belongs to.
+         */
+        get: operations["getTokenInfo"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{projectId}/repositories": {
         parameters: {
             query?: never;
@@ -423,6 +443,23 @@ export interface components {
             slug: string;
             name: string;
         };
+        TokenInfo: {
+            id: string;
+            name: string;
+            scopes: string[];
+            /** @description Repositories the token is restricted to. Empty means every repository of the project. */
+            repositoryIds: string[];
+            /** Format: date-time */
+            expiresAt: string | null;
+            /** @description Credits this token may spend. Null means no limit. */
+            spendLimitCredits: number | null;
+            project: {
+                id: string;
+                slug: string;
+                name: string;
+                organization: components["schemas"]["Organization"];
+            };
+        };
         BillingBalance: {
             /** @description The organization whose shared balance this is. */
             organization: components["schemas"]["Organization"];
@@ -840,6 +877,27 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getTokenInfo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenInfo"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
     listRepositories: {
         parameters: {
             query?: never;

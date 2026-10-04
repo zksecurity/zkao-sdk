@@ -19,9 +19,23 @@ export type ZkaoConfig = {
   baseUrl?: string;
 };
 
+/** Credentials saved for one project, keyed by project id in the config file. */
+export type SavedProject = {
+  token: string;
+  baseUrl?: string;
+  name?: string;
+  organization?: string;
+};
+
+/**
+ * The file: the active project at the top level (the shape older CLIs wrote and
+ * read), plus every project this machine holds a token for.
+ */
+type ConfigFile = ZkaoConfig & { projects?: Record<string, SavedProject> };
+
 const CONFIG_PATH = join(homedir(), ".zkao", "config.json");
 
-function readFile(): ZkaoConfig {
+function readFile(): ConfigFile {
   let raw: string;
   try {
     raw = readFileSync(CONFIG_PATH, "utf8");
@@ -32,7 +46,7 @@ function readFile(): ZkaoConfig {
     throw err;
   }
   try {
-    return JSON.parse(raw) as ZkaoConfig;
+    return JSON.parse(raw) as ConfigFile;
   } catch (err) {
     // No `cause`: the parse detail is already in the message, and the CLI's
     // top-level handler prints the cause chain (it would print twice).
@@ -43,18 +57,118 @@ function readFile(): ZkaoConfig {
   }
 }
 
-export function writeConfig(update: ZkaoConfig): ZkaoConfig {
-  let existing: ZkaoConfig;
+function readFileForWrite(): ConfigFile {
+  let file: ConfigFile;
   try {
-    existing = readFile();
+    file = readFile();
   } catch {
     // A corrupt file must not make `zkao config set` (the repair path) crash.
     console.error(`zkao: replacing unparseable config at ${CONFIG_PATH}`);
-    existing = {};
+    return {};
   }
-  const merged = { ...existing, ...stripUndefined(update) };
-  writeSecretFile(CONFIG_PATH, `${JSON.stringify(merged, null, 2)}\n`);
-  return merged;
+  // A file from an older CLI holds only the active project. Save it under its
+  // id first, so switching away never drops its token.
+  if (file.projectId && file.token && !file.projects?.[file.projectId]) {
+    file.projects = {
+      ...file.projects,
+      [file.projectId]: stripUndefinedProject({
+        token: file.token,
+        baseUrl: file.baseUrl,
+      }),
+    };
+  }
+  return file;
+}
+
+function writeFile(file: ConfigFile): void {
+  writeSecretFile(CONFIG_PATH, `${JSON.stringify(file, null, 2)}\n`);
+}
+
+/** The top level mirrors the active project, so its base URL goes with it. */
+function activate(file: ConfigFile, projectId: string, saved: SavedProject): void {
+  file.projectId = projectId;
+  file.token = saved.token;
+  if (saved.baseUrl === undefined) {
+    delete file.baseUrl;
+  } else {
+    file.baseUrl = saved.baseUrl;
+  }
+}
+
+/**
+ * `zkao config set`. A token with a project id is saved under that project. A
+ * project id alone switches to that project's saved token when there is one.
+ */
+export function writeConfig(update: ZkaoConfig): ZkaoConfig {
+  const file = readFileForWrite();
+  const projectId = update.projectId ?? file.projectId;
+  const saved = update.projectId ? file.projects?.[update.projectId] : undefined;
+  if (update.token === undefined && update.projectId !== undefined && saved) {
+    activate(file, update.projectId, {
+      ...saved,
+      baseUrl: update.baseUrl ?? saved.baseUrl,
+    });
+  } else {
+    const switching =
+      update.projectId !== undefined && update.projectId !== file.projectId;
+    Object.assign(file, stripUndefined(update));
+    if (switching && update.token === undefined) {
+      // The old token belongs to another project; pairing them only yields 404s.
+      delete file.token;
+    }
+  }
+  if (projectId && file.token && file.projectId === projectId) {
+    file.projects = {
+      ...file.projects,
+      [projectId]: {
+        ...file.projects?.[projectId],
+        token: file.token,
+        baseUrl: file.baseUrl,
+      },
+    };
+  }
+  writeFile(file);
+  return { token: file.token, projectId: file.projectId, baseUrl: file.baseUrl };
+}
+
+/** Save a project's credentials and make it the active project. */
+export function saveProjectCredentials(
+  projectId: string,
+  saved: SavedProject
+): void {
+  const file = readFileForWrite();
+  file.projects = { ...file.projects, [projectId]: stripUndefinedProject(saved) };
+  activate(file, projectId, saved);
+  writeFile(file);
+}
+
+/** Switch the active project to one with saved credentials. */
+export function useProject(projectId: string): SavedProject {
+  const file = readFileForWrite();
+  const saved = file.projects?.[projectId];
+  if (!saved) {
+    throw new Error(
+      `No saved credentials for project ${projectId}. Run \`zkao login --project ${projectId}\`.`
+    );
+  }
+  activate(file, projectId, saved);
+  writeFile(file);
+  return saved;
+}
+
+/** Every project with saved credentials, plus which one is active. */
+export function savedProjects(): {
+  activeProjectId?: string;
+  projects: Record<string, SavedProject>;
+} {
+  const file = readFile();
+  return { activeProjectId: file.projectId, projects: file.projects ?? {} };
+}
+
+function stripUndefinedProject(saved: SavedProject): SavedProject {
+  return Object.fromEntries(
+    Object.entries(saved).filter(([, v]) => v !== undefined)
+  ) as SavedProject;
 }
 
 /**
@@ -86,10 +200,26 @@ function stripUndefined(obj: ZkaoConfig): ZkaoConfig {
  */
 export function resolveConfig(flags: ZkaoConfig): ZkaoConfig {
   const file = readFile();
+  const projectId =
+    flags.projectId ?? process.env.ZKAO_PROJECT_ID ?? file.projectId;
+  const saved = projectId ? file.projects?.[projectId] : undefined;
+  // The top-level token belongs to the active project only. Paired with any
+  // other project id it would just get 404s.
+  const activeMatches =
+    file.projectId === undefined || file.projectId === projectId;
   return {
-    token: flags.token ?? process.env.ZKAO_API_TOKEN ?? file.token,
-    projectId: flags.projectId ?? process.env.ZKAO_PROJECT_ID ?? file.projectId,
-    baseUrl: flags.baseUrl ?? resolveBaseUrlFromEnv() ?? file.baseUrl,
+    token:
+      flags.token ??
+      process.env.ZKAO_API_TOKEN ??
+      saved?.token ??
+      (activeMatches ? file.token : undefined),
+    projectId,
+    baseUrl:
+      flags.baseUrl ??
+      resolveBaseUrlFromEnv() ??
+      // The top-level base URL is the active project's; a saved project
+      // carries its own (none means production).
+      (saved ? saved.baseUrl : file.baseUrl),
   };
 }
 

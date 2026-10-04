@@ -40,19 +40,26 @@ token.
 - **Browser approval (no token to copy):** authorize over the device flow when
   nothing is configured yet. Don't run a bare `zkao login`: it blocks for
   minutes waiting on the browser and will hit a command timeout. Instead:
-  1. Run `zkao login --no-wait --no-browser`. It prints a URL and a code and
-     returns immediately.
-  2. Give the user the URL and code, and ask them to open it, pick a project,
-     and approve.
+  1. Run `zkao login --no-wait --no-browser`. Add `--project <id>` when you
+     know the project, so the approval page preselects it. It prints a URL and
+     a code and returns immediately.
+  2. Give the user the URL and code, and ask them to open it, pick the project,
+     and approve. Name the project by its name and organization when you know
+     them.
   3. After they confirm, run `zkao login --resume`. Repeat it on your own cadence
      until it prints `Authorized` (each call returns at once; `Still waiting
-     for approval` means keep waiting). The token and project id are then saved
-     to `~/.zkao/config.json`.
-- **Pre-made token:** the user creates one under **Project Settings → API
-  tokens** (scoped to one project, chosen permissions, optionally specific
-  repos), shown once as `zkao_proj_<keyId>_<secret>`, and provides it via env:
+     for approval` means keep waiting). The token is then saved for that
+     project in `~/.zkao/config.json`. Tokens for other projects stay saved.
+- **Pre-made token:** the user creates one under **Project Settings →
+  Integrations** (scoped to one project, chosen permissions, optionally
+  specific repos), shown once as `zkao_proj_<keyId>_<secret>` together with
+  the project id, and provides them via env:
   - `ZKAO_API_TOKEN` — the token
-  - `ZKAO_PROJECT_ID` — the project id (visible in the project URL)
+  - `ZKAO_PROJECT_ID` — the project id
+
+`zkao whoami` shows which project and organization the current token belongs
+to. `zkao config show` lists saved projects, and `zkao config use <projectId>`
+switches between them.
 
 To target a non-production environment, set `ZKAO_URL` to a host, origin, or
 full API URL (e.g. `staging.zkao.io`); the CLI and SDK derive the API base from
@@ -67,6 +74,7 @@ Never print the token back to the user or write it into files.
   `scans:launch`, `publish`. A `403` means the token lacks the scope for that action.
 - A token is bound to one project (and possibly a subset of its repos). Anything
   outside its scope returns `404` (it is not revealed to exist), not `403`.
+  On a project mismatch, the `404` message names the token's own project.
 - Errors are `{ "error": { "code": "...", "message": "..." } }`. A `401` means the
   token is missing/invalid/expired/revoked.
 
@@ -75,7 +83,10 @@ Never print the token back to the user or write it into files.
 Install once with `npm install -g @zksecurity/zkao-cli` (provides the `zkao` command).
 
 ```
-zkao login                                        # browser device flow; saves token + project
+zkao login [--project <id>]                       # browser device flow; saves the token for that project
+zkao whoami                                       # the token's project and organization
+zkao config show                                  # active settings and saved projects
+zkao config use <projectId>                       # switch to another saved project
 zkao config set --token <token> --project <id>    # or set credentials directly / use env vars
 zkao repos                                        # list repositories
 zkao repos:wait <repoId>                          # wait until a repo can be scanned

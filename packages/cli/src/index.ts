@@ -8,9 +8,16 @@ import {
   type Severity,
   ZkaoApiError,
   ZkaoClient,
+  getTokenInfo,
 } from "@zksecurity/zkao-sdk";
-import { configPath, resolveConfig, writeConfig } from "./config";
-import { login, resumeLogin } from "./login";
+import {
+  configPath,
+  resolveConfig,
+  savedProjects,
+  useProject,
+  writeConfig,
+} from "./config";
+import { describeProject, login, resumeLogin } from "./login";
 import { printUpdateNotice, refreshUpdateCache } from "./update-check";
 
 // Resolved at runtime relative to the built dist/index.js, so the reported
@@ -38,11 +45,19 @@ function fail(message: string): never {
   process.exit(1);
 }
 
-function client(): ZkaoClient {
+function globalConfig() {
   const g = program.opts<{ token?: string; project?: string; baseUrl?: string }>();
-  const cfg = resolveConfig({ token: g.token, projectId: g.project, baseUrl: g.baseUrl });
+  return resolveConfig({ token: g.token, projectId: g.project, baseUrl: g.baseUrl });
+}
+
+function client(): ZkaoClient {
+  const cfg = globalConfig();
   if (!cfg.token) {
-    fail("No API token. Pass --token, set ZKAO_API_TOKEN, or run `zkao config set --token <token>`.");
+    fail(
+      cfg.projectId
+        ? `No saved credentials for project ${cfg.projectId}. Run \`zkao login --project ${cfg.projectId}\`, or pass --token / set ZKAO_API_TOKEN.`
+        : "No API token. Run `zkao login`, pass --token, or set ZKAO_API_TOKEN."
+    );
   }
   if (!cfg.projectId) {
     fail("No project id. Pass --project, set ZKAO_PROJECT_ID, or run `zkao config set --project <id>`.");
@@ -127,6 +142,30 @@ program
     }
   );
 
+program
+  .command("whoami")
+  .description("Show which project and organization the current token belongs to")
+  .action(async () => {
+    const cfg = globalConfig();
+    if (!cfg.token) {
+      fail("No API token. Run `zkao login`, pass --token, or set ZKAO_API_TOKEN.");
+    }
+    try {
+      const info = await getTokenInfo({ token: cfg.token, baseUrl: cfg.baseUrl });
+      if (cfg.projectId && cfg.projectId !== info.project.id) {
+        console.error(
+          `zkao: this token belongs to project ${info.project.id}, not the configured ${cfg.projectId}.`
+        );
+      }
+      out(info);
+    } catch (err) {
+      if (err instanceof ZkaoApiError) {
+        fail(`Error ${err.status} (${err.code}): ${err.message}`);
+      }
+      throw err;
+    }
+  });
+
 // --- config ---------------------------------------------------------------
 
 const config = program.command("config").description("Manage stored credentials");
@@ -156,11 +195,30 @@ config
   .description("Show the resolved settings (token masked)")
   .action(() => {
     const cfg = resolveConfig({});
+    const { activeProjectId, projects } = savedProjects();
     out({
       token: cfg.token ? `${cfg.token.slice(0, 14)}…` : null,
       projectId: cfg.projectId ?? null,
       baseUrl: cfg.baseUrl ?? "https://zkao.io/api/v1 (default)",
+      savedProjects: Object.entries(projects).map(([id, saved]) => ({
+        projectId: id,
+        name: saved.name ?? null,
+        organization: saved.organization ?? null,
+        baseUrl: saved.baseUrl ?? "https://zkao.io/api/v1 (default)",
+        active: id === activeProjectId,
+      })),
     });
+  });
+config
+  .command("use <projectId>")
+  .description("Switch the active project to one with saved credentials")
+  .action((projectId: string) => {
+    try {
+      const saved = useProject(projectId);
+      console.log(`Active project: ${describeProject(projectId, saved)}`);
+    } catch (err) {
+      fail(err instanceof Error ? err.message : String(err));
+    }
   });
 
 // --- repos ----------------------------------------------------------------

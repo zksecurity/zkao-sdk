@@ -28,6 +28,7 @@ export type AuditArea = Schemas["AuditArea"];
 export type AuditAreaList = Schemas["AuditAreaList"];
 export type DeleteAuditAreaResult = Schemas["DeleteAuditAreaResult"];
 export type SetGuidanceResult = Schemas["SetGuidanceResult"];
+export type TokenInfo = Schemas["TokenInfo"];
 export type BillingBalance = Schemas["BillingBalance"];
 export type BillingUsage = Schemas["BillingUsage"];
 export type UsageEvent = Schemas["UsageEvent"];
@@ -143,6 +144,22 @@ function unwrap<T>(result: FetchResult<T>): T {
  * Typed client for one zkao project. Every call is scoped to the project the
  * token belongs to; see https://zkao.io/openapi/v1.yaml for the full contract.
  */
+/**
+ * Which project (and organization) a token belongs to, plus its scopes and
+ * limits. Needs no project id, so it works with a token whose project is
+ * unknown. Any valid token may call it.
+ */
+export async function getTokenInfo(
+  options: Omit<ZkaoClientOptions, "projectId">
+): Promise<TokenInfo> {
+  const http = createClient<paths>({
+    baseUrl: options.baseUrl ?? resolveBaseUrlFromEnv() ?? DEFAULT_BASE_URL,
+    headers: { Authorization: `Bearer ${options.token}` },
+    ...(options.fetch ? { fetch: options.fetch } : {}),
+  });
+  return unwrap(await http.GET("/token"));
+}
+
 export class ZkaoClient {
   private readonly http: Client<paths>;
   private readonly projectId: string;
@@ -190,6 +207,13 @@ export class ZkaoClient {
 
   private get path() {
     return { projectId: this.projectId };
+  }
+
+  // --- Token --------------------------------------------------------------
+
+  /** The calling token, and the project and organization it belongs to. */
+  async getTokenInfo(): Promise<TokenInfo> {
+    return unwrap(await this.http.GET("/token"));
   }
 
   // --- Repositories -------------------------------------------------------

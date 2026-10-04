@@ -16,13 +16,18 @@ This repo contains three things, all driven by one OpenAPI contract:
 ## Get credentials
 
 Easiest is `zkao login`: it opens a browser device-authorization flow where you
-pick a project and approve, then saves the token and project id to
-`~/.zkao/config.json`. No token to copy.
+pick a project and approve, then saves the token for that project in
+`~/.zkao/config.json`. No token to copy. `zkao login --project <id>` preselects
+the project. Logging in to another project keeps the earlier ones saved:
+`zkao config show` lists them and `zkao config use <projectId>` switches.
+`zkao whoami` shows which project and organization the current token belongs
+to.
 
-Or create one yourself in zkao under **Project Settings → API tokens**: it is
+Or create one yourself in zkao under **Project Settings → Integrations**: it is
 scoped to one project, carries a chosen set of permissions (`read`,
 `findings:write`, `guidance:write`, `scans:launch`, `publish`), and can be
-limited to specific repositories. The token (`zkao_proj_…`) is shown once.
+limited to specific repositories. The token (`zkao_proj_…`) is shown once,
+together with the project id.
 
 To target another environment, set `ZKAO_URL` to a host, origin, or full API URL
 (e.g. `staging.zkao.io`); the CLI and SDK derive the API base (`…/api/v1`) from
@@ -36,6 +41,7 @@ Install the `@zksecurity/zkao-cli` package; it provides a `zkao` command.
 npm install -g @zksecurity/zkao-cli                         # or run one-off: npx @zksecurity/zkao-cli <args>
 
 zkao login                                       # browser approval; saves credentials
+zkao whoami                                      # which project the token belongs to
 # or: zkao config set --token zkao_proj_… --project <projectId>
 # or: export ZKAO_API_TOKEN and ZKAO_PROJECT_ID
 

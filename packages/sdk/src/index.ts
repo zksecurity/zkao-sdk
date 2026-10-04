@@ -5,6 +5,7 @@ export {
 export {
   ZkaoClient,
   ZkaoApiError,
+  getTokenInfo,
   DEFAULT_BASE_URL,
   isTerminalScanStatus,
   TERMINAL_SCAN_STATUSES,
@@ -33,6 +34,7 @@ export {
   type RepositoryGuidance,
   type SetGuidanceResult,
   type Paginated,
+  type TokenInfo,
   type BillingBalance,
   type BillingUsage,
   type UsageEvent,

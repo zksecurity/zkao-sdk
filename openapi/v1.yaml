@@ -5,7 +5,7 @@ info:
   description: |
     Project-scoped REST API for programmatically controlling a single zkao
     project with a bearer **API token** (created under Project Settings →
-    API tokens).
+    Integrations, or approved through the CLI's `zkao login`).
 
     ## Authentication
     Send the token in the `Authorization` header: `Authorization: Bearer zkao_proj_<keyId>_<secret>`.
@@ -20,6 +20,9 @@ info:
       - `guidance:write` — read and update a repository's guidance, and manage its audit areas
       - `scans:launch` — start a scan
       - `publish` — publish a finding or a scan
+
+    `GET /token` tells a token which project, and which organization, it
+    belongs to.
 
     A token may also be restricted to a subset of the project's repositories
     (a repo allowlist). Any resource outside the token's project or repo
@@ -51,6 +54,8 @@ servers:
 security:
   - bearerAuth: []
 tags:
+  - name: Token
+    description: The calling token and the project it belongs to
   - name: Repositories
     description: Project repositories
   - name: Scans
@@ -65,6 +70,20 @@ tags:
     description: The organization's prepaid credit balance, and this project's usage
 
 paths:
+  /token:
+    get:
+      tags: [Token]
+      operationId: getTokenInfo
+      summary: The calling token and its project
+      description: "Any valid token may call this, whatever its scopes. Use it to learn which project (and organization) a token belongs to."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TokenInfo" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
   /projects/{projectId}/repositories:
     get:
       tags: [Repositories]
@@ -798,6 +817,29 @@ components:
         id: { type: string }
         slug: { type: string, description: "URL segment of the organization (`/orgs/<slug>`), unique across zkao." }
         name: { type: string }
+    TokenInfo:
+      type: object
+      required: [id, name, scopes, repositoryIds, expiresAt, spendLimitCredits, project]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        scopes:
+          type: array
+          items: { type: string }
+        repositoryIds:
+          type: array
+          items: { type: string }
+          description: Repositories the token is restricted to. Empty means every repository of the project.
+        expiresAt: { type: [string, "null"], format: date-time }
+        spendLimitCredits: { type: [integer, "null"], description: "Credits this token may spend. Null means no limit." }
+        project:
+          type: object
+          required: [id, slug, name, organization]
+          properties:
+            id: { type: string }
+            slug: { type: string }
+            name: { type: string }
+            organization: { $ref: "#/components/schemas/Organization" }
     BillingBalance:
       type: object
       required: [organization, balanceCredits, availableCredits, reservedCredits]

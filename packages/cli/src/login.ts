@@ -5,7 +5,7 @@ import {
   clearPendingLogin,
   readPendingLogin,
   resolveConfig,
-  writeConfig,
+  saveProjectCredentials,
   writePendingLogin,
 } from "./config";
 
@@ -40,7 +40,14 @@ type PollResponse =
   | { status: "slow_down" }
   | { status: "denied" }
   | { status: "expired" }
-  | { status: "approved"; token: string; projectId: string };
+  | {
+      status: "approved";
+      token: string;
+      projectId: string;
+      /** Absent from servers that predate them. */
+      projectName?: string;
+      organizationName?: string;
+    };
 
 export type LoginFlags = {
   token?: string;
@@ -118,18 +125,37 @@ function printInstructions(start: StartResponse): void {
   );
 }
 
+export function describeProject(
+  projectId: string,
+  names: { name?: string; organization?: string }
+): string {
+  if (!names.name) {
+    return projectId;
+  }
+  const org = names.organization ? ` of organization "${names.organization}"` : "";
+  return `"${names.name}"${org} (${projectId})`;
+}
+
 function persistCredentials(
   poll: Extract<PollResponse, { status: "approved" }>,
   baseUrl?: string
 ): void {
-  const saved = writeConfig({
+  saveProjectCredentials(poll.projectId, {
     token: poll.token,
-    projectId: poll.projectId,
     baseUrl,
+    name: poll.projectName,
+    organization: poll.organizationName,
   });
   clearPendingLogin();
-  console.log("Authorized. Credentials saved.\n");
-  console.log(`  project: ${saved.projectId}`);
+  console.log(
+    `Authorized for project ${describeProject(poll.projectId, {
+      name: poll.projectName,
+      organization: poll.organizationName,
+    })}. It is now the active project.`
+  );
+  console.log(
+    "Credentials for other projects are kept. `zkao config show` lists them; `zkao config use <projectId>` switches."
+  );
 }
 
 export async function login(flags: LoginFlags): Promise<void> {
@@ -141,8 +167,12 @@ export async function login(flags: LoginFlags): Promise<void> {
   const apiBase = cfg.baseUrl ?? DEFAULT_BASE_URL;
   const origin = appOrigin(apiBase);
 
+  // Preselects the project on the approval page. Only an explicit choice:
+  // the saved active project is likely the one the user wants to move off.
+  const project = flags.project ?? process.env.ZKAO_PROJECT_ID;
   const start = await postJson<StartResponse>(`${origin}/api/auth/device`, {
     label: hostname(),
+    ...(project ? { project } : {}),
   });
 
   printInstructions(start);
