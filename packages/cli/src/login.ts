@@ -41,14 +41,19 @@ type PollResponse =
   | { status: "slow_down" }
   | { status: "denied" }
   | { status: "expired" }
-  | {
+  | ({
       status: "approved";
-      token: string;
-      projectId: string;
-      /** Absent from servers that predate them. */
-      projectName?: string;
-      organizationName?: string;
-    };
+      /** Every approved project, primary first. Absent from older servers. */
+      tokens?: IssuedToken[];
+    } & IssuedToken);
+
+type IssuedToken = {
+  token: string;
+  projectId: string;
+  /** Absent from servers that predate them. */
+  projectName?: string;
+  organizationName?: string;
+};
 
 export type LoginFlags = {
   token?: string;
@@ -141,18 +146,30 @@ function persistCredentials(
   poll: Extract<PollResponse, { status: "approved" }>,
   baseUrl?: string
 ): void {
-  saveProjectCredentials(poll.projectId, {
-    token: poll.token,
-    baseUrl,
-    name: poll.projectName,
-    organization: poll.organizationName,
-  });
-  console.log(
-    `Authorized for project ${describeProject(poll.projectId, {
-      name: poll.projectName,
-      organization: poll.organizationName,
-    })}. It is now the active project.`
-  );
+  const tokens = poll.tokens?.length ? poll.tokens : [poll];
+  // Saving activates, so the primary (first) goes last and ends up active.
+  for (const issued of [...tokens].reverse()) {
+    saveProjectCredentials(issued.projectId, {
+      token: issued.token,
+      baseUrl,
+      name: issued.projectName,
+      organization: issued.organizationName,
+    });
+  }
+  const describe = (issued: IssuedToken) =>
+    describeProject(issued.projectId, {
+      name: issued.projectName,
+      organization: issued.organizationName,
+    });
+  if (tokens.length === 1) {
+    console.log(`Authorized for project ${describe(poll)}.`);
+  } else {
+    console.log(`Authorized for ${tokens.length} projects:`);
+    for (const issued of tokens) {
+      console.log(`  ${describe(issued)}`);
+    }
+  }
+  console.log(`Active project: ${describe(poll)}.`);
   console.log(
     "Credentials for other projects are kept. `zkao config show` lists them; `zkao config use <projectId>` switches."
   );

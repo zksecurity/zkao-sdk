@@ -52,7 +52,8 @@ token.
   3. After they confirm, run `zkao login --resume`. Repeat it on your own cadence
      until it prints `Authorized` (each call returns at once; `Still waiting
      for approval` means keep waiting). The token is then saved for that
-     project in `~/.zkao/config.json`. Tokens for other projects stay saved.
+     project in `~/.zkao/config.json`. Tokens for other projects stay saved. The user can approve several
+     projects in one login, and each gets its own saved token.
 - **Pre-made token:** the user creates one under **Project Settings →
   Integrations** (scoped to one project, chosen permissions, optionally
   specific repos), shown once as `zkao_proj_<keyId>_<secret>` together with
