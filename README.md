@@ -141,7 +141,9 @@ new API version, regenerate, and bump the package versions.
 
 Each push to the `next` branch publishes both packages as `X.Y.Z-next.N` under
 the npm `next` tag. The workflow is `.github/workflows/release-next.yml`. It
-needs the `NPM_TOKEN` secret. Releases to `latest` are manual, from `main`.
+publishes through npm trusted publishing, so it needs no token. Each package
+has a trusted publisher on npmjs.com for this repo and workflow, with direct
+publish allowed. Releases to `latest` are manual, from `main`.
 
 `@zksecurity/zkao-sdk` and `@zksecurity/zkao-cli` are published to npm independently, both under the
 public `@zksecurity` scope (`publishConfig.access` is already `public`). Use `bun

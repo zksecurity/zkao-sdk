@@ -12,8 +12,12 @@ concurrency:
   group: release-next
   cancel-in-progress: false
 
+# Trusted publishing: npm verifies this workflow's OIDC identity, so there is
+# no token secret. Each package needs a trusted publisher on npmjs.com for this
+# repo and workflow file, with direct publish allowed.
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   publish:
@@ -21,6 +25,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      # Trusted publishing needs a recent npm CLI.
+      - run: npm install -g npm@latest
 
       - name: Set the prerelease version on both packages
         run: |
@@ -36,16 +46,20 @@ jobs:
       - run: bun run build
       - run: bun run typecheck
 
+      # bun pack rewrites the CLI's workspace:* dependency to the real version;
+      # npm then publishes the packed tarballs (npm alone would ship workspace:*).
+      - name: Pack both packages
+        run: |
+          (cd packages/sdk && bun pm pack --destination "$RUNNER_TEMP/pkgs")
+          (cd packages/cli && bun pm pack --destination "$RUNNER_TEMP/pkgs")
+
       - name: Check the CLI depends on the same SDK prerelease
         run: |
-          cd packages/cli && bun pm pack --destination "$RUNNER_TEMP"
-          DEP="$(tar -xzOf "$RUNNER_TEMP"/zksecurity-zkao-cli-*.tgz package/package.json | bun -e 'console.log(JSON.parse(await Bun.stdin.text()).dependencies["@zksecurity/zkao-sdk"])')"
+          DEP="$(tar -xzOf "$RUNNER_TEMP"/pkgs/zksecurity-zkao-cli-*.tgz package/package.json | bun -e 'console.log(JSON.parse(await Bun.stdin.text()).dependencies["@zksecurity/zkao-sdk"])')"
           echo "cli depends on @zksecurity/zkao-sdk@$DEP"
           test "$DEP" = "$VERSION"
 
       - name: Publish the SDK, then the CLI
-        env:
-          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          (cd packages/sdk && bun publish --tag next)
-          (cd packages/cli && bun publish --tag next)
+          npm publish "$RUNNER_TEMP"/pkgs/zksecurity-zkao-sdk-*.tgz --tag next --access public
+          npm publish "$RUNNER_TEMP"/pkgs/zksecurity-zkao-cli-*.tgz --tag next --access public
