@@ -18,7 +18,12 @@ import {
   useProject,
   writeConfig,
 } from "./config";
-import { describeProject, login, resumeLogin } from "./login";
+import {
+  DEFAULT_LOGIN_SCOPES,
+  describeProject,
+  login,
+  resumeLogin,
+} from "./login";
 import { printUpdateNotice, refreshUpdateCache } from "./update-check";
 
 // Resolved at runtime relative to the built dist/index.js, so the reported
@@ -113,6 +118,10 @@ program
   )
   .option("--resume", "poll a login previously started with --no-wait")
   .option(
+    "--scope <scopes...>",
+    `scopes to request; the approver can change them (default: ${DEFAULT_LOGIN_SCOPES.join(" ")})`
+  )
+  .option(
     "--timeout <seconds>",
     "with --resume, wait up to this long for approval (default: poll once)",
     toInt
@@ -123,6 +132,7 @@ program
       wait?: boolean;
       resume?: boolean;
       timeout?: number;
+      scope?: string[];
     }) => {
       if (opts.resume) {
         await resumeLogin({ timeout: opts.timeout });
@@ -138,6 +148,7 @@ program
         project: g.project,
         baseUrl: g.baseUrl,
         noBrowser: opts.browser === false,
+        scopes: opts.scope,
         wait: opts.wait !== false,
       });
     }

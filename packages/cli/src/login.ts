@@ -62,7 +62,12 @@ export type LoginFlags = {
   noBrowser?: boolean;
   /** false = start and exit (`--no-wait`); true (default) = block until done. */
   wait?: boolean;
+  /** Scopes to request; the approval page pre-ticks them. */
+  scopes?: string[];
 };
+
+/** What launching and triaging scans needs. The approver can change it. */
+export const DEFAULT_LOGIN_SCOPES = ["read", "scans:launch", "findings:write"];
 
 /**
  * The app base the device endpoints live on: the API base URL minus its
@@ -189,6 +194,7 @@ export async function login(flags: LoginFlags): Promise<void> {
   const project = flags.project ?? process.env.ZKAO_PROJECT_ID;
   const start = await postJson<StartResponse>(`${origin}/api/auth/device`, {
     label: hostname(),
+    scopes: flags.scopes ?? DEFAULT_LOGIN_SCOPES,
     ...(project ? { project } : {}),
   });
 
