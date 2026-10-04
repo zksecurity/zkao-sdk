@@ -31,6 +31,9 @@ binary. For a one-off without installing, prefix any command with
 `npx @zksecurity/zkao-cli`. `zkao --help` and `zkao <group> --help` are the
 authoritative, always-current list of commands.
 
+For staging (`staging.zkao.io`), install `@zksecurity/zkao-cli@next` or pass
+`--next` to the installer. The skill on the `next` branch describes staging.
+
 Two ways to get credentials. If the user asks to "create/get a token" and
 browser approval is acceptable, **prefer the CLI device flow first** (option 1
 below). Do **not** ask them to manually create or copy an API token unless the

@@ -37,6 +37,10 @@ it.
 
 Install the `@zksecurity/zkao-cli` package; it provides a `zkao` command.
 
+Staging (`staging.zkao.io`) runs ahead of production. Staging users install
+`@zksecurity/zkao-cli@next`, or run `install.sh` with `--next`. The skill on the
+`next` branch describes staging.
+
 ```bash
 npm install -g @zksecurity/zkao-cli                         # or run one-off: npx @zksecurity/zkao-cli <args>
 
@@ -134,6 +138,10 @@ zkao app (served at `/openapi/v1.yaml`); update `openapi/v1.yaml` here to match 
 new API version, regenerate, and bump the package versions.
 
 ## Publishing
+
+Each push to the `next` branch publishes both packages as `X.Y.Z-next.N` under
+the npm `next` tag. The workflow is `.github/workflows/release-next.yml`. It
+needs the `NPM_TOKEN` secret. Releases to `latest` are manual, from `main`.
 
 `@zksecurity/zkao-sdk` and `@zksecurity/zkao-cli` are published to npm independently, both under the
 public `@zksecurity` scope (`publishConfig.access` is already `public`). Use `bun
