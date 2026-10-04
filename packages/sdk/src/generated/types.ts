@@ -142,8 +142,7 @@ export interface paths {
          *     scanned commit, and requires `baseCommit`. Every other preset refuses
          *     it. A malformed, unknown, or misplaced base is a `400` with code
          *     `diff_base_required`, `diff_base_not_allowed`, or `diff_base_invalid`.
-         *     A diff scan also needs an earlier full scan of the branch, and a
-         *     change to audit (otherwise `422`).
+         *     A diff scan also needs a change to audit (otherwise `422`).
          */
         post: operations["launchScan"];
         delete?: never;
