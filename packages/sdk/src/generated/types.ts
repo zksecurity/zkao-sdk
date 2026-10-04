@@ -505,7 +505,7 @@ export interface components {
         Error: {
             error: {
                 /** @enum {string} */
-                code: "unauthorized" | "forbidden" | "not_found" | "bad_request" | "conflict" | "insufficient_credits" | "repository_initializing" | "diff_base_required" | "diff_base_not_allowed" | "diff_base_invalid" | "diff_empty" | "diff_overview_missing" | "rate_limited" | "internal";
+                code: "unauthorized" | "forbidden" | "not_found" | "bad_request" | "conflict" | "insufficient_credits" | "repository_initializing" | "diff_base_required" | "diff_base_not_allowed" | "diff_base_invalid" | "diff_empty" | "rate_limited" | "internal";
                 message: string;
             };
         };
@@ -814,7 +814,7 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description The diff scan cannot run on this repository yet. Code `diff_empty`: the base and the scanned commit have no change between them. Code `diff_overview_missing`: no earlier full scan of the branch (or the default branch) exists to compare against. Run a full scan first. */
+        /** @description The diff scan has nothing to audit. Code `diff_empty`: the base and the scanned commit have no change between them. */
         DiffUnavailable: {
             headers: {
                 [name: string]: unknown;

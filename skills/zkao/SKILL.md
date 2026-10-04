@@ -196,8 +196,7 @@ whether they want a diff scan of the change.
    The base is a commit or ref. The scan diffs from its merge base with the head.
 3. `zkao scans wait <scanId>`.
 
-`diff_overview_missing` means the repository has never had a full scan. Run one
-first. `diff_empty` means the head adds nothing over the base.
+`diff_empty` means the head adds nothing over the base.
 
 **Check what a scan can cost before launching**
 
