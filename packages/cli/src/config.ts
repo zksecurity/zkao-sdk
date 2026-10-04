@@ -231,6 +231,8 @@ export function resolveConfig(flags: ZkaoConfig): ZkaoConfig {
  */
 export type PendingLogin = {
   deviceCode: string;
+  /** Code shown to the user; absent from files written by older CLIs. */
+  userCode?: string;
   /** App origin to poll (`/api/auth/device/token`). */
   origin: string;
   /** Server-suggested seconds between polls. */
@@ -241,44 +243,97 @@ export type PendingLogin = {
   baseUrl?: string;
 };
 
+/**
+ * Several logins can be pending at once (one per `zkao login --no-wait`),
+ * keyed by device code. Older CLIs wrote a single `PendingLogin` object.
+ */
+type PendingFile = { logins: Record<string, PendingLogin> };
+
 const PENDING_PATH = join(homedir(), ".zkao", "pending-login.json");
 
 export function pendingLoginPath(): string {
   return PENDING_PATH;
 }
 
-export function writePendingLogin(pending: PendingLogin): void {
-  writeSecretFile(PENDING_PATH, `${JSON.stringify(pending, null, 2)}\n`);
+function isPendingLogin(value: unknown): value is PendingLogin {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.deviceCode === "string" &&
+    typeof v.origin === "string" &&
+    typeof v.interval === "number" &&
+    typeof v.expiresAtMs === "number"
+  );
 }
 
-export function readPendingLogin(): PendingLogin | null {
+/** Every pending login on disk, including expired ones. */
+export function readPendingLogins(): PendingLogin[] {
   let raw: string;
   try {
     raw = readFileSync(PENDING_PATH, "utf8");
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      return null;
+      return [];
     }
     throw err;
   }
+  let parsed: unknown;
   try {
-    return JSON.parse(raw) as PendingLogin;
+    parsed = JSON.parse(raw);
   } catch {
     // Disposable state: treat a corrupt file as "no pending login" so a fresh
     // `zkao login --no-wait` simply overwrites it.
     console.error(
       `zkao: ignoring unparseable pending login at ${PENDING_PATH}`
     );
-    return null;
+    return [];
   }
+  if (isPendingLogin(parsed)) {
+    return [parsed];
+  }
+  const logins = (parsed as Partial<PendingFile> | null)?.logins;
+  return logins && typeof logins === "object"
+    ? Object.values(logins).filter(isPendingLogin)
+    : [];
 }
 
-export function clearPendingLogin(): void {
-  try {
-    unlinkSync(PENDING_PATH);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
-      throw err;
+function writePendingLogins(logins: PendingLogin[]): void {
+  if (logins.length === 0) {
+    try {
+      unlinkSync(PENDING_PATH);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+        throw err;
+      }
     }
+    return;
   }
+  const file: PendingFile = {
+    logins: Object.fromEntries(logins.map((l) => [l.deviceCode, l])),
+  };
+  writeSecretFile(PENDING_PATH, `${JSON.stringify(file, null, 2)}\n`);
+}
+
+/** Add a pending login, dropping any that have expired. */
+export function addPendingLogin(pending: PendingLogin): void {
+  const now = Date.now();
+  writePendingLogins([
+    ...readPendingLogins().filter(
+      (l) => l.expiresAtMs > now && l.deviceCode !== pending.deviceCode
+    ),
+    pending,
+  ]);
+}
+
+/** Drop pending logins by device code, plus any that have expired. */
+export function removePendingLogins(deviceCodes: string[]): void {
+  const now = Date.now();
+  const drop = new Set(deviceCodes);
+  writePendingLogins(
+    readPendingLogins().filter(
+      (l) => l.expiresAtMs > now && !drop.has(l.deviceCode)
+    )
+  );
 }

@@ -2,11 +2,12 @@ import { spawn } from "node:child_process";
 import { hostname } from "node:os";
 import { DEFAULT_BASE_URL } from "@zksecurity/zkao-sdk";
 import {
-  clearPendingLogin,
-  readPendingLogin,
+  addPendingLogin,
+  type PendingLogin,
+  readPendingLogins,
+  removePendingLogins,
   resolveConfig,
   saveProjectCredentials,
-  writePendingLogin,
 } from "./config";
 
 /**
@@ -146,7 +147,6 @@ function persistCredentials(
     name: poll.projectName,
     organization: poll.organizationName,
   });
-  clearPendingLogin();
   console.log(
     `Authorized for project ${describeProject(poll.projectId, {
       name: poll.projectName,
@@ -182,13 +182,15 @@ export async function login(flags: LoginFlags): Promise<void> {
 
   // Persist immediately so a later `--resume` (or a Ctrl-C'd interactive run)
   // can finish without restarting the flow.
-  writePendingLogin({
+  const pending: PendingLogin = {
     deviceCode: start.deviceCode,
+    userCode: start.userCode,
     origin,
     interval: Math.max(1, start.interval),
     expiresAtMs: Date.now() + start.expiresIn * 1000,
     baseUrl: cfg.baseUrl,
-  });
+  };
+  addPendingLogin(pending);
 
   if (flags.wait === false) {
     console.log(
@@ -197,58 +199,57 @@ export async function login(flags: LoginFlags): Promise<void> {
     return;
   }
 
-  await pollUntilDone({
-    origin,
-    deviceCode: start.deviceCode,
-    intervalMs: Math.max(1, start.interval) * 1000,
-    deadlineMs: Date.now() + start.expiresIn * 1000,
-    baseUrl: cfg.baseUrl,
-  });
+  await pollUntilDone([pending], pending.expiresAtMs);
 }
 
 export async function resumeLogin(flags: {
   timeout?: number;
 }): Promise<void> {
-  const pending = readPendingLogin();
-  if (!pending) {
-    throw new Error(
-      "No pending login. Run `zkao login --no-wait` to start one first."
-    );
+  const all = readPendingLogins();
+  const now = Date.now();
+  const live = all.filter((l) => l.expiresAtMs > now);
+  if (live.length < all.length) {
+    removePendingLogins([]);
   }
-  if (Date.now() >= pending.expiresAtMs) {
-    clearPendingLogin();
-    throw new Error("The login request expired. Run `zkao login` again.");
+  if (live.length === 0) {
+    throw new Error(
+      all.length > 0
+        ? "The login request expired. Run `zkao login` again."
+        : "No pending login. Run `zkao login --no-wait` to start one first."
+    );
   }
 
   // Bounded: `--timeout 0` (default) polls once and reports; a positive value
   // waits up to that many seconds. Either way the call returns promptly.
   const waitMs = (flags.timeout ?? 0) * 1000;
-  await pollUntilDone({
-    origin: pending.origin,
-    deviceCode: pending.deviceCode,
-    intervalMs: Math.max(1, pending.interval) * 1000,
-    deadlineMs: Math.min(pending.expiresAtMs, Date.now() + waitMs),
-    baseUrl: pending.baseUrl,
-    reportStillPending: true,
-  });
+  const lastExpiry = Math.max(...live.map((l) => l.expiresAtMs));
+  await pollUntilDone(live, Math.min(lastExpiry, Date.now() + waitMs), true);
 }
 
-async function pollUntilDone(opts: {
-  origin: string;
-  deviceCode: string;
-  intervalMs: number;
-  deadlineMs: number;
-  baseUrl?: string;
+function label(pending: PendingLogin): string {
+  return pending.userCode ? `code ${pending.userCode}` : "an earlier login";
+}
+
+/**
+ * Poll every pending login each round until one is approved. Denied and
+ * expired logins are dropped. With several pending, the others are reported
+ * and kept for a later `--resume`.
+ */
+async function pollUntilDone(
+  logins: PendingLogin[],
+  deadlineMs: number,
   /** When the deadline passes without resolution, return instead of throwing. */
-  reportStillPending?: boolean;
-}): Promise<void> {
-  let intervalMs = opts.intervalMs;
+  reportStillPending = false
+): Promise<void> {
+  let open = [...logins];
+  let intervalMs = Math.min(...open.map((l) => Math.max(1, l.interval))) * 1000;
+  let lastFailure = "The login request expired. Run `zkao login` again.";
   let polled = false;
 
-  for (;;) {
+  while (open.length > 0) {
     // Always poll at least once, even if the (bounded) deadline is already now.
     if (polled) {
-      const remaining = opts.deadlineMs - Date.now();
+      const remaining = deadlineMs - Date.now();
       if (remaining <= 0) {
         break;
       }
@@ -256,39 +257,73 @@ async function pollUntilDone(opts: {
     }
     polled = true;
 
-    const poll = await postJson<PollResponse>(
-      `${opts.origin}/api/auth/device/token`,
-      { deviceCode: opts.deviceCode }
-    );
-
-    switch (poll.status) {
-      case "pending":
-      case "slow_down":
-        if (poll.status === "slow_down") {
+    const resolved: string[] = [];
+    const dropped: string[] = [];
+    for (const pending of open) {
+      if (Date.now() >= pending.expiresAtMs) {
+        resolved.push(pending.deviceCode);
+        dropped.push(`${label(pending)} expired`);
+        lastFailure = "The login request expired. Run `zkao login` again.";
+        continue;
+      }
+      const poll = await postJson<PollResponse>(
+        `${pending.origin}/api/auth/device/token`,
+        { deviceCode: pending.deviceCode }
+      );
+      switch (poll.status) {
+        case "pending":
+          break;
+        case "slow_down":
           intervalMs += 2000;
+          break;
+        case "denied":
+          resolved.push(pending.deviceCode);
+          dropped.push(`${label(pending)} was denied`);
+          lastFailure = "Authorization was denied in the browser.";
+          break;
+        case "expired":
+          resolved.push(pending.deviceCode);
+          dropped.push(`${label(pending)} expired`);
+          lastFailure = "The login request expired. Run `zkao login` again.";
+          break;
+        case "approved": {
+          removePendingLogins([...resolved, pending.deviceCode]);
+          persistCredentials(poll, pending.baseUrl);
+          const rest = open.filter(
+            (l) => l !== pending && !resolved.includes(l.deviceCode)
+          );
+          if (rest.length > 0) {
+            console.log(
+              `Still pending: ${rest.map(label).join(", ")}. Run \`zkao login --resume\` again to finish ${rest.length > 1 ? "them" : "it"}.`
+            );
+          }
+          return;
         }
-        break;
-      case "denied":
-        clearPendingLogin();
-        throw new Error("Authorization was denied in the browser.");
-      case "expired":
-        clearPendingLogin();
-        throw new Error("The login request expired. Run `zkao login` again.");
-      case "approved":
-        persistCredentials(poll, opts.baseUrl);
-        return;
-      default: {
-        const _exhaustive: never = poll;
-        throw new Error(
-          `Unexpected device status: ${JSON.stringify(_exhaustive)}`
-        );
+        default: {
+          const _exhaustive: never = poll;
+          throw new Error(
+            `Unexpected device status: ${JSON.stringify(_exhaustive)}`
+          );
+        }
+      }
+    }
+    if (resolved.length > 0) {
+      removePendingLogins(resolved);
+      open = open.filter((l) => !resolved.includes(l.deviceCode));
+      if (open.length > 0) {
+        console.error(`zkao: dropped pending login: ${dropped.join(", ")}.`);
       }
     }
   }
 
-  if (opts.reportStillPending) {
+  if (open.length === 0) {
+    throw new Error(lastFailure);
+  }
+  if (reportStillPending) {
     console.log(
-      "Still waiting for approval. Approve in the browser, then run `zkao login --resume` again."
+      open.length > 1
+        ? `Still waiting for approval of ${open.length} logins (${open.map(label).join(", ")}). Approve in the browser, then run \`zkao login --resume\` again.`
+        : "Still waiting for approval. Approve in the browser, then run `zkao login --resume` again."
     );
     return;
   }
