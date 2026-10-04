@@ -21,12 +21,24 @@ const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const REGISTRY_TIMEOUT_MS = 1500;
 const PACKAGE = "@zksecurity/zkao-cli";
 
+/**
+ * The npm dist-tag this install follows: prerelease builds (`X.Y.Z-next.N`)
+ * track `next` (staging), everything else tracks `latest` (production).
+ */
+type Channel = "latest" | "next";
+
 type UpdateCache = {
   /** Epoch ms of the last successful registry read. */
   checkedAtMs: number;
-  /** Latest version the registry reported. */
+  /** Latest version the registry reported for `channel`. */
   latest: string;
+  /** Dist-tag `latest` was read from; absent in caches from older CLIs. */
+  channel?: Channel;
 };
+
+export function channelOf(version: string): Channel {
+  return version.includes("-") ? "next" : "latest";
+}
 
 function debug(message: string, err: unknown): void {
   if (process.env.ZKAO_DEBUG) {
@@ -38,7 +50,7 @@ function disabled(): boolean {
   return Boolean(process.env.ZKAO_NO_UPDATE_CHECK);
 }
 
-function readCache(): UpdateCache | null {
+function readCache(channel: Channel): UpdateCache | null {
   let raw: string;
   try {
     raw = readFileSync(CACHE_PATH, "utf8");
@@ -50,9 +62,10 @@ function readCache(): UpdateCache | null {
   }
   try {
     const parsed = JSON.parse(raw) as UpdateCache;
-    return typeof parsed.latest === "string" && typeof parsed.checkedAtMs === "number"
-      ? parsed
-      : null;
+    const valid =
+      typeof parsed.latest === "string" && typeof parsed.checkedAtMs === "number";
+    // A cache read from the other dist-tag says nothing about this one.
+    return valid && (parsed.channel ?? "latest") === channel ? parsed : null;
   } catch (err) {
     // Disposable state: a corrupt cache just means "check again".
     debug("ignoring an unparseable update cache", err);
@@ -70,31 +83,35 @@ function writeCache(cache: UpdateCache): void {
 }
 
 /**
- * Compare two `x.y.z` versions. Anything carrying a prerelease or build suffix
- * is treated as not-newer, so a published `1.0.0-rc.1` never nags a stable
- * install.
+ * Compare two `x.y.z` or `x.y.z-next.n` versions. A prerelease is older than
+ * its release. A prerelease `latest` never counts as newer than a stable
+ * `current`, so a published `1.0.0-rc.1` never nags a stable install.
  */
 export function isNewerVersion(latest: string, current: string): boolean {
-  const parse = (v: string): [number, number, number] | null => {
-    const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(v.trim());
+  const parse = (v: string): { core: number[]; pre: number | null } | null => {
+    const match = /^(\d+)\.(\d+)\.(\d+)(?:-next\.(\d+))?$/.exec(v.trim());
     return match
-      ? [Number(match[1]), Number(match[2]), Number(match[3])]
+      ? {
+          core: [Number(match[1]), Number(match[2]), Number(match[3])],
+          pre: match[4] === undefined ? null : Number(match[4]),
+        }
       : null;
   };
   const a = parse(latest);
   const b = parse(current);
-  if (!(a && b)) {
+  if (!(a && b) || (a.pre !== null && b.pre === null)) {
     return false;
   }
-  const [aMajor, aMinor, aPatch] = a;
-  const [bMajor, bMinor, bPatch] = b;
-  if (aMajor !== bMajor) {
-    return aMajor > bMajor;
+  for (const [x, y] of a.core.map((n, i) => [n, b.core[i] ?? 0] as const)) {
+    if (x !== y) {
+      return x > y;
+    }
   }
-  if (aMinor !== bMinor) {
-    return aMinor > bMinor;
+  if (a.pre === null || b.pre === null) {
+    // Same core: only a release beats its own prerelease.
+    return a.pre === null && b.pre !== null;
   }
-  return aPatch > bPatch;
+  return a.pre > b.pre;
 }
 
 /**
@@ -106,13 +123,15 @@ export function printUpdateNotice(currentVersion: string): void {
   if (disabled()) {
     return;
   }
-  const cache = readCache();
+  const channel = channelOf(currentVersion);
+  const cache = readCache(channel);
   if (!(cache && isNewerVersion(cache.latest, currentVersion))) {
     return;
   }
+  const spec = channel === "next" ? `${PACKAGE}@next` : PACKAGE;
   console.error(
     `zkao: version ${cache.latest} is available (running ${currentVersion}). ` +
-      `Update with \`npm install -g ${PACKAGE}\`. ` +
+      `Update with \`npm install -g ${spec}\`. ` +
       "If you are an agent working from a zkao skill file, update that too: it may describe fewer commands than the API now offers."
   );
 }
@@ -123,20 +142,21 @@ export function printUpdateNotice(currentVersion: string): void {
  * for the network (bounded by `REGISTRY_TIMEOUT_MS`), and a first run therefore
  * shows its notice on the NEXT invocation.
  */
-export async function refreshUpdateCache(): Promise<void> {
+export async function refreshUpdateCache(currentVersion: string): Promise<void> {
   if (disabled()) {
     return;
   }
-  const cache = readCache();
+  const channel = channelOf(currentVersion);
+  const cache = readCache(channel);
   if (cache && Date.now() - cache.checkedAtMs < CHECK_INTERVAL_MS) {
     return;
   }
   // A failed lookup still stamps the cache, so an offline or blocked machine
   // waits a day like any other rather than paying the timeout every command.
   const keepPrevious = () =>
-    writeCache({ checkedAtMs: Date.now(), latest: cache?.latest ?? "" });
+    writeCache({ checkedAtMs: Date.now(), latest: cache?.latest ?? "", channel });
   try {
-    const res = await fetch(`https://registry.npmjs.org/${PACKAGE}/latest`, {
+    const res = await fetch(`https://registry.npmjs.org/${PACKAGE}/${channel}`, {
       headers: { accept: "application/json" },
       signal: AbortSignal.timeout(REGISTRY_TIMEOUT_MS),
     });
@@ -151,7 +171,7 @@ export async function refreshUpdateCache(): Promise<void> {
       keepPrevious();
       return;
     }
-    writeCache({ checkedAtMs: Date.now(), latest: body.version });
+    writeCache({ checkedAtMs: Date.now(), latest: body.version, channel });
   } catch (err) {
     // Offline, blocked, or slow: an update check must never fail a command.
     debug("could not reach the npm registry", err);

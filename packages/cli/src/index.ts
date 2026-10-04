@@ -13,6 +13,7 @@ import {
 import {
   configPath,
   resolveConfig,
+  saveProjectCredentials,
   savedProjects,
   useProject,
   writeConfig,
@@ -175,7 +176,7 @@ config
   .option("--token <token>", "project API token")
   .option("--project <id>", "project id")
   .option("--base-url <url>", "API base URL")
-  .action((opts: { token?: string; project?: string; baseUrl?: string }) => {
+  .action(async (opts: { token?: string; project?: string; baseUrl?: string }) => {
     // The same flags exist at the program level, and commander resolves them
     // there even when they appear after `config set` — merge both scopes.
     const g = program.opts<{ token?: string; project?: string; baseUrl?: string }>();
@@ -186,6 +187,26 @@ config
     };
     if (update.token === undefined && update.projectId === undefined && update.baseUrl === undefined) {
       fail("Nothing to save. Pass --token, --project, or --base-url.");
+    }
+    if (update.token !== undefined && update.projectId === undefined) {
+      // A token belongs to one project: ask the API which, and save it there.
+      const baseUrl = resolveConfig({ baseUrl: update.baseUrl }).baseUrl;
+      try {
+        const info = await getTokenInfo({ token: update.token, baseUrl });
+        const names = {
+          name: info.project.name,
+          organization: info.project.organization.name,
+        };
+        saveProjectCredentials(info.project.id, { token: update.token, baseUrl, ...names });
+        console.log(
+          `Saved to ${configPath()}. Active project: ${describeProject(info.project.id, names)}`
+        );
+        return;
+      } catch (err) {
+        console.error(
+          `zkao: could not look up the token's project (${err instanceof Error ? err.message : String(err)}); saving it without one.`
+        );
+      }
     }
     writeConfig(update);
     console.log(`Saved to ${configPath()}`);
@@ -561,7 +582,7 @@ program
   .parseAsync()
   // After the command's own output, so a stale cache never delays it. `fail()`
   // exits the process, so this refreshes on the paths that succeed.
-  .then(() => refreshUpdateCache())
+  .then(() => refreshUpdateCache(version))
   .catch((err) => {
     console.error(errorMessage(err));
     process.exit(1);
