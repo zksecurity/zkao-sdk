@@ -17,9 +17,8 @@ export default defineConfig({
       description:
         "Drive zkao security audits from code: the REST API, the zkao CLI, the TypeScript SDK, the GitHub Action, and the agent skill.",
       logo: {
-        light: "./src/assets/logo-light.png",
-        dark: "./src/assets/logo-dark.png",
-        alt: "zkao",
+        src: "./src/assets/logo-docs.png",
+        alt: "zkao docs",
         replacesTitle: true,
       },
       favicon: "/favicon.png",
