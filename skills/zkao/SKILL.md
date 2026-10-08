@@ -32,7 +32,7 @@ binary. For a one-off without installing, prefix any command with
 authoritative, always-current list of commands.
 
 For staging (`staging.zkao.io`), install `@zksecurity/zkao-cli@next` or pass
-`--next` to the installer. The skill on the `next` branch describes staging.
+`--next` to the installer. The skill on the `staging` branch describes staging.
 
 Two ways to get credentials. If the user asks to "create/get a token" and
 browser approval is acceptable, **prefer the CLI device flow first** (option 1
