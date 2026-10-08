@@ -1,0 +1,54 @@
+/* zkao palette: the ink and accent scales from the zkao app. */
+:root {
+  --sl-font: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --sl-font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --zk-font-display: "Space Grotesk Variable", "IBM Plex Sans", sans-serif;
+
+  --sl-color-accent-low: oklch(28.2% 0.091 268);
+  --sl-color-accent: oklch(64% 0.205 263);
+  --sl-color-accent-high: oklch(88.2% 0.065 262);
+  --sl-color-white: oklch(98.5% 0.003 262);
+  --sl-color-gray-1: oklch(92.8% 0.011 262);
+  --sl-color-gray-2: oklch(87.2% 0.018 262);
+  --sl-color-gray-3: oklch(70.7% 0.031 262);
+  --sl-color-gray-4: oklch(44.6% 0.042 262);
+  --sl-color-gray-5: oklch(37.3% 0.045 262);
+  --sl-color-gray-6: oklch(21% 0.043 264);
+  --sl-color-black: oklch(13% 0.036 264);
+}
+
+:root[data-theme="light"] {
+  --sl-color-accent-low: oklch(93.2% 0.038 262);
+  --sl-color-accent: oklch(58.5% 0.222 263);
+  --sl-color-accent-high: oklch(37.9% 0.146 265);
+  --sl-color-white: oklch(13% 0.036 264);
+  --sl-color-gray-1: oklch(21% 0.043 264);
+  --sl-color-gray-2: oklch(37.3% 0.045 262);
+  --sl-color-gray-3: oklch(55.1% 0.038 262);
+  --sl-color-gray-4: oklch(70.7% 0.031 262);
+  --sl-color-gray-5: oklch(87.2% 0.018 262);
+  --sl-color-gray-6: oklch(96.7% 0.006 262);
+  --sl-color-gray-7: oklch(98.5% 0.003 262);
+  --sl-color-black: oklch(100% 0 0);
+}
+
+h1,
+h2,
+h3,
+.hero .tagline,
+.site-title {
+  font-family: var(--zk-font-display);
+  letter-spacing: -0.01em;
+}
+
+.sl-markdown-content h2 {
+  font-weight: 600;
+}
+
+.hero {
+  padding-block: 3rem 2rem;
+}
+
+.hero img {
+  max-width: 16rem;
+}

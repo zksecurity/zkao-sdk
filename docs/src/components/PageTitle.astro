@@ -1,0 +1,80 @@
+---
+// Starlight links its "Overview" table-of-contents entry to this id.
+const PAGE_TITLE_ID = "_top";
+
+const { entry, id } = Astro.locals.starlightRoute;
+// Generated API pages have no Markdown source, so they get no Markdown link.
+const markdownHref = entry.filePath?.startsWith("src/content/docs/")
+  ? `/${id === "" ? "index" : id}.md`
+  : undefined;
+---
+
+<div class="title-row">
+  <h1 id={PAGE_TITLE_ID}>{entry.data.title}</h1>
+  {
+    markdownHref && (
+      <div class="md-actions">
+        <button type="button" data-md-copy={markdownHref}>
+          Copy as Markdown
+        </button>
+        <a href={markdownHref}>View .md</a>
+      </div>
+    )
+  }
+</div>
+
+<script>
+  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-md-copy]")) {
+    button.addEventListener("click", async () => {
+      const label = button.textContent;
+      try {
+        const text = await fetch(button.dataset.mdCopy ?? "").then((r) => r.text());
+        await navigator.clipboard.writeText(text);
+        button.textContent = "Copied";
+      } catch (error) {
+        console.error("Copying the page as Markdown failed", error);
+        button.textContent = "Copy failed";
+      }
+      setTimeout(() => (button.textContent = label), 1500);
+    });
+  }
+</script>
+
+<style>
+  .title-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+  }
+  h1 {
+    margin-top: 1rem;
+    font-size: var(--sl-text-h1);
+    line-height: var(--sl-line-height-headings);
+    font-weight: 600;
+    color: var(--sl-color-white);
+  }
+  .md-actions {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    font-size: var(--sl-text-xs);
+  }
+  .md-actions button,
+  .md-actions a {
+    font: inherit;
+    color: var(--sl-color-gray-3);
+    background: none;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.4rem;
+    padding: 0.2rem 0.6rem;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .md-actions button:hover,
+  .md-actions a:hover {
+    color: var(--sl-color-white);
+    border-color: var(--sl-color-gray-3);
+  }
+</style>
