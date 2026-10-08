@@ -1,12 +1,12 @@
 name: Release next
 
-# Branch `next` tracks staging (staging.zkao.io). Every push publishes both
+# Branch `staging` tracks staging.zkao.io. Every push publishes both
 # packages as `X.Y.Z-next.<run>` under the npm dist-tag `next`; `latest` stays
 # the production release.
 
 on:
   push:
-    branches: [next]
+    branches: [staging]
     # A docs-only push changes neither package.
     paths-ignore: ["docs/**"]
 

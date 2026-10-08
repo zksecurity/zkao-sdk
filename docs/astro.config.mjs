@@ -4,7 +4,7 @@ import { defineConfig } from "astro/config";
 import starlightLlmsTxt from "starlight-llms-txt";
 import starlightOpenAPI, { openAPISidebarGroups } from "starlight-openapi";
 
-// One site per release channel: main builds docs.zkao.io, next builds
+// One site per release channel: main builds docs.zkao.io, staging builds
 // docs.staging.zkao.io with PUBLIC_DOCS_CHANNEL=staging.
 const staging = process.env.PUBLIC_DOCS_CHANNEL === "staging";
 const site = staging ? "https://docs.staging.zkao.io" : "https://docs.zkao.io";
@@ -27,7 +27,7 @@ export default defineConfig({
         { icon: "github", label: "GitHub", href: "https://github.com/zksecurity/zkao-sdk" },
       ],
       editLink: {
-        baseUrl: `https://github.com/zksecurity/zkao-sdk/edit/${staging ? "next" : "main"}/docs/`,
+        baseUrl: `https://github.com/zksecurity/zkao-sdk/edit/${staging ? "staging" : "main"}/docs/`,
       },
       customCss: [
         "@fontsource/ibm-plex-sans/400.css",
