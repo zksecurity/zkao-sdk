@@ -667,7 +667,7 @@ export interface components {
         };
         LaunchScanRequest: {
             repositoryId: string;
-            /** @description Max budget for the scan, in credits. Reserved at launch. Omit it to launch at the budget zkao recommends for this scan type and scope on this repository: sized from what past scans of it spent, half again the last budget when that scan ran short of it, or the scan type's minimum on the first. */
+            /** @description Max budget for the scan, in credits. Reserved at launch. Omit it to launch at the budget zkao recommends for this scan type and scope on this repository. That is the last such scan's budget, or half again when that scan ran short of it, never above twice the scan type's minimum. A first scan starts at twice the minimum. */
             creditBudget?: number;
             /** @description A preset ref from /scan-presets. Defaults to the first active preset. */
             presetRef?: string;
