@@ -211,6 +211,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{projectId}/findings/details": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get many findings (full detail)
+         * @description Requires scope: `read`. The full detail of a scan's findings, of a set of findings, or both, in one call. Returns the findings shown in the app: confirmed or inconclusive, on scans the project can see.
+         */
+        get: operations["listFindingDetails"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{projectId}/findings/{findingId}": {
         parameters: {
             query?: never;
@@ -600,6 +620,9 @@ export interface components {
         };
         FindingDetail: components["schemas"]["Finding"] & {
             description: string;
+            impact: string;
+            recommendation: string;
+            assumptions: string[];
             pocReport?: string | null;
             recommendedFix?: string | null;
             scanId: string;
@@ -624,6 +647,14 @@ export interface components {
             page: number;
             limit: number;
             total: number;
+        };
+        PaginatedFindingDetails: {
+            items: components["schemas"]["FindingDetail"][];
+            page: number;
+            limit: number;
+            total: number;
+            /** @description The requested `ids` that matched no finding. */
+            missing: string[];
         };
         ScanPreset: {
             /** @description Pass as `presetRef` when launching. */
@@ -1219,6 +1250,39 @@ export interface operations {
                     "application/json": components["schemas"]["PaginatedFindings"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listFindingDetails: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Page"];
+                limit?: number;
+                /** @description Only findings belonging to this scan. */
+                scanId?: string;
+                /** @description Comma-separated finding ids or `ZK-` labels, at most 50. Ids that match nothing are listed in `missing`. */
+                ids?: string;
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedFindingDetails"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];

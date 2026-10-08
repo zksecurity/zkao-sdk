@@ -227,6 +227,19 @@ List findings across the project, or for one scan.
 
 Print a finding's full detail, including its proof of concept and notes.
 
+### `zkao findings details`
+
+Print the full detail of a scan's findings, of a set of findings, or both, in one call.
+It returns the findings shown in the app.
+It fetches every page unless `--page` is given.
+
+| Option | Meaning |
+| --- | --- |
+| `--scan <id>` | Only findings from this scan. |
+| `--ids <ids>` | Comma-separated finding ids or `ZK-` labels, at most 50. Ids that match nothing are listed in `missing`. |
+| `--page <n>` | Fetch only this page. |
+| `--limit <n>` | Page size, up to 50. |
+
 ### `zkao findings comment <findingId> <text>`
 
 Add a comment to a finding. Needs the `findings:write` scope.

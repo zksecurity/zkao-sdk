@@ -102,6 +102,7 @@ zkao scans cancel <scanId>                         # cancel a running or queued 
 zkao scans list
 zkao findings list [--scan <scanId>]
 zkao findings get <findingId>                     # full detail incl. PoC + notes
+zkao findings details [--scan <scanId>] [--ids <id,...>]  # full detail of many at once
 zkao findings comment <findingId> "<text>"
 zkao findings severity <findingId> <CRITICAL|HIGH|MEDIUM|LOW|INFO|none>
 zkao findings resolution <findingId> <RESOLVED|WONT_FIX|FALSE_POSITIVE|...> [--note "<text>"] [--reason <code>]
@@ -136,9 +137,8 @@ capabilities described nowhere here.
 
 **Triage findings from the latest scan**
 1. `zkao scans list` → take the most recent `COMPLETED` scan id.
-2. `zkao findings list --scan <scanId>` → review titles/severities.
-3. For each, `zkao findings get <findingId>` to read the description and PoC.
-4. Triage: `zkao findings comment ...`, `zkao findings severity ...`,
+2. `zkao findings details --scan <scanId>` → read every finding's full text.
+3. Triage: `zkao findings comment ...`, `zkao findings severity ...`,
    `zkao findings resolution ...`.
 
 When the user gives a reason or extra context for a resolution or severity

@@ -397,6 +397,40 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /projects/{projectId}/findings/details:
+    get:
+      tags: [Findings]
+      operationId: listFindingDetails
+      summary: Get many findings (full detail)
+      description: "Requires scope: `read`. The full detail of a scan's findings, of a set of findings, or both, in one call. Returns the findings shown in the app: confirmed or inconclusive, on scans the project can see."
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/Page"
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 25 }
+        - name: scanId
+          in: query
+          required: false
+          schema: { type: string }
+          description: Only findings belonging to this scan.
+        - name: ids
+          in: query
+          required: false
+          schema: { type: string }
+          description: "Comma-separated finding ids or `ZK-` labels, at most 50. Ids that match nothing are listed in `missing`."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaginatedFindingDetails" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
   /projects/{projectId}/findings/{findingId}:
     get:
       tags: [Findings]
@@ -1034,9 +1068,14 @@ components:
       allOf:
         - $ref: "#/components/schemas/Finding"
         - type: object
-          required: [description, scanId, createdAt, notes]
+          required: [description, impact, recommendation, assumptions, scanId, createdAt, notes]
           properties:
             description: { type: string }
+            impact: { type: string }
+            recommendation: { type: string }
+            assumptions:
+              type: array
+              items: { type: string }
             pocReport: { type: [string, "null"] }
             recommendedFix: { type: [string, "null"] }
             scanId: { type: string }
@@ -1073,6 +1112,21 @@ components:
         page: { type: integer }
         limit: { type: integer }
         total: { type: integer }
+
+    PaginatedFindingDetails:
+      type: object
+      required: [items, page, limit, total, missing]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/FindingDetail" }
+        page: { type: integer }
+        limit: { type: integer }
+        total: { type: integer }
+        missing:
+          type: array
+          items: { type: string }
+          description: The requested `ids` that matched no finding.
 
     ScanPreset:
       type: object

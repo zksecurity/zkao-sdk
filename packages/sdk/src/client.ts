@@ -11,6 +11,7 @@ export type Scan = Schemas["Scan"];
 export type ScanDetail = Schemas["ScanDetail"];
 export type Finding = Schemas["Finding"];
 export type FindingDetail = Schemas["FindingDetail"];
+export type FindingDetailsPage = Schemas["PaginatedFindingDetails"];
 export type FindingNote = Schemas["FindingNote"];
 export type ScanPreset = Schemas["ScanPreset"];
 export type LaunchScanRequest = Schemas["LaunchScanRequest"];
@@ -498,6 +499,28 @@ export class ZkaoClient {
       params: {
         path: this.path,
         query: { page: opts.page, limit: opts.limit, scanId: opts.scanId },
+      },
+    });
+    return unwrap(res);
+  }
+
+  /**
+   * Full detail of many findings in one call: a scan's, a set of ids or `ZK-`
+   * labels (at most 50), or both. Returns the findings shown in the app.
+   * Requested ids that matched nothing come back in `missing`.
+   */
+  async listFindingDetails(
+    opts: { page?: number; limit?: number; scanId?: string; ids?: string[] } = {}
+  ): Promise<FindingDetailsPage> {
+    const res = await this.http.GET("/projects/{projectId}/findings/details", {
+      params: {
+        path: this.path,
+        query: {
+          page: opts.page,
+          limit: opts.limit,
+          scanId: opts.scanId,
+          ids: opts.ids?.join(","),
+        },
       },
     });
     return unwrap(res);

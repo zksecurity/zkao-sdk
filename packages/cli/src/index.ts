@@ -461,6 +461,37 @@ findings
     run((c) => c.listFindings({ scanId: opts.scan, page: opts.page, limit: opts.limit }))
   );
 findings
+  .command("details")
+  .description(
+    "Full detail of a scan's findings or of a set of findings, every page unless --page is given"
+  )
+  .option("--scan <id>", "only findings for this scan")
+  .option("--ids <ids>", "comma-separated finding ids or ZK- labels, at most 50")
+  .option("--page <n>", "fetch only this page", toInt)
+  .option("--limit <n>", "page size (max 50)", toInt)
+  .action((opts: { scan?: string; ids?: string; page?: number; limit?: number }) =>
+    run(async (c) => {
+      const query = {
+        scanId: opts.scan,
+        ids: opts.ids?.split(",").map((id) => id.trim()).filter(Boolean),
+        limit: opts.limit,
+      };
+      if (opts.page !== undefined) {
+        return c.listFindingDetails({ ...query, page: opts.page });
+      }
+      const first = await c.listFindingDetails({ ...query, page: 1 });
+      const items = [...first.items];
+      for (let page = 2; items.length < first.total; page++) {
+        const next = await c.listFindingDetails({ ...query, page });
+        if (next.items.length === 0) {
+          break;
+        }
+        items.push(...next.items);
+      }
+      return { items, total: first.total, missing: first.missing };
+    })
+  );
+findings
   .command("get <findingId>")
   .description("Get a finding's full detail")
   .action((findingId: string) => run((c) => c.getFinding(findingId)));
