@@ -1,6 +1,92 @@
 ---
-title: agents
-description: TODO
+title: AI agents
+description: Give a coding agent the zkao skill so it can launch scans, triage findings, and edit guidance on your behalf.
 ---
 
-TODO
+import { Tabs, TabItem, Aside, Steps } from "@astrojs/starlight/components";
+
+The zkao skill is a single `SKILL.md` file. It teaches an agent to drive a zkao project through the `zkao` CLI or plain HTTP. It covers login, scopes, launching and waiting for scans, triage, guidance, credits, and publishing.
+
+An agent with the skill can answer requests like "triage the findings from the last scan" or "run a diff scan of this change".
+
+## Install the skill
+
+<Tabs>
+<TabItem label="Claude Code">
+The repository is a Claude Code plugin marketplace. Add it, then install the plugin:
+
+```text
+/plugin marketplace add zksecurity/zkao-sdk
+/plugin install zkao@zkao
+```
+</TabItem>
+<TabItem label="Other agents">
+Save the skill into your agent's skills directory:
+
+```bash
+curl -fsSL https://docs.zkao.io/skill.md -o SKILL.md
+```
+
+Agents without a skills system can read the same URL as context.
+</TabItem>
+</Tabs>
+
+The agent also needs the CLI. See the [Quickstart](/quickstart/).
+
+## Docs for agents
+
+Every page on this site has a plain Markdown version for agents.
+
+| URL | What it holds |
+| --- | --- |
+| [`/llms.txt`](/llms.txt) | An index of the docs, following the [llms.txt](https://llmstxt.org/) convention. |
+| [`/llms-full.txt`](/llms-full.txt) | Every page in one file. |
+| [`/llms-small.txt`](/llms-small.txt) | Every page in one file, trimmed for small context windows. |
+| `<page URL>.md` | One page as Markdown, such as [`/guides/findings.md`](/guides/findings.md). |
+| [`/openapi/v1.yaml`](/openapi/v1.yaml) | The full API contract. |
+
+Each page also has a **Copy as Markdown** button next to its title.
+
+## Logging in from an agent
+
+A bare `zkao login` waits for browser approval for minutes. Most agent tool calls time out first. Split the login instead, so no command blocks.
+
+<Steps>
+
+1. Start the login. It prints a URL and a code, then exits.
+
+   ```bash
+   zkao login --no-wait --no-browser --project <projectId>
+   ```
+
+   `--project` is optional. It preselects the project on the approval page.
+
+2. The agent gives the URL and code to you. You open the URL, check the code, pick the project, and approve.
+
+3. The agent finishes the login.
+
+   ```bash
+   zkao login --resume
+   ```
+
+   Each call returns at once. `Still waiting for approval` means try again later. `Authorized` means the token is saved. Pass `--timeout <seconds>` to wait up to that long in one call.
+
+</Steps>
+
+You can approve several projects in one login. Each one gets its own saved token. `zkao config use <projectId>` switches between them.
+
+<Aside type="caution">
+Only approve a login you started. Approving mints a real API token for the project you pick. Revoke it any time under **Project Settings → Integrations**.
+</Aside>
+
+For unattended agents, create a token by hand instead and pass it through `ZKAO_API_TOKEN` and `ZKAO_PROJECT_ID`. See [Authentication](/authentication/).
+
+## Keeping the skill current
+
+The CLI checks npm for a newer release at most once a day. When one exists, every command prints a notice on stderr:
+
+```text
+zkao: version X.Y.Z is available (running A.B.C). Update with `npm install -g @zksecurity/zkao-cli`. If you are an agent working from a zkao skill file, update that too: it may describe fewer commands than the API now offers.
+```
+
+The notice never touches stdout, so piping output to `jq` keeps working. An agent that sees it should update the CLI and fetch the skill again. Set `ZKAO_NO_UPDATE_CHECK=1` to turn the check off.

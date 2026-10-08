@@ -1,6 +1,117 @@
 ---
-title: guidance
-description: TODO
+title: Repository guidance
+description: Steer every scan of a repository with standing guidance on scope, threat model, and accepted risks, and keep it current over the API.
 ---
 
-TODO
+import { Tabs, TabItem, Aside } from "@astrojs/starlight/components";
+
+Guidance tells zkao what matters in your code.
+It covers scope, attacker powers, trusted components, security properties, severity expectations, and accepted risks.
+Good guidance makes scans sharper and cuts false positives.
+
+## Three layers
+
+Guidance can come from three places.
+They stack, and a later layer can refine an earlier one.
+
+1. **A committed `zkao.md`** at the repository root. It ships with your code and is read at the scanned commit. It changes only when you commit a change.
+2. **Repository guidance**, stored in zkao. It applies to every scan of the repository without touching the code. This page is about this layer.
+3. **Scan guidance**, sent with one launch. It replaces repository guidance for that scan only. See [Guide one scan](/guides/scans/#guide-one-scan).
+
+Repository guidance is the right home for a repository you do not control.
+It also suits knowledge you do not want to commit.
+
+Guidance is a strong steer, not an access-control boundary or a guaranteed file filter.
+To limit what a scan audits, scope it to [audit areas](/guides/scans/#scope-a-scan-to-audit-areas).
+
+## Read guidance
+
+<Tabs syncKey="client">
+<TabItem label="CLI">
+```bash
+zkao guidance get <repoId>
+```
+</TabItem>
+<TabItem label="TypeScript">
+```ts
+const { content, updatedAt } = await zkao.getRepositoryGuidance(repoId);
+```
+</TabItem>
+<TabItem label="curl">
+```bash
+curl -H "Authorization: Bearer $ZKAO_API_TOKEN" \
+  https://zkao.io/api/v1/projects/$ZKAO_PROJECT_ID/repositories/<repoId>/guidance
+```
+</TabItem>
+</Tabs>
+
+`content` is `null` when no guidance is set.
+Reading needs the `read` scope.
+The committed `zkao.md` is not part of this response.
+
+## Set or clear guidance
+
+Writing needs the `guidance:write` scope.
+Each change records a revision.
+Writing the content already stored is a no-op that returns `unchanged: true`.
+Guidance is limited to 100,000 characters.
+
+<Tabs syncKey="client">
+<TabItem label="CLI">
+```bash
+zkao guidance set <repoId> guidance.md
+cat guidance.md | zkao guidance set <repoId> -
+zkao guidance clear <repoId>
+```
+</TabItem>
+<TabItem label="TypeScript">
+```ts
+const current = await zkao.getRepositoryGuidance(repoId);
+await zkao.setRepositoryGuidance(repoId, newContent, {
+  expectedContent: current.content,
+});
+
+// Clear it.
+await zkao.setRepositoryGuidance(repoId, null);
+```
+</TabItem>
+<TabItem label="curl">
+```bash
+curl -X PUT -H "Authorization: Bearer $ZKAO_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"content":"# Scope\nAudit src/verifier only.","expectedContent":null}' \
+  https://zkao.io/api/v1/projects/$ZKAO_PROJECT_ID/repositories/<repoId>/guidance
+```
+</TabItem>
+</Tabs>
+
+### Avoid overwriting a concurrent edit
+
+Teammates, and accepted suggestions in the app, also edit guidance.
+`expectedContent` protects you from clobbering their change.
+
+- Send the content you last read, or `null` if none was set.
+- If the stored guidance changed since then, the write fails with `409 conflict`.
+- Read it again, merge your change, and retry.
+- Leave `expectedContent` out for last writer wins.
+
+The CLI does the compare-and-set for you.
+`zkao guidance set` and `zkao guidance clear` read the current guidance first and send it as `expectedContent`.
+Pass `--force` to skip that check and overwrite.
+
+<Aside>
+Edit guidance rather than replace it.
+Read the current text, add your note, and write the merged result back.
+</Aside>
+
+## Keep it lean
+
+Every line is read on every scan.
+A short file the analysis takes in beats a long one it skims.
+Use repository-relative paths.
+Never include credentials or secrets.
+
+Put durable facts in repository guidance or `zkao.md`.
+Put a one-off focus in scan guidance instead.
+Triage often surfaces knowledge that applies to the whole repository, such as a known non-issue.
+A comment on one finding does not carry it forward, but guidance does.

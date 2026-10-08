@@ -1,6 +1,154 @@
 ---
-title: authentication
-description: TODO
+title: Authentication
+description: Get a project API token through browser approval or by hand, and understand what its scopes and limits allow.
 ---
 
-TODO
+import { Steps, Aside } from "@astrojs/starlight/components";
+
+Every call to the zkao API uses a **project API token**.
+A token belongs to exactly one project.
+It carries a set of scopes and can be narrowed further to some repositories, an expiry date, and a spend limit.
+
+There are two ways to get one: approve the CLI in your browser, or create a token by hand.
+
+## Browser approval
+
+```bash
+zkao login
+```
+
+The CLI starts a device authorization flow:
+
+<Steps>
+
+1. It prints a URL and a short code, and opens the URL in your browser.
+2. On the **Authorize a CLI** page, you confirm that the code matches the one in your terminal.
+3. You pick a project, review the requested scopes, and approve. You can also set a repository allowlist, an expiry, and a spend limit there.
+4. The CLI receives the token and saves it to `~/.zkao/config.json`.
+
+</Steps>
+
+Only approve a login you started yourself.
+Approving mints a real token for the project you select.
+
+By default the CLI requests `read`, `scans:launch`, and `findings:write`.
+The approval page pre-ticks them, and the approver can change them.
+To request other scopes, pass `--scope`:
+
+```bash
+zkao login --scope read guidance:write
+```
+
+`zkao login --project <projectId>` preselects a project on the approval page.
+You can approve several projects in one login. Each gets its own saved token, and the first becomes the active project.
+
+Use `--no-browser` to print the URL without opening a browser.
+
+### Agents and CI
+
+A bare `zkao login` blocks until someone approves in the browser.
+That can take minutes and trip a command timeout.
+Non-interactive callers split it in two:
+
+```bash
+zkao login --no-wait --no-browser   # prints the URL and code, then exits
+# a person opens the URL and approves
+zkao login --resume                 # polls once and exits
+```
+
+Repeat `zkao login --resume` until it prints `Authorized`.
+`Still waiting for approval` means nobody has approved yet.
+`--resume --timeout <seconds>` waits up to that long instead of polling once.
+
+Several logins can be pending at once. `--resume` finishes whichever is approved first and keeps the rest.
+A pending login expires after a while. Start a new one when `--resume` reports that it expired.
+
+## Tokens created by hand
+
+A project admin can create a token under **Project Settings → Integrations** in the zkao app.
+Choose a name, the scopes, and optionally a repository allowlist, an expiry, and a spend limit.
+
+The token is shown once, together with the project id.
+It looks like this:
+
+```
+zkao_proj_<keyId>_<secret>
+```
+
+Store it as a secret. zkao cannot show it again.
+
+Hand it to the CLI or SDK through environment variables:
+
+```bash
+export ZKAO_API_TOKEN=zkao_proj_...
+export ZKAO_PROJECT_ID=<projectId>
+```
+
+Or save it to the config file:
+
+```bash
+zkao config set --token zkao_proj_... --project <projectId>
+```
+
+## Scopes
+
+A token carries a subset of these scopes:
+
+| Scope | Allows |
+| --- | --- |
+| `read` | List and read repositories, scans, findings, presets, and billing. |
+| `findings:write` | Comment on findings, change severity and resolution, pin a note. |
+| `guidance:write` | Update a repository's guidance and manage its audit areas. |
+| `scans:launch` | Launch and cancel scans. |
+| `publish` | Publish a finding or a scan as a public page. |
+
+A call that needs a scope the token lacks returns `403 forbidden`.
+
+## Limits on a token
+
+- **Repository allowlist.** The token only sees the listed repositories. An empty list means every repository in the project.
+- **Expiry.** The token stops working after this date.
+- **Spend limit.** The most credits the token may commit to scans in the current billing period. A launch past the limit returns `429`.
+
+`zkao whoami` (or `GET /token`) returns the token's project, organization, scopes, allowlist, expiry, and spend limit.
+Any valid token can call it, whatever its scopes.
+
+## Errors
+
+| Status | Meaning |
+| --- | --- |
+| `401 unauthorized` | The token is missing, malformed, expired, or revoked. The response does not say which. |
+| `403 forbidden` | The token is valid but lacks the scope this call needs. |
+| `404 not_found` | The resource is outside the token's project or repository allowlist. zkao does not confirm that it exists. |
+
+A token used against another project's id gets a `404` whose message names the token's own project.
+
+Send the token only in the `Authorization: Bearer` header.
+A token passed in the query string is rejected with `400`.
+
+## Where the CLI stores credentials
+
+The CLI writes `~/.zkao/config.json` with owner-only permissions.
+It keeps one token per project, so logging in to a second project does not drop the first.
+
+```bash
+zkao config show              # active settings and every saved project (tokens masked)
+zkao config use <projectId>   # switch the active project
+```
+
+Settings resolve in this order, highest first:
+
+1. Flags: `--token`, `--project`, `--base-url`.
+2. Environment: `ZKAO_API_TOKEN`, `ZKAO_PROJECT_ID`, `ZKAO_URL`.
+3. The saved config file.
+
+## Revoking a token
+
+Revoke a token under **Project Settings → Integrations**.
+It stops working at once.
+A token also stops working when its project or organization is archived.
+
+<Aside type="caution">
+  Never commit a token to a repository or paste it into a log.
+  If one leaks, revoke it and create a new one.
+</Aside>

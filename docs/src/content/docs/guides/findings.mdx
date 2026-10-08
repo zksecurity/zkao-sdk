@@ -1,6 +1,229 @@
 ---
-title: findings
-description: TODO
+title: Triage findings
+description: List a project's findings, read one in full, and record your verdict with comments, severity overrides, and resolution statuses.
 ---
 
-TODO
+import { Tabs, TabItem, Aside, Steps } from "@astrojs/starlight/components";
+
+A finding is one issue a scan reported. Each finding carries two separate statuses.
+
+- `triageStatus` is zkao's own verdict on the finding. You read it. You cannot set it.
+- `resolutionStatus` is your team's decision about it. You set it.
+
+Reading findings needs the `read` scope. Every change on this page needs `findings:write`.
+
+## List findings
+
+The list holds every finding in the project, most severe first. Filter it to one scan with its id.
+
+<Tabs syncKey="client">
+<TabItem label="CLI">
+```bash
+zkao findings list
+zkao findings list --scan <scanId> --limit 100
+```
+</TabItem>
+<TabItem label="TypeScript">
+```ts
+const { items, total } = await zkao.listFindings({ scanId, limit: 100 });
+```
+</TabItem>
+<TabItem label="curl">
+```bash
+curl -H "Authorization: Bearer $ZKAO_API_TOKEN" \
+  "https://zkao.io/api/v1/projects/$ZKAO_PROJECT_ID/findings?scanId=<scanId>&limit=100"
+```
+</TabItem>
+</Tabs>
+
+The list paginates with `page` and `limit`. The default limit is 50 and the maximum is 100. Each item has these fields.
+
+| Field | Meaning |
+| --- | --- |
+| `title`, `location`, `category` | What the issue is and where. |
+| `severity` | The effective severity: your override if set, otherwise zkao's. |
+| `triageStatus` | zkao's verdict, such as `CONFIRMED`, `FALSE_POSITIVE` or `DUPLICATE`. |
+| `confirmationEvidence` | For a `CONFIRMED` finding, `POC` when a proof of concept ran, or `ANALYSIS` when code analysis alone confirmed it. |
+| `resolutionStatus` | Your team's decision. New findings start at `NOT_STARTED`. |
+| `notesCount` | How many comments the finding has. |
+
+See [List findings](/api/operations/listfindings/) for the full schema.
+
+## Read one finding
+
+The detail view adds the description, the proof of concept report, the recommended fix, the commit, the repository, and every comment.
+
+<Tabs syncKey="client">
+<TabItem label="CLI">
+```bash
+zkao findings get <findingId>
+```
+</TabItem>
+<TabItem label="TypeScript">
+```ts
+const finding = await zkao.getFinding(findingId);
+console.log(finding.description, finding.pocReport, finding.notes);
+```
+</TabItem>
+<TabItem label="curl">
+```bash
+curl -H "Authorization: Bearer $ZKAO_API_TOKEN" \
+  https://zkao.io/api/v1/projects/$ZKAO_PROJECT_ID/findings/<findingId>
+```
+</TabItem>
+</Tabs>
+
+### `ZK-` labels
+
+A finding page on zkao shows a short label such as `ZK-3f9a2c1b`. It is the last eight characters of the finding id. Every finding endpoint accepts it in place of the full id, with or without the `ZK-` prefix.
+
+A label is unique within a project in practice, but not by construction. A label that matches two findings returns `409`. Use the full id then.
+
+## Comment
+
+A comment is a Markdown note on the finding. Your team sees it on zkao.
+
+<Tabs syncKey="client">
+<TabItem label="CLI">
+```bash
+zkao findings comment <findingId> "Reproduced on the release branch."
+```
+</TabItem>
+<TabItem label="TypeScript">
+```ts
+const { noteId } = await zkao.addFindingNote(findingId, "Reproduced on the release branch.");
+```
+</TabItem>
+<TabItem label="curl">
+```bash
+curl -X POST -H "Authorization: Bearer $ZKAO_API_TOKEN" -H "Content-Type: application/json" \
+  -d '{"content":"Reproduced on the release branch."}' \
+  https://zkao.io/api/v1/projects/$ZKAO_PROJECT_ID/findings/<findingId>/notes
+```
+</TabItem>
+</Tabs>
+
+The response returns the new `noteId`. You can pin that note as the finding's resolution note with [Pin a note](/api/operations/pinfindingnote/) or the SDK's `pinFindingNote`.
+
+## Override severity
+
+The levels are `CRITICAL`, `HIGH`, `MEDIUM`, `LOW` and `INFO`. Clearing the override restores zkao's severity.
+
+<Tabs syncKey="client">
+<TabItem label="CLI">
+```bash
+zkao findings severity <findingId> LOW
+zkao findings severity <findingId> none   # clear the override
+```
+</TabItem>
+<TabItem label="TypeScript">
+```ts
+await zkao.setFindingSeverity(findingId, "LOW");
+await zkao.setFindingSeverity(findingId, null); // clear the override
+```
+</TabItem>
+<TabItem label="curl">
+```bash
+curl -X PATCH -H "Authorization: Bearer $ZKAO_API_TOKEN" -H "Content-Type: application/json" \
+  -d '{"severity":"LOW"}' \
+  https://zkao.io/api/v1/projects/$ZKAO_PROJECT_ID/findings/<findingId>/severity
+```
+</TabItem>
+</Tabs>
+
+## Set a resolution
+
+| Status | Meaning |
+| --- | --- |
+| `NOT_STARTED` | Nobody has looked at it yet. |
+| `IN_PROGRESS` | Someone is working on it. |
+| `RESOLVED` | Fixed. |
+| `MITIGATED` | Not fixed, but its risk is reduced. |
+| `WONT_FIX` | Accepted as is. |
+| `FALSE_POSITIVE` | Not a real issue. |
+| `DUPLICATE` | Already covered by another finding. |
+
+A status alone records the outcome, not the reason. Attach the reason in the same call, in one of two ways.
+
+- `note` is free text. It becomes a comment on the finding.
+- `reason` is a short code from a fixed catalog. It is also recorded as a comment.
+
+Pass one or the other. When both are present, the note wins. Both are ignored for `NOT_STARTED` and `IN_PROGRESS`.
+
+<Tabs syncKey="client">
+<TabItem label="CLI">
+```bash
+zkao findings resolution <findingId> FALSE_POSITIVE \
+  --note "The caller checks the length before this point."
+
+zkao findings resolution <findingId> WONT_FIX --reason risk_accepted
+```
+</TabItem>
+<TabItem label="TypeScript">
+```ts
+await zkao.setFindingResolution(findingId, "FALSE_POSITIVE", {
+  note: { content: "The caller checks the length before this point." },
+});
+
+await zkao.setFindingResolution(findingId, "WONT_FIX", { reason: "risk_accepted" });
+```
+</TabItem>
+<TabItem label="curl">
+```bash
+curl -X PATCH -H "Authorization: Bearer $ZKAO_API_TOKEN" -H "Content-Type: application/json" \
+  -d '{"resolutionStatus":"WONT_FIX","reason":"risk_accepted"}' \
+  https://zkao.io/api/v1/projects/$ZKAO_PROJECT_ID/findings/<findingId>/resolution
+```
+</TabItem>
+</Tabs>
+
+Over HTTP, `note` can also reuse an existing comment: `{"existingNoteId": "<noteId>"}`.
+
+### Reason codes
+
+Each status offers its own codes. A code from another status returns `400` with the valid list.
+
+| Status | Codes |
+| --- | --- |
+| `RESOLVED` | `fixed_in_code`, `fixed_upstream`, `code_removed` |
+| `MITIGATED` | `compensating_control`, `limited_exposure`, `monitored` |
+| `FALSE_POSITIVE` | `not_reachable`, `guarded_elsewhere`, `intended_behavior`, `misread_code`, `bad_assumption` |
+| `WONT_FIX` | `risk_accepted`, `out_of_scope`, `not_worth_fixing`, `code_being_removed` |
+| `DUPLICATE` | `duplicate_of_finding`, `same_root_cause` |
+
+<Aside type="tip">
+Prefer a note when the reasoning has any detail worth keeping. A code alone loses it.
+</Aside>
+
+## A triage pass
+
+<Steps>
+
+1. Find the latest completed scan.
+
+   ```bash
+   zkao scans list
+   ```
+
+2. List its findings.
+
+   ```bash
+   zkao findings list --scan <scanId>
+   ```
+
+3. Read each one in full, including the proof of concept.
+
+   ```bash
+   zkao findings get <findingId>
+   ```
+
+4. Record the verdict, with the reason.
+
+   ```bash
+   zkao findings severity <findingId> MEDIUM
+   zkao findings resolution <findingId> RESOLVED --reason fixed_in_code
+   ```
+
+</Steps>
+
+Some knowledge applies to the whole repository, not one finding. A known non-issue is one example. A comment does not carry it into future scans. Put it in the [repository guidance](/guides/guidance/) instead.

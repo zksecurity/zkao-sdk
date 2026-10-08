@@ -1,6 +1,78 @@
 ---
-title: environments
-description: TODO
+title: Environments
+description: Point the CLI and SDK at production or staging, and install the release channel that matches.
 ---
 
-TODO
+zkao runs two public environments:
+
+| Environment | App | API base |
+| --- | --- | --- |
+| Production | `zkao.io` | `https://zkao.io/api/v1` |
+| Staging | `staging.zkao.io` | `https://staging.zkao.io/api/v1` |
+
+The CLI and SDK target production by default.
+Staging runs ahead of production and gets new features first.
+Its data and tokens are separate: a production token does not work on staging.
+
+## `ZKAO_URL`
+
+One environment variable, `ZKAO_URL`, points the CLI and SDK at an environment.
+It accepts any of these forms:
+
+```bash
+ZKAO_URL=staging.zkao.io
+ZKAO_URL=https://staging.zkao.io
+ZKAO_URL=https://staging.zkao.io/api/v1
+```
+
+All three resolve to `https://staging.zkao.io/api/v1`.
+A bare host gets `https://`.
+A value that already ends in `/api/v1` is used as is.
+
+The CLI's `--base-url` flag and the SDK's `baseUrl` option are used verbatim, with no normalization.
+They win over `ZKAO_URL`.
+
+## The `next` release channel
+
+The CLI and SDK ship on two npm dist-tags:
+
+- `latest` matches production.
+- `next` matches staging. Its versions look like `X.Y.Z-next.N`.
+
+Install the staging channel when you work against staging:
+
+```bash
+npm install -g @zksecurity/zkao-cli@next
+```
+
+Or pass `--next` to the install script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/zksecurity/zkao-sdk/main/install.sh | bash -s -- --next
+```
+
+A CLI from the `next` channel checks the `next` tag for updates, and a `latest` CLI checks `latest`.
+
+## Logging in to staging
+
+Set `ZKAO_URL` when you log in:
+
+```bash
+ZKAO_URL=staging.zkao.io zkao login --project <projectId>
+```
+
+Each saved project remembers the base URL it was approved on.
+After that, you no longer need `ZKAO_URL` for that project.
+
+## Switching between projects and environments
+
+```bash
+zkao config show              # every saved project, with its base URL
+zkao config use <projectId>   # make another saved project active
+```
+
+Switching to a staging project points the CLI at staging.
+Switching back to a production project points it at production.
+
+To log in to the other environment, pass `ZKAO_URL` again.
+Without it, `zkao login` targets the active project's environment.

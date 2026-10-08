@@ -1,6 +1,337 @@
 ---
-title: cli
-description: TODO
+title: CLI reference
+description: Every zkao command, argument, and option, with the settings and environment variables the CLI reads.
 ---
 
-TODO
+The `zkao` command ships in the `@zksecurity/zkao-cli` package. It needs Node 18 or later.
+
+```bash
+npm install -g @zksecurity/zkao-cli
+```
+
+To run a single command without installing, use `npx @zksecurity/zkao-cli <args>`.
+`zkao --help` and `zkao <group> --help` always list the commands of the version you run.
+
+## Output and exit codes
+
+- Commands that call the API print their result as JSON on stdout. Pipe it to `jq` or parse it.
+- Progress lines, warnings, and the update notice go to stderr. They never mix into the JSON.
+- `login`, `config set`, and `config use` print plain status lines instead of JSON.
+- The exit code is `0` on success and `1` on any failure.
+- An API error prints `Error <status> (<code>): <message>` on stderr. The codes are listed in [API conventions](/reference/api-conventions/).
+
+## Global options
+
+These options work with every command.
+
+| Option | Meaning |
+| --- | --- |
+| `--token <token>` | Project API token. Overrides `ZKAO_API_TOKEN` and saved credentials. |
+| `--project <id>` | Project id. Overrides `ZKAO_PROJECT_ID` and the active project. |
+| `--base-url <url>` | API base URL, used exactly as given. Prefer `ZKAO_URL` unless you need a non-standard base. |
+| `-V, --version` | Print the CLI version. |
+| `-h, --help` | Show help for the CLI or a command. |
+
+## Settings and environment
+
+Each setting is taken from the first source that has it.
+
+1. The command-line flag.
+2. The environment variable.
+3. The config file, `~/.zkao/config.json`.
+
+| Variable | Meaning |
+| --- | --- |
+| `ZKAO_API_TOKEN` | Project API token (`zkao_proj_...`). |
+| `ZKAO_PROJECT_ID` | Project id. Picks that project's saved token when no token is given. |
+| `ZKAO_URL` | Environment to target. Accepts a host, an origin, or a full API URL, such as `staging.zkao.io`. See [Environments](/environments/). |
+| `ZKAO_NO_UPDATE_CHECK` | Set to any value to turn off the update notice. |
+| `ZKAO_DEBUG` | Set to any value to log update-check failures on stderr. |
+
+The config file stores one token per project and remembers which project is active.
+Each saved project keeps its own base URL, so staging and production projects can live side by side.
+The file is written with owner-only permissions.
+A login started with `--no-wait` is kept in `~/.zkao/pending-login.json` until it resolves.
+
+## Update notice
+
+At most once a day, after a command has printed its output, the CLI asks the npm registry for the newest version.
+When a newer one exists, later commands print one line on stderr:
+
+```
+zkao: version X.Y.Z is available (running A.B.C). Update with `npm install -g @zksecurity/zkao-cli`. ...
+```
+
+A prerelease install (`X.Y.Z-next.N`) follows the `next` channel and suggests `@zksecurity/zkao-cli@next`.
+The check never delays a command or changes its output.
+
+## Authentication
+
+### `zkao login`
+
+Authorize the CLI in your browser.
+The CLI prints a URL and a short code.
+You open the URL, confirm the code matches, pick one or more projects, and approve.
+The CLI saves a token for each approved project and makes the first one active.
+
+| Option | Meaning |
+| --- | --- |
+| `--no-browser` | Print the URL instead of opening a browser. |
+| `--no-wait` | Start the login, print the URL and code, and exit. Finish it with `--resume`. |
+| `--resume` | Poll a login started with `--no-wait`. Polls once by default. |
+| `--timeout <seconds>` | With `--resume`, keep polling up to this long. |
+| `--scope <scopes...>` | Scopes to request. The default is `read scans:launch findings:write`. The approver can change them. |
+
+The global `--project <id>` preselects that project on the approval page.
+
+For agents and CI, split the login so no call blocks:
+
+```bash
+zkao login --no-wait --no-browser   # prints the URL and code, then exits
+zkao login --resume                 # repeat until it prints "Authorized"
+```
+
+`--resume` prints `Still waiting for approval` while the login is pending.
+Several logins can be pending at once, and `--resume` finishes whichever is approved.
+See [Authentication](/authentication/).
+
+### `zkao whoami`
+
+Print the token's id, name, scopes, repository allowlist, expiry, and spend limit, plus the project and organization it belongs to.
+Warns on stderr when the token belongs to a different project than the configured one.
+
+## Config
+
+### `zkao config set`
+
+Save settings to `~/.zkao/config.json`.
+
+| Option | Meaning |
+| --- | --- |
+| `--token <token>` | Token to save. |
+| `--project <id>` | Project id to save or switch to. |
+| `--base-url <url>` | API base URL to save. |
+
+A token given without `--project` is looked up with the API and saved under the project it belongs to.
+A project id given alone switches to that project's saved token.
+
+### `zkao config show`
+
+Print the resolved settings with the token masked.
+Also lists every saved project with its name, organization, base URL, and whether it is active.
+
+### `zkao config use <projectId>`
+
+Make a project with saved credentials the active one. Fails when no token is saved for it.
+
+## Repositories
+
+### `zkao repos`
+
+List the project's repositories. Each has an `id` and a `readiness` of `ready` or `analyzing`.
+
+### `zkao repos:wait <repositoryId>`
+
+Wait until a repository is ready to scan, then print it.
+A newly added repository is `analyzing` for a while, and a scan launched on it fails with `repository_initializing`.
+
+| Option | Meaning |
+| --- | --- |
+| `--timeout <ms>` | Give up after this many milliseconds. The default is 30 minutes. |
+
+## Presets
+
+### `zkao presets`
+
+List the scan presets the project can launch. Pass a preset's `ref` to `zkao scans launch --preset`.
+
+## Scans
+
+### `zkao scans launch`
+
+Launch a scan and print its id. Needs the `scans:launch` scope.
+
+| Option | Meaning |
+| --- | --- |
+| `--repo <id>` | Repository id. Required. |
+| `--budget <credits>` | Maximum budget in credits, reserved at launch. Omit it to use the budget zkao recommends for this scan type on this repository. |
+| `--preset <ref>` | Scan preset ref from `zkao presets`. Defaults to the first active preset. |
+| `--branch <name>` | Branch to scan, resolved to its head commit. Ignored when `--commit` is set. |
+| `--commit <sha>` | Commit to scan. |
+| `--base <ref>` | Base commit, branch, or tag of a diff scan. The scan audits only the change from it. Requires a diff preset. |
+| `--message <text>` | Commit message to record with the scan. |
+| `--guidance <file\|->` | Guidance for this scan only, from a file or `-` for stdin. Replaces the repository's guidance for this run. |
+| `--area <key>` | Audit area to scope the scan to. Repeat it for several. See `zkao areas list`. |
+
+See [Scans](/guides/scans/) and [Diff scans](/guides/diff-scans/).
+
+### `zkao scans list`
+
+List scans, most recent first.
+
+| Option | Meaning |
+| --- | --- |
+| `--page <n>` | Page number. |
+| `--limit <n>` | Page size, up to 100. |
+
+### `zkao scans get <scanId>`
+
+Print one scan's status and detail. The status is `QUEUED`, `PROCESSING`, `COMPLETED`, `FAILED`, or `CANCELLED`.
+
+### `zkao scans wait <scanId>`
+
+Poll a scan until it is `COMPLETED`, `FAILED`, or `CANCELLED`, then print the final detail.
+It backs off between polls and honors the server's `Retry-After`.
+Each poll prints a progress line on stderr. Ctrl-C stops waiting.
+
+The command exits `0` whichever final status the scan reaches. Read `status` in the output.
+
+| Option | Meaning |
+| --- | --- |
+| `--timeout <seconds>` | Give up after this many seconds. The default is one hour. |
+
+### `zkao scans cancel <scanId>`
+
+Cancel a running or queued scan. Needs the `scans:launch` scope. The reserved credits not yet spent are released.
+A completed or failed scan cannot be cancelled.
+
+### `zkao scans publish <scanId>`
+
+Publish a completed scan as a public page. Needs the `publish` scope.
+The output's `publicId` names the page, at `https://zkao.io/public/scans/<publicId>`.
+
+| Option | Meaning |
+| --- | --- |
+| `--password` | Protect the page with a generated password, returned as `accessPassword`. |
+
+See [Publishing](/guides/publishing/).
+
+## Findings
+
+The read commands need the `read` scope. Commands that change a finding say which scope they need.
+
+`<findingId>` accepts a finding's full id or the `ZK-` label shown on its page.
+A label that matches more than one finding is refused. Use the full id then.
+
+### `zkao findings list`
+
+List findings across the project, or for one scan.
+
+| Option | Meaning |
+| --- | --- |
+| `--scan <id>` | Only findings from this scan. |
+| `--page <n>` | Page number. |
+| `--limit <n>` | Page size, up to 100. |
+
+### `zkao findings get <findingId>`
+
+Print a finding's full detail, including its proof of concept and notes.
+
+### `zkao findings comment <findingId> <text>`
+
+Add a comment to a finding. Needs the `findings:write` scope.
+
+### `zkao findings severity <findingId> <level>`
+
+Override a finding's severity with `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, or `INFO`.
+Pass `none` to clear the override. Case does not matter. Needs the `findings:write` scope.
+
+### `zkao findings resolution <findingId> <status>`
+
+Set a finding's resolution status: `NOT_STARTED`, `IN_PROGRESS`, `RESOLVED`, `WONT_FIX`, `MITIGATED`, `FALSE_POSITIVE`, or `DUPLICATE`. Needs the `findings:write` scope.
+
+| Option | Meaning |
+| --- | --- |
+| `--note <text>` | Record the reason as a comment in the same call. |
+| `--reason <code>` | Record the reason as a catalog code instead. Valid codes depend on the status. A wrong one is rejected with the valid list. |
+
+`--note` wins when both are given. Both are ignored for `NOT_STARTED` and `IN_PROGRESS`.
+See [Triage findings](/guides/findings/) for the reason codes.
+
+### `zkao findings publish <findingId>`
+
+Publish a finding as a public page. Needs the `publish` scope.
+The output's `publicId` names the page, at `https://zkao.io/public/findings/<publicId>`.
+
+| Option | Meaning |
+| --- | --- |
+| `--note <noteId>` | Note to show as the published note. |
+| `--password` | Protect the page with a generated password, returned as `accessPassword`. |
+
+## Guidance
+
+Guidance is text that every scan of a repository reads. See [Repository guidance](/guides/guidance/).
+
+### `zkao guidance get <repoId>`
+
+Print a repository's guidance.
+
+### `zkao guidance set <repoId> <file|->`
+
+Set a repository's guidance from a file, or from stdin with `-`. Needs the `guidance:write` scope.
+
+By default the CLI reads the current guidance first and sends it along.
+If someone changed it in between, the write fails with a conflict instead of overwriting their edit.
+
+| Option | Meaning |
+| --- | --- |
+| `--force` | Overwrite without the concurrent-change check. |
+
+### `zkao guidance clear <repoId>`
+
+Remove a repository's guidance. It takes the same check and `--force` option as `set`.
+
+## Audit areas
+
+An audit area is a named subsystem of a repository.
+A scan can be scoped to one or more areas instead of the whole repository.
+
+### `zkao areas list <repoId>`
+
+List a repository's audit areas and their keys.
+
+| Option | Meaning |
+| --- | --- |
+| `--branch <branch>` | Read area sizes from this branch's map. Defaults to the repository's default branch. |
+
+### `zkao areas add <repoId> <name>`
+
+Add a custom area. Its key is derived from the name. Needs the `guidance:write` scope.
+
+| Option | Meaning |
+| --- | --- |
+| `--description <text>` | What this part of the code does. |
+
+### `zkao areas rm <repoId> <areaKey>`
+
+Delete a custom area. An area that a scan's map named is refused. Needs the `guidance:write` scope.
+
+## Billing
+
+The balance belongs to the project's organization and is shared by all its projects.
+Usage and the monthly summary count only movements attributed to this project.
+See [Credits](/guides/credits/).
+
+### `zkao billing balance`
+
+Print the organization's balance, the credits active scans hold, and the credits available for new scans.
+
+### `zkao billing usage`
+
+List the credit ledger movements attributed to this project. Each movement's `credits` is signed. Negative means spent.
+
+| Option | Meaning |
+| --- | --- |
+| `--from <date>` | ISO date or timestamp to start from. |
+| `--to <date>` | ISO date or timestamp to stop at. |
+| `--limit <n>` | Maximum number of movements. |
+
+Without `--from` and `--to`, it covers the last 30 days.
+
+### `zkao billing summary`
+
+Print credits spent and purchased per calendar month (UTC), newest first.
+
+| Option | Meaning |
+| --- | --- |
+| `--months <n>` | How many months to return. |

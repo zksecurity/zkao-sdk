@@ -1,10 +1,12 @@
 ---
+import { getEntry } from "astro:content";
+
 // Starlight links its "Overview" table-of-contents entry to this id.
 const PAGE_TITLE_ID = "_top";
 
 const { entry, id } = Astro.locals.starlightRoute;
-// Generated API pages have no Markdown source, so they get no Markdown link.
-const markdownHref = entry.filePath?.startsWith("src/content/docs/")
+// Generated API pages are not in the collection, so they get no Markdown link.
+const markdownHref = (await getEntry("docs", id))
   ? `/${id === "" ? "index" : id}.md`
   : undefined;
 ---

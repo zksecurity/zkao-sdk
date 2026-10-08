@@ -1,6 +1,149 @@
 ---
-title: github-action
-description: TODO
+title: GitHub Action
+description: Launch a zkao scan from a GitHub workflow, report its findings in the job summary, and gate pull requests on severity.
 ---
 
-TODO
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+The [`zksecurity/zkao-action`](https://github.com/zksecurity/zkao-action) action scans the commit a workflow runs on. By default it starts the scan and returns. It can also wait, write the findings to the job summary, and fail the job on severe findings.
+
+The action needs no checkout. zkao reads the commit from GitHub itself.
+
+## Before you start
+
+<Steps>
+
+1. Add the repository to a zkao project. A scan needs at least one project member with GitHub access to the repository.
+
+2. Create a project API token with the `read` and `scans:launch` scopes. See [Authentication](/authentication/).
+
+3. In the GitHub repository settings, store the token as the secret `ZKAO_API_TOKEN`. Store the project id as the variable `ZKAO_PROJECT_ID`.
+
+4. Keep credits on the organization. A scan reserves its budget at launch. See [Credits](/guides/credits/).
+
+</Steps>
+
+## Scan every push to main
+
+```yaml
+name: zkao
+on:
+  push:
+    branches: [main]
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: zksecurity/zkao-action@v1
+        with:
+          token: ${{ secrets.ZKAO_API_TOKEN }}
+          project: ${{ vars.ZKAO_PROJECT_ID }}
+```
+
+This launches a quick look of each push and moves on. The results are on zkao when the scan finishes.
+
+<Aside type="tip">
+`@v1` follows every `v1.x` release. To pin an exact version, use a full commit SHA instead.
+</Aside>
+
+## Gate pull requests on a diff scan
+
+A diff scan audits only the change a pull request makes. It is cheap and fast. In `gate` mode, the job fails when open findings reach `fail-on`.
+
+```yaml
+name: zkao
+on:
+  pull_request:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: zksecurity/zkao-action@v1
+        with:
+          token: ${{ secrets.ZKAO_API_TOKEN }}
+          project: ${{ vars.ZKAO_PROJECT_ID }}
+          scan: diff
+          mode: gate
+          fail-on: high
+```
+
+The diff runs from the merge base of `base` to the scanned commit. `base` defaults to the pull request's base, or to the commit before a push. The rest of the repository is context, not a target. See [Diff scans](/guides/diff-scans/).
+
+On `pull_request` and `pull_request_target` events, the action scans the head of the pull request. On every other event it scans `github.sha`.
+
+## Modes
+
+| `mode` | What happens |
+| --- | --- |
+| `launch` (default) | Starts the scan and returns. The job never waits or fails on findings. |
+| `wait` | Waits for the scan and writes the findings to the job summary. The job fails only if the scan itself fails. |
+| `gate` | Waits, reports, and fails the job when open findings reach `fail-on`. |
+
+## What to run
+
+| `scan` | Runs |
+| --- | --- |
+| `quick-look` (default) | The core techniques in one cheap pass. |
+| `deep-audit` | The full methodology over the whole repository. |
+| `diff` | Only the change since `base`. |
+| a preset ref | That preset, such as `builtin:Deep Audit` or a custom one. List refs with `zkao presets`. |
+
+## Inputs
+
+| Input | Default | What it does |
+| --- | --- | --- |
+| `token` | required | Project API token. Use a secret. |
+| `project` | required | The zkao project id. |
+| `budget` | recommended | Credit budget for the scan. Defaults to what zkao recommends for this scan type on this repository. |
+| `mode` | `launch` | `launch`, `wait`, or `gate`. |
+| `scan` | `quick-look` | `quick-look`, `deep-audit`, `diff`, or a preset ref. |
+| `base` | see above | For `scan: diff`, the commit the change is measured from. |
+| `fail-on` | `high` | For `mode: gate`, the severity that fails the job: `critical`, `high`, `medium`, `low`, or `info`. |
+| `repository` | matched by name | The zkao repository id. By default, the project repository whose owner and name match this GitHub repository. |
+| `commit` | see above | Commit to scan. |
+| `branch` | workflow branch | Branch the commit is on. |
+| `areas` | whole repository | Comma-separated audit area keys to scope the scan to. |
+| `guidance-file` | none | A file whose content replaces the repository's guidance for this scan. |
+| `timeout` | `10800` | Seconds to wait in `wait` and `gate` modes. The scan keeps running on zkao after a timeout. |
+| `summary` | `true` | Write the scan link, and the findings once waited for, to the job summary. |
+| `base-url` | `https://zkao.io` | The zkao instance. |
+| `cli-version` | pinned | Version of `@zksecurity/zkao-cli` the action runs. |
+
+## Outputs
+
+| Output | Meaning |
+| --- | --- |
+| `scan-id` | Id of the launched scan. |
+| `scan-url` | The scan on zkao. |
+| `status` | `QUEUED` in `launch` mode. `COMPLETED`, `FAILED` or `CANCELLED` once waited for. |
+| `findings-total` | Open findings, excluding false positives and duplicates. Empty in `launch` mode. |
+| `findings-critical`, `findings-high`, `findings-medium`, `findings-low`, `findings-info` | Open findings by severity. |
+
+Use them in later steps:
+
+```yaml
+      - uses: zksecurity/zkao-action@v1
+        id: zkao
+        with:
+          token: ${{ secrets.ZKAO_API_TOKEN }}
+          project: ${{ vars.ZKAO_PROJECT_ID }}
+          mode: wait
+      - run: echo "${{ steps.zkao.outputs.findings-total }} open findings at ${{ steps.zkao.outputs.scan-url }}"
+```
+
+## Keeping the cost in check
+
+A full scan on every push adds up. These keep it down.
+
+- Run on `pull_request`, or on `main` only.
+- Use `scan: diff` for pull requests.
+- Pass `areas` to scan only the audit areas a change touches. List area keys with `zkao areas list <repoId>`.
+- Set `budget` to cap each scan.
+
+A scan of a repository zkao is still analyzing waits for that analysis to finish first.
+
+## How it works
+
+The action is a composite step. It runs the published [`@zksecurity/zkao-cli`](https://www.npmjs.com/package/@zksecurity/zkao-cli) against the public API. The runner needs `node` and `jq`, which every GitHub-hosted runner has.

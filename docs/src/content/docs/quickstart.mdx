@@ -1,6 +1,141 @@
 ---
-title: quickstart
-description: TODO
+title: Quickstart
+description: Install the zkao CLI, authorize it for a project, launch a scan, and read its findings.
 ---
 
-TODO
+import { Steps, Tabs, TabItem, Aside } from "@astrojs/starlight/components";
+
+This page takes you from nothing to your first findings in a terminal.
+You need Node 18 or later and a zkao project with at least one repository.
+
+<Steps>
+
+1. **Install the CLI.**
+
+   ```bash
+   npm install -g @zksecurity/zkao-cli
+   ```
+
+   This installs the `zkao` command.
+   For a one-off run without installing, prefix commands with `npx @zksecurity/zkao-cli`.
+   You can also use the install script:
+
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/zksecurity/zkao-sdk/main/install.sh | bash
+   ```
+
+2. **Authorize it for a project.**
+
+   ```bash
+   zkao login
+   ```
+
+   The CLI opens a browser page and prints a short code.
+   Check that the page shows the same code.
+   Pick a project, review the permissions, and approve.
+   The CLI saves the token for that project. There is nothing to copy.
+
+   Confirm which project you are connected to:
+
+   ```bash
+   zkao whoami
+   ```
+
+   See [Authentication](/authentication/) for tokens, scopes, and non-interactive logins.
+
+3. **Find a repository.**
+
+   ```bash
+   zkao repos
+   ```
+
+   Note the `id` of the repository to scan.
+   Its `readiness` must be `ready`.
+   A repository added moments ago is `analyzing` for a short while.
+   `zkao repos:wait <repoId>` blocks until it is ready.
+
+4. **Pick a scan preset.**
+
+   ```bash
+   zkao presets
+   ```
+
+   Each preset is a scan type. Note the `ref` of the one you want.
+
+5. **Launch the scan.**
+
+   ```bash
+   zkao scans launch --repo <repoId> --preset <ref>
+   ```
+
+   The response carries the `scanId` and the budget the scan reserved, in credits.
+   Without `--budget`, zkao picks the budget it recommends for this scan type on this repository.
+   Pass `--budget <credits>` to set your own ceiling.
+   `zkao billing balance` shows the credits available to the project.
+
+6. **Wait for it to finish.**
+
+   ```bash
+   zkao scans wait <scanId>
+   ```
+
+   The scan moves from `QUEUED` to `PROCESSING` to `COMPLETED`.
+   Scans take minutes. `wait` polls at the pace the server asks for, so you do not need your own loop.
+
+7. **Read the findings.**
+
+   ```bash
+   zkao findings list --scan <scanId>
+   zkao findings get <findingId>
+   ```
+
+   `get` returns the full finding, including the description, proof of concept, and recommended fix.
+
+</Steps>
+
+Every command prints JSON on stdout, so it pipes cleanly into `jq` or a script.
+`zkao --help` lists every command.
+
+## Launch without the CLI
+
+The same launch over plain HTTP or the TypeScript SDK:
+
+<Tabs>
+  <TabItem label="curl">
+
+```bash
+curl -X POST "https://zkao.io/api/v1/projects/$ZKAO_PROJECT_ID/scans" \
+  -H "Authorization: Bearer $ZKAO_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"repositoryId":"<repoId>","presetRef":"<ref>"}'
+```
+
+  </TabItem>
+  <TabItem label="TypeScript">
+
+```ts
+import { ZkaoClient } from "@zksecurity/zkao-sdk";
+
+const zkao = new ZkaoClient({
+  token: process.env.ZKAO_API_TOKEN!,
+  projectId: process.env.ZKAO_PROJECT_ID!,
+});
+
+const { scanId } = await zkao.launchScan({ repositoryId: "<repoId>", presetRef: "<ref>" });
+await zkao.waitForScan(scanId);
+const { items } = await zkao.listFindings({ scanId });
+```
+
+  </TabItem>
+</Tabs>
+
+<Aside>
+  A `402 insufficient_credits` response means the organization's balance cannot cover the budget.
+  See [Credits and billing](/guides/credits/).
+</Aside>
+
+## Next steps
+
+- [Scans](/guides/scans/) covers presets, budgets, branches, areas, and per-scan guidance.
+- [Triage findings](/guides/findings/) covers severity, resolution, and notes.
+- [CLI reference](/reference/cli/) lists every command and flag.

@@ -1,6 +1,409 @@
 ---
-title: scans
-description: TODO
+title: Run scans
+description: Pick a repository and a scan type, launch a scan with a credit budget, follow it to the end, and cancel it if needed.
 ---
 
-TODO
+import { Tabs, TabItem, Aside, Steps } from "@astrojs/starlight/components";
+
+A scan audits one commit of one repository.
+You choose the scan type and a credit budget.
+zkao reserves the budget, runs the analysis, and records findings on the project.
+
+The TypeScript examples use a client created as shown in the [SDK reference](/reference/sdk/).
+The curl examples assume `ZKAO_API_TOKEN` and `ZKAO_PROJECT_ID` are set.
+
+## The flow
+
+<Steps>
+
+1. Find the repository and check that it is ready.
+2. Pick a scan type (a preset).
+3. Launch the scan with a budget.
+4. Wait for it to finish.
+5. Read its findings. See [Triage findings](/guides/findings/).
+
+</Steps>
+
+## Find a repository
+
+List the repositories in the project.
+A token restricted to some repositories only sees those.
+
+<Tabs syncKey="client">
+<TabItem label="CLI">
+```bash
+zkao repos
+```
+</TabItem>
+<TabItem label="TypeScript">
+```ts
+const repositories = await zkao.listRepositories();
+```
+</TabItem>
+<TabItem label="curl">
+```bash
+curl -H "Authorization: Bearer $ZKAO_API_TOKEN" \
+  https://zkao.io/api/v1/projects/$ZKAO_PROJECT_ID/repositories
+```
+</TabItem>
+</Tabs>
+
+Each repository has a `readiness` field.
+A repository added moments ago is `analyzing`.
+zkao makes a one-time pass over it first, and that pass costs no credits.
+A launch during that pass fails with `409 repository_initializing`.
+
+Wait for `ready` instead of retrying the launch.
+
+<Tabs syncKey="client">
+<TabItem label="CLI">
+```bash
+zkao repos:wait <repoId>
+```
+</TabItem>
+<TabItem label="TypeScript">
+```ts
+await zkao.waitForRepositoryReady(repoId);
+```
+</TabItem>
+<TabItem label="curl">
+```bash
+# Poll until the repository reports "readiness": "ready".
+curl -H "Authorization: Bearer $ZKAO_API_TOKEN" \
+  https://zkao.io/api/v1/projects/$ZKAO_PROJECT_ID/repositories
+```
+</TabItem>
+</Tabs>
+
+The SDK waits up to 30 minutes by default.
+It backs off between polls and honors `Retry-After`.
+
+## Pick a scan type
+
+A preset is a scan type.
+Each one runs a fixed set of analyses.
+Broader types run more analysis and need a larger budget.
+
+<Tabs syncKey="client">
+<TabItem label="CLI">
+```bash
+zkao presets
+```
+</TabItem>
+<TabItem label="TypeScript">
+```ts
+const presets = await zkao.listScanPresets();
+```
+</TabItem>
+<TabItem label="curl">
+```bash
+curl -H "Authorization: Bearer $ZKAO_API_TOKEN" \
+  https://zkao.io/api/v1/projects/$ZKAO_PROJECT_ID/scan-presets
+```
+</TabItem>
+</Tabs>
+
+Each preset has a `ref`, a `name`, a `description`, and a `minCredits` floor.
+Pass the `ref` when you launch.
+Without one, the launch uses the first active preset.
+
+## Choose a budget
+
+The budget is the most a scan may spend, in credits.
+zkao reserves it at launch and never charges more.
+Credits the scan does not use go back to the balance.
+
+You can leave the budget out.
+zkao then picks the budget it recommends for this scan type and scope on this repository.
+The recommendation follows what past scans of the repository spent.
+The first scan of a repository starts at the scan type's minimum.
+The launch response tells you which budget was used.
+
+A scan that runs short of budget stops early, so treat its coverage as partial.
+See [Credits and usage](/guides/credits/) for how reservations affect the balance.
+
+## Launch a scan
+
+<Tabs syncKey="client">
+<TabItem label="CLI">
+```bash
+zkao scans launch --repo <repoId> --preset <ref> --budget 500
+```
+</TabItem>
+<TabItem label="TypeScript">
+```ts
+const { scanId, creditBudget } = await zkao.launchScan({
+  repositoryId: repoId,
+  presetRef: ref,
+  creditBudget: 500,
+});
+```
+</TabItem>
+<TabItem label="curl">
+```bash
+curl -X POST -H "Authorization: Bearer $ZKAO_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"repositoryId":"<repoId>","presetRef":"<ref>","creditBudget":500}' \
+  https://zkao.io/api/v1/projects/$ZKAO_PROJECT_ID/scans
+```
+</TabItem>
+</Tabs>
+
+The API answers `202` with `scanId`, `queued`, and `creditBudget`.
+Launching needs the `scans:launch` scope.
+
+### Choose the commit
+
+By default a scan runs on the head of the repository's default branch.
+
+- `branch` scans the head of that branch, resolved when the scan launches.
+- `commitHash` pins one commit (7 to 40 hex characters). It wins over `branch`.
+- `commitMessage` is optional metadata shown with the scan.
+
+The CLI flags are `--branch`, `--commit`, and `--message`.
+The commit must be pushed to GitHub, because zkao reads it from there.
+
+### Scope a scan to audit areas
+
+An audit area is a named subsystem of the repository.
+zkao discovers areas when it maps the code.
+You can add your own.
+Scoping a scan to a few areas keeps a large repository affordable.
+
+<Tabs syncKey="client">
+<TabItem label="CLI">
+```bash
+zkao areas list <repoId>
+zkao scans launch --repo <repoId> --area <key> --area <otherKey>
+```
+</TabItem>
+<TabItem label="TypeScript">
+```ts
+const { areas } = await zkao.listAuditAreas(repoId);
+await zkao.launchScan({
+  repositoryId: repoId,
+  auditAreaKeys: [areas[0].key],
+});
+```
+</TabItem>
+<TabItem label="curl">
+```bash
+curl -H "Authorization: Bearer $ZKAO_API_TOKEN" \
+  https://zkao.io/api/v1/projects/$ZKAO_PROJECT_ID/repositories/<repoId>/audit-areas
+```
+</TabItem>
+</Tabs>
+
+Each area reports its size in files and lines from one branch's map.
+Pass `--branch` (or `branch`) to read another branch's sizes.
+
+Leave the area list out to scan the whole repository.
+A key the current map no longer names fails the launch.
+zkao never drops it silently, so a budget sized for one area never runs against everything.
+
+An area is a name and a description, never a file list.
+Each scan resolves it against the code at its own commit.
+
+<Tabs syncKey="client">
+<TabItem label="CLI">
+```bash
+zkao areas add <repoId> "Proof verifier" --description "On-chain verifier and its key loading"
+zkao areas rm <repoId> <areaKey>
+```
+</TabItem>
+<TabItem label="TypeScript">
+```ts
+const area = await zkao.createAuditArea(
+  repoId,
+  "Proof verifier",
+  "On-chain verifier and its key loading",
+);
+await zkao.deleteAuditArea(repoId, area.key);
+```
+</TabItem>
+<TabItem label="curl">
+```bash
+curl -X POST -H "Authorization: Bearer $ZKAO_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Proof verifier","description":"On-chain verifier and its key loading"}' \
+  https://zkao.io/api/v1/projects/$ZKAO_PROJECT_ID/repositories/<repoId>/audit-areas
+```
+</TabItem>
+</Tabs>
+
+Adding and deleting areas needs the `guidance:write` scope.
+Only custom areas can be deleted.
+Deleting a discovered area returns `409`.
+
+### Guide one scan
+
+Guidance tells a scan what matters: scope, threat model, and accepted risks.
+A launch can carry guidance for that scan only.
+It replaces the repository's stored guidance for this run.
+A `zkao.md` committed in the repository still applies underneath.
+
+<Tabs syncKey="client">
+<TabItem label="CLI">
+```bash
+zkao scans launch --repo <repoId> --guidance focus.md
+cat focus.md | zkao scans launch --repo <repoId> --guidance -
+```
+</TabItem>
+<TabItem label="TypeScript">
+```ts
+await zkao.launchScan({
+  repositoryId: repoId,
+  guidance: "Focus on the proof verifier. The prover is trusted.",
+});
+```
+</TabItem>
+<TabItem label="curl">
+```bash
+curl -X POST -H "Authorization: Bearer $ZKAO_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"repositoryId":"<repoId>","guidance":"Focus on the proof verifier."}' \
+  https://zkao.io/api/v1/projects/$ZKAO_PROJECT_ID/scans
+```
+</TabItem>
+</Tabs>
+
+In the API, the `guidance` field has three states:
+
+- Left out: the scan uses the repository's stored guidance.
+- A string: that text replaces it for this scan.
+- `null` or an empty string: the scan runs with no stored guidance layer.
+
+Guidance is limited to 100,000 characters.
+See [Repository guidance](/guides/guidance/) for the standing layer.
+
+## Follow a scan
+
+A scan moves through these statuses:
+
+| Status | Meaning |
+| --- | --- |
+| `QUEUED` | Accepted and waiting to start. |
+| `PROCESSING` | Running. |
+| `COMPLETED` | Finished. Findings are ready. |
+| `FAILED` | Stopped on an error. |
+| `CANCELLED` | Cancelled before it finished. |
+
+The last three are terminal.
+
+While a scan runs, its `progress` field reports `phasesCompleted`, `phasesTotal`, and a weighted `percent`.
+There is no time estimate.
+How long a scan takes depends on the repository and its guidance.
+A finished scan carries a `findingsSummary` with counts by severity.
+
+The easiest way to follow a scan is to wait on it.
+
+<Tabs syncKey="client">
+<TabItem label="CLI">
+```bash
+zkao scans wait <scanId>
+zkao scans wait <scanId> --timeout 7200
+```
+</TabItem>
+<TabItem label="TypeScript">
+```ts
+const scan = await zkao.waitForScan(scanId, {
+  onPoll: (s) => console.log(s.status, s.progress?.percent),
+});
+```
+</TabItem>
+<TabItem label="curl">
+```bash
+curl -i -H "Authorization: Bearer $ZKAO_API_TOKEN" \
+  https://zkao.io/api/v1/projects/$ZKAO_PROJECT_ID/scans/<scanId>
+```
+</TabItem>
+</Tabs>
+
+`zkao scans wait` prints each poll on stderr and the final scan as JSON on stdout.
+Its `--timeout` is in seconds.
+The SDK's `waitForScan` gives up after one hour by default.
+Set `timeoutMs` for longer scans, and pass a `signal` to abort.
+
+### Poll politely
+
+If you poll by hand, read the `Retry-After` header on the scan response.
+It says how many seconds to wait before the next poll.
+It is present only while the scan is not terminal.
+
+A token that polls too fast gets `429 rate_limited`, also with `Retry-After`.
+Wait that long before the next request.
+The CLI and SDK do this for you.
+
+<Aside type="tip">
+Prefer `zkao scans wait` or `waitForScan` over your own loop.
+They back off with jitter and treat `429` as a signal to slow down, not as an error.
+</Aside>
+
+## List scans
+
+Scans are listed newest first.
+The list is paginated with `page` and `limit` (at most 100, default 50).
+
+<Tabs syncKey="client">
+<TabItem label="CLI">
+```bash
+zkao scans list --limit 20
+zkao scans get <scanId>
+```
+</TabItem>
+<TabItem label="TypeScript">
+```ts
+const { items, total } = await zkao.listScans({ limit: 20 });
+const detail = await zkao.getScan(items[0].id);
+```
+</TabItem>
+<TabItem label="curl">
+```bash
+curl -H "Authorization: Bearer $ZKAO_API_TOKEN" \
+  "https://zkao.io/api/v1/projects/$ZKAO_PROJECT_ID/scans?limit=20"
+```
+</TabItem>
+</Tabs>
+
+## Cancel a scan
+
+You can cancel a queued or running scan.
+zkao stops its work, marks it `CANCELLED`, and releases its reserved credits.
+Work already in flight settles what it actually spent as it winds down.
+
+<Tabs syncKey="client">
+<TabItem label="CLI">
+```bash
+zkao scans cancel <scanId>
+```
+</TabItem>
+<TabItem label="TypeScript">
+```ts
+await zkao.cancelScan(scanId);
+```
+</TabItem>
+<TabItem label="curl">
+```bash
+curl -X POST -H "Authorization: Bearer $ZKAO_API_TOKEN" \
+  https://zkao.io/api/v1/projects/$ZKAO_PROJECT_ID/scans/<scanId>/cancel
+```
+</TabItem>
+</Tabs>
+
+Cancelling needs the `scans:launch` scope.
+A scan that already reached `COMPLETED` or `FAILED` cannot be cancelled and returns `400`.
+
+## Launch errors
+
+| Status | Code | What to do |
+| --- | --- | --- |
+| `400` | `bad_request` | Fix the request. The message names the problem. |
+| `400` | `diff_base_*` | See [Diff scans](/guides/diff-scans/). |
+| `402` | `insufficient_credits` | Add credits, or launch with a smaller budget. |
+| `403` | `forbidden` | The token lacks `scans:launch`. |
+| `404` | `not_found` | The repository is outside the token's project or repository allowlist. |
+| `409` | `repository_initializing` | Wait for the repository to be `ready`. |
+| `422` | `diff_empty` | The diff scan has nothing to audit. |
+| `429` | `rate_limited` | The token's spend limit is reached, or it sent too many requests. Wait for `Retry-After`. |
+
+The full contract is in the API reference for [launchScan](/api/operations/launchscan/) and [getScan](/api/operations/getscan/).

@@ -1,6 +1,100 @@
 ---
-title: publishing
-description: TODO
+title: Publish results
+description: Turn a finding or a completed scan into a public page you can share, optionally behind a password.
 ---
 
-TODO
+import { Tabs, TabItem, Aside } from "@astrojs/starlight/components";
+
+Publishing creates a public page on zkao for one finding or one scan. Anyone with the link can read it. Nothing else in the project becomes visible.
+
+Publishing needs the `publish` scope. `zkao login` does not request it by default. Ask for it when you log in:
+
+```bash
+zkao login --scope read scans:launch findings:write publish
+```
+
+## Publish a finding
+
+A published finding shows its title, severity, repository, commit, description, impact, and recommendation. You can also attach one of its comments as the team's public response. Pass that comment's id as the note.
+
+<Tabs syncKey="client">
+<TabItem label="CLI">
+```bash
+zkao findings publish <findingId>
+zkao findings publish <findingId> --note <noteId> --password
+```
+</TabItem>
+<TabItem label="TypeScript">
+```ts
+const { publicId, accessPassword } = await zkao.publishFinding(findingId, {
+  noteId,
+  withPassword: true,
+});
+```
+</TabItem>
+<TabItem label="curl">
+```bash
+curl -X POST -H "Authorization: Bearer $ZKAO_API_TOKEN" -H "Content-Type: application/json" \
+  -d '{"noteId":"<noteId>","withPassword":true}' \
+  https://zkao.io/api/v1/projects/$ZKAO_PROJECT_ID/findings/<findingId>/publish
+```
+</TabItem>
+</Tabs>
+
+The note must belong to the finding. Another finding's note returns `400`. The finding id also accepts a [`ZK-` label](/guides/findings/#zk--labels).
+
+## Publish a scan
+
+A published scan lists the scan's reported findings, most severe first. It covers the findings zkao confirmed, and those it marked as needing review. Only a `COMPLETED` scan can be published.
+
+<Tabs syncKey="client">
+<TabItem label="CLI">
+```bash
+zkao scans publish <scanId>
+zkao scans publish <scanId> --password
+```
+</TabItem>
+<TabItem label="TypeScript">
+```ts
+const { publicId, accessPassword } = await zkao.publishScan(scanId, { withPassword: true });
+```
+</TabItem>
+<TabItem label="curl">
+```bash
+curl -X POST -H "Authorization: Bearer $ZKAO_API_TOKEN" -H "Content-Type: application/json" \
+  -d '{"withPassword":true}' \
+  https://zkao.io/api/v1/projects/$ZKAO_PROJECT_ID/scans/<scanId>/publish
+```
+</TabItem>
+</Tabs>
+
+## The result
+
+Both calls return the same shape.
+
+```json
+{
+  "artifactId": "…",
+  "publicId": "…",
+  "accessPassword": null
+}
+```
+
+The public page lives at one of these URLs.
+
+- `https://zkao.io/public/findings/<publicId>`
+- `https://zkao.io/public/scans/<publicId>`
+
+## Password protection
+
+With `withPassword`, zkao generates a password and returns it as `accessPassword`. Visitors must enter it to read the page. Share it separately from the link.
+
+<Aside type="caution">
+Publishing again keeps the same link, but resets the options. A call without `withPassword` removes the password. A call with it generates a new one. For a finding, a call without a note removes the public response.
+</Aside>
+
+## Unpublishing
+
+The API publishes but does not unpublish. Unpublish a page from the finding or scan on zkao.
+
+See [Publish a finding](/api/operations/publishfinding/) and [Publish a scan](/api/operations/publishscan/) for the full schemas.

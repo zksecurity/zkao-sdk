@@ -1,6 +1,143 @@
 ---
-title: credits
-description: TODO
+title: Credits and usage
+description: How the prepaid credit balance works, what a scan reserves, and how to read balance, usage, and monthly spend over the API.
 ---
 
-TODO
+import { Tabs, TabItem, Aside } from "@astrojs/starlight/components";
+
+zkao is pay as you go.
+You buy credits, and scans spend them.
+Credits are the only unit the API uses.
+
+## Where the balance lives
+
+Every project belongs to an organization.
+The organization holds one prepaid balance.
+All of its projects share it.
+
+A project token still sees one project.
+The billing endpoints report the organization's balance as seen from that project.
+Usage and monthly spend cover only that project's activity.
+
+Credits are bought in the zkao app, not over the API.
+
+## What a scan reserves
+
+A launch reserves the scan's full budget from the balance.
+The scan then spends only what its analysis uses, never more than the budget.
+When it finishes, the unused part is released.
+A cancelled scan releases its reservation too.
+
+So the balance has three numbers:
+
+| Field | Meaning |
+| --- | --- |
+| `balanceCredits` | The organization's total prepaid balance. |
+| `reservedCredits` | Credits held by the organization's queued and running scans. |
+| `availableCredits` | The balance minus reservations. This is what a new scan can reserve. |
+
+Active scans in other projects of the organization reduce `availableCredits` too.
+
+## Check the balance
+
+<Tabs syncKey="client">
+<TabItem label="CLI">
+```bash
+zkao billing balance
+```
+</TabItem>
+<TabItem label="TypeScript">
+```ts
+const { availableCredits, organization } = await zkao.getBillingBalance();
+```
+</TabItem>
+<TabItem label="curl">
+```bash
+curl -H "Authorization: Bearer $ZKAO_API_TOKEN" \
+  https://zkao.io/api/v1/projects/$ZKAO_PROJECT_ID/billing/balance
+```
+</TabItem>
+</Tabs>
+
+The response names the organization that owns the balance.
+Check `availableCredits` before choosing a budget.
+
+## When credits run out
+
+A launch whose budget the balance cannot cover fails with `402 insufficient_credits`.
+Add credits in the app, or launch with a smaller budget.
+Reading the balance and usage keeps working with an empty balance.
+
+A token can also carry its own spend limit, set when it was created.
+`zkao whoami` shows it as `spendLimitCredits`.
+A launch past that limit fails with `429 rate_limited`.
+
+## Read the usage ledger
+
+The ledger lists every credit movement attributed to the project.
+Each event has a signed `credits` value.
+Negative means spent, positive means added or refunded.
+
+| Type | Meaning |
+| --- | --- |
+| `SCAN_DEDUCTION` | Credits a scan spent. |
+| `SCAN_REFUND` | Credits returned to the balance from a scan. |
+| `PURCHASE` | Credits bought. |
+| `STRIPE_REFUND` | A purchase refunded. |
+| `ADMIN_ADJUSTMENT` | A manual adjustment by zkao. |
+
+<Tabs syncKey="client">
+<TabItem label="CLI">
+```bash
+zkao billing usage
+zkao billing usage --from 2026-09-01 --to 2026-10-01 --limit 200
+```
+</TabItem>
+<TabItem label="TypeScript">
+```ts
+const { from, to, events } = await zkao.getBillingUsage({
+  from: "2026-09-01T00:00:00Z",
+});
+```
+</TabItem>
+<TabItem label="curl">
+```bash
+curl -H "Authorization: Bearer $ZKAO_API_TOKEN" \
+  "https://zkao.io/api/v1/projects/$ZKAO_PROJECT_ID/billing/usage?from=2026-09-01T00:00:00Z"
+```
+</TabItem>
+</Tabs>
+
+The default range is the last 30 days.
+The response echoes the range it used.
+Events come newest first, up to 1,000.
+Movements made outside any project, such as an organization top-up, are not listed.
+
+## Monthly summary
+
+The summary gives net credits spent on scans and net credits purchased, per calendar month in UTC.
+Months come newest first, and quiet months show zeros.
+Ask for up to 24 months.
+
+<Tabs syncKey="client">
+<TabItem label="CLI">
+```bash
+zkao billing summary --months 6
+```
+</TabItem>
+<TabItem label="TypeScript">
+```ts
+const months = await zkao.getBillingSummary({ months: 6 });
+```
+</TabItem>
+<TabItem label="curl">
+```bash
+curl -H "Authorization: Bearer $ZKAO_API_TOKEN" \
+  "https://zkao.io/api/v1/projects/$ZKAO_PROJECT_ID/billing/summary?months=6"
+```
+</TabItem>
+</Tabs>
+
+<Aside>
+All billing endpoints need only the `read` scope.
+</Aside>

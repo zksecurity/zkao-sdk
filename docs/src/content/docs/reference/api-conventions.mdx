@@ -1,6 +1,124 @@
 ---
-title: api-conventions
-description: TODO
+title: API conventions
+description: Base URL, authentication, errors, pagination, rate limits, and identifiers shared by every zkao API endpoint.
 ---
 
-TODO
+These rules apply to every endpoint in the [API reference](/api/).
+The machine-readable contract is the OpenAPI spec at [`/openapi/v1.yaml`](/openapi/v1.yaml).
+
+## Base URL
+
+```
+https://zkao.io/api/v1
+```
+
+Project resources live under `/projects/{projectId}`, for example `/projects/{projectId}/scans`.
+The one exception is `GET /token`, which needs no project id.
+Staging uses `https://staging.zkao.io/api/v1`. See [Environments](/environments/).
+
+## Authentication
+
+Send a project API token in the `Authorization` header:
+
+```
+Authorization: Bearer zkao_proj_<keyId>_<secret>
+```
+
+A token in the query string is rejected with `400`.
+See [Authentication](/authentication/) for how to get a token and what its scopes allow.
+
+## Requests and responses
+
+Request and response bodies are JSON.
+Send `Content-Type: application/json` with a body.
+Timestamps are ISO 8601 strings.
+
+## Errors
+
+Every error uses one envelope:
+
+```json
+{ "error": { "code": "not_found", "message": "Not found" } }
+```
+
+Branch on `code`. The `message` is for people and can change.
+
+| Status | Code | Meaning |
+| --- | --- | --- |
+| `400` | `bad_request` | The request is invalid. The message says why. |
+| `400` | `diff_base_required`, `diff_base_not_allowed`, `diff_base_invalid` | A diff scan's base is missing, given to a preset that refuses it, or malformed. |
+| `401` | `unauthorized` | The token is missing, malformed, expired, or revoked. |
+| `402` | `insufficient_credits` | The organization's credits cannot cover the scan. |
+| `403` | `forbidden` | The token lacks the scope this call needs. |
+| `404` | `not_found` | The resource does not exist, or is outside the token's project or repository allowlist. |
+| `409` | `conflict` | A concurrent change, such as guidance edited since you read it, or an ambiguous `ZK-` label. |
+| `409` | `repository_initializing` | The repository is still being analyzed. Retry once its `readiness` is `ready`. |
+| `422` | `diff_empty` | A diff scan has no change to audit between the base and the head. |
+| `429` | `rate_limited` | Too many requests, or the token's spend limit is reached. |
+| `500` | `internal` | Something failed on zkao's side. |
+
+zkao answers `404`, not `403`, for anything outside a token's reach.
+That way a token cannot probe which ids exist.
+
+The SDK throws `ZkaoApiError` for any non-2xx response, with `.status`, `.code`, and `.message`.
+The CLI prints `Error <status> (<code>): <message>` on stderr and exits with code 1.
+
+## Pagination
+
+List endpoints for scans and findings take `page` and `limit` query parameters:
+
+```bash
+curl -H "Authorization: Bearer $ZKAO_API_TOKEN" \
+  "https://zkao.io/api/v1/projects/$ZKAO_PROJECT_ID/findings?page=2&limit=100"
+```
+
+- `page` starts at 1.
+- `limit` defaults to 50 and is capped at 100.
+
+They return:
+
+```json
+{ "items": [], "page": 2, "limit": 100, "total": 312 }
+```
+
+Keep requesting pages until `page * limit >= total`.
+Other lists, such as repositories and presets, return everything in one response.
+
+## Rate limits and polling
+
+Each token has a request ceiling per time window.
+Normal use never reaches it.
+Past it, the API returns `429 rate_limited` with a `Retry-After` header in seconds.
+Wait that long before retrying.
+
+While a scan is still running, `GET /scans/{scanId}` returns an advisory `Retry-After` header.
+It says how long to wait before polling again.
+Honor it instead of polling in a tight loop.
+The SDK's `waitForScan` and the CLI's `zkao scans wait` do this for you.
+
+A launch that would push a token past its spend limit also returns `429`.
+
+## Identifiers
+
+Ids are opaque strings. Treat them as such.
+
+A finding also has a `ZK-` label, shown on its page.
+The label is the id's last eight characters.
+Every endpoint that takes a `findingId` also accepts the label, with or without the `ZK-` prefix.
+A label that matches more than one finding in the project returns `409 conflict`. Use the full id then.
+
+Projects, organizations, and repositories also carry a `slug`.
+Slugs form the readable app URLs, such as `/orgs/<org>/projects/<project>/repos/<repo>`.
+API paths use ids, not slugs.
+
+## Credits
+
+Every budget, balance, and spend in the API is in credits.
+Credits are the only unit the API reports.
+See [Credits and billing](/guides/credits/).
+
+## Versioning
+
+The major version is part of the path: `/api/v1`.
+New endpoints and new response fields can appear within v1.
+Ignore fields your client does not recognize.

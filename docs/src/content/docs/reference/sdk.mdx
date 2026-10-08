@@ -1,6 +1,252 @@
 ---
-title: sdk
-description: TODO
+title: TypeScript SDK
+description: The typed @zksecurity/zkao-sdk client, its options, every method, the polling helpers, and error handling.
 ---
 
-TODO
+`@zksecurity/zkao-sdk` is a typed client for the zkao API.
+Its types are generated from the [OpenAPI spec](/openapi/v1.yaml), so every request and response is checked at compile time.
+It runs on Node 18 or later and in any runtime with `fetch`.
+
+```bash
+npm install @zksecurity/zkao-sdk
+```
+
+## Create a client
+
+```ts
+import { ZkaoClient } from "@zksecurity/zkao-sdk";
+
+const zkao = new ZkaoClient({
+  token: process.env.ZKAO_API_TOKEN!,
+  projectId: process.env.ZKAO_PROJECT_ID!,
+});
+```
+
+A client is bound to one project. Every call is scoped to it.
+
+| Option | Type | Meaning |
+| --- | --- | --- |
+| `token` | `string` | Project API token, `zkao_proj_<keyId>_<secret>`. Required. |
+| `projectId` | `string` | Id of the project the token belongs to. Required. |
+| `baseUrl` | `string` | API base URL, used exactly as given. Optional. |
+| `fetch` | `typeof fetch` | Custom `fetch`, for tests or proxies. Optional. |
+
+### Base URL
+
+The client picks its base URL in this order:
+
+1. The `baseUrl` option, used verbatim.
+2. The `ZKAO_URL` environment variable, normalized.
+3. Production, `https://zkao.io/api/v1` (exported as `DEFAULT_BASE_URL`).
+
+`ZKAO_URL` accepts a bare host, an origin, or a full API URL.
+A bare host gets `https://`, except localhost, which gets `http://`.
+`/api/v1` is appended unless the value already ends in `/api/v<n>`.
+So `staging.zkao.io` becomes `https://staging.zkao.io/api/v1`.
+A plain `http://` URL to a non-local host logs a warning, since the token would travel unencrypted.
+
+Two helpers expose this logic:
+
+| Function | Meaning |
+| --- | --- |
+| `normalizeBaseUrl(value: string): string` | Turn a host, origin, or URL into a full API base URL. Throws on an empty or invalid value. |
+| `resolveBaseUrlFromEnv(env?): string \| undefined` | Read and normalize `ZKAO_URL`, from `env` or `process.env`. Returns `undefined` when unset. |
+
+## Methods
+
+Every method returns a promise. A non-2xx response rejects with [`ZkaoApiError`](#errors).
+The required token scope is noted where a method needs more than `read`.
+Each method links to its endpoint in the API reference.
+
+### Token
+
+| Method | Returns | Meaning |
+| --- | --- | --- |
+| `getTokenInfo()` | `TokenInfo` | The token's scopes, repository allowlist, expiry, spend limit, and its project and organization. [API](/api/operations/gettokeninfo/) |
+
+The standalone `getTokenInfo({ token, baseUrl?, fetch? })` does the same without a project id.
+Use it to find which project a token belongs to.
+
+### Repositories
+
+| Method | Returns | Meaning |
+| --- | --- | --- |
+| `listRepositories()` | `Repository[]` | The project's repositories, or the token's allowlisted subset. [API](/api/operations/listrepositories/) |
+| `waitForRepositoryReady(repositoryId, opts?)` | `Repository` | Block until the repository's `readiness` is `ready`. See [Polling helpers](#polling-helpers). |
+
+### Guidance
+
+| Method | Returns | Meaning |
+| --- | --- | --- |
+| `getRepositoryGuidance(repositoryId)` | `RepositoryGuidance` | Read a repository's guidance. [API](/api/operations/getrepositoryguidance/) |
+| `setRepositoryGuidance(repositoryId, content, opts?)` | `SetGuidanceResult` | Set guidance, or clear it with `null`. Needs `guidance:write`. [API](/api/operations/setrepositoryguidance/) |
+
+`setRepositoryGuidance` takes `{ expectedContent?: string | null }`.
+Pass the content you last read, or `null` if it was cleared.
+The write then fails with `409 conflict` if someone changed it in between.
+Writing the content already stored is a no-op that returns `unchanged: true`.
+
+```ts
+const current = await zkao.getRepositoryGuidance(repoId);
+await zkao.setRepositoryGuidance(repoId, `${current.content ?? ""}\nNew note.`, {
+  expectedContent: current.content,
+});
+```
+
+### Audit areas
+
+| Method | Returns | Meaning |
+| --- | --- | --- |
+| `listAuditAreas(repositoryId, opts?)` | `AuditAreaList` | A repository's audit areas. `opts.branch` picks the branch whose map gives sizes. [API](/api/operations/listauditareas/) |
+| `createAuditArea(repositoryId, name, description?)` | `AuditArea` | Add a custom area. The key is derived from the name. Needs `guidance:write`. [API](/api/operations/createauditarea/) |
+| `deleteAuditArea(repositoryId, areaKey)` | `DeleteAuditAreaResult` | Delete a custom area. An area a scan's map named is refused with `409`. Needs `guidance:write`. [API](/api/operations/deleteauditarea/) |
+
+### Scans
+
+| Method | Returns | Meaning |
+| --- | --- | --- |
+| `listScans(opts?)` | `Paginated<Scan>` | Scans, most recent first. `opts` takes `page` and `limit` (max 100). [API](/api/operations/listscans/) |
+| `getScan(scanId)` | `ScanDetail` | One scan's status and detail. [API](/api/operations/getscan/) |
+| `launchScan(body)` | `LaunchScanResult` | Launch a scan. Needs `scans:launch`. [API](/api/operations/launchscan/) |
+| `waitForScan(scanId, opts?)` | `ScanDetail` | Block until the scan is `COMPLETED`, `FAILED`, or `CANCELLED`. See [Polling helpers](#polling-helpers). |
+| `cancelScan(scanId)` | `CancelScanResult` | Cancel a running or queued scan and release its unspent credits. Needs `scans:launch`. [API](/api/operations/cancelscan/) |
+| `publishScan(scanId, opts?)` | `PublishArtifactResult` | Publish a completed scan as a public page. `opts.withPassword` adds a generated password. Needs `publish`. [API](/api/operations/publishscan/) |
+
+`launchScan` takes a `LaunchScanRequest`:
+
+| Field | Meaning |
+| --- | --- |
+| `repositoryId` | Repository to scan. Required. |
+| `creditBudget` | Maximum budget in credits. Omit it to use the budget zkao recommends. |
+| `presetRef` | Preset ref from `listScanPresets()`. Defaults to the first active preset. |
+| `branch` | Branch to scan. Ignored when `commitHash` is set. |
+| `commitHash` | Commit to scan. |
+| `commitMessage` | Commit message to record. |
+| `baseCommit` | Base commit, branch, or tag of a diff scan. Required by a diff preset, refused by others. |
+| `auditAreaKeys` | Area keys to scope the scan to. Omit to scan the whole repository. |
+| `guidance` | Guidance for this scan only, replacing the repository's. |
+
+It resolves to `{ scanId, queued, creditBudget }`.
+See [Scans](/guides/scans/) and [Diff scans](/guides/diff-scans/).
+
+### Findings
+
+`findingId` accepts the full id or the `ZK-` label shown on the finding page.
+
+| Method | Returns | Meaning |
+| --- | --- | --- |
+| `listFindings(opts?)` | `Paginated<Finding>` | Findings across the project. `opts` takes `scanId`, `page`, and `limit`. [API](/api/operations/listfindings/) |
+| `getFinding(findingId)` | `FindingDetail` | Full detail, including the proof of concept and notes. [API](/api/operations/getfinding/) |
+| `addFindingNote(findingId, content)` | `{ noteId, findingId }` | Add a comment. Needs `findings:write`. [API](/api/operations/addfindingnote/) |
+| `pinFindingNote(findingId, noteId, kind?)` | `{ findingId, noteId }` | Pin a note as the finding's resolution note. `kind` is `"resolution"`. Needs `findings:write`. [API](/api/operations/pinfindingnote/) |
+| `setFindingSeverity(findingId, severity)` | `{ findingId, userSeverity, effectiveSeverity }` | Override severity, or clear the override with `null`. Needs `findings:write`. [API](/api/operations/updatefindingseverity/) |
+| `setFindingResolution(findingId, status, opts?)` | `{ findingId, resolutionStatus }` | Change the resolution status. Needs `findings:write`. [API](/api/operations/updatefindingresolution/) |
+| `publishFinding(findingId, opts?)` | `PublishArtifactResult` | Publish a finding as a public page. `opts` takes `noteId` and `withPassword`. Needs `publish`. [API](/api/operations/publishfinding/) |
+
+`setFindingResolution` takes `{ note?: ChangeNote; reason?: ResolutionReason }`.
+`note` is `{ content }` for a new comment or `{ existingNoteId }` to reuse one.
+`reason` is a catalog code valid for the status. `note` wins when both are given.
+Both are ignored for `NOT_STARTED` and `IN_PROGRESS`.
+See [Triage findings](/guides/findings/) for the codes.
+
+```ts
+await zkao.setFindingResolution(findingId, "WONT_FIX", { reason: "risk_accepted" });
+```
+
+### Presets
+
+| Method | Returns | Meaning |
+| --- | --- | --- |
+| `listScanPresets()` | `ScanPreset[]` | Presets the project can launch. Pass a `ref` as `presetRef`. [API](/api/operations/listscanpresets/) |
+
+### Billing
+
+The balance belongs to the project's organization and is shared by all its projects.
+Usage and the monthly summary count only movements attributed to this project.
+See [Credits](/guides/credits/).
+
+| Method | Returns | Meaning |
+| --- | --- | --- |
+| `getBillingBalance()` | `BillingBalance` | `balanceCredits`, `reservedCredits` held by active scans, and `availableCredits` for new scans. [API](/api/operations/getbillingbalance/) |
+| `getBillingUsage(opts?)` | `BillingUsage` | Ledger movements with signed `credits`. `opts` takes `from`, `to`, and `limit`. Defaults to the last 30 days. [API](/api/operations/getbillingusage/) |
+| `getBillingSummary(opts?)` | `UsageMonthSummary[]` | Credits spent and purchased per UTC month, newest first. `opts.months` sets how many. [API](/api/operations/getbillingsummary/) |
+
+## Polling helpers
+
+Scans take minutes, and a tight polling loop is rejected with `429`.
+The helpers back off exponentially with jitter, honor the server's `Retry-After`, and treat a `429` as a signal to slow down.
+
+```ts
+const { scanId } = await zkao.launchScan({ repositoryId, presetRef });
+const scan = await zkao.waitForScan(scanId, {
+  onPoll: (s) => console.log(s.status),
+});
+if (scan.status !== "COMPLETED") throw new Error(`Scan ended ${scan.status}`);
+```
+
+`waitForScan(scanId, opts)` resolves with the final detail whatever the final status is.
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `intervalMs` | `5000` | First delay between polls. Grows by 1.5x each poll. |
+| `maxIntervalMs` | `30000` | Cap on the delay. |
+| `timeoutMs` | 1 hour | Give up and throw after this long. |
+| `signal` | none | `AbortSignal` that stops the wait. Rejects with the abort reason. |
+| `onPoll` | none | Called with the latest `ScanDetail` on each poll that is not final. |
+
+`waitForRepositoryReady(repositoryId, opts)` takes the same options except `onPoll`, with a default timeout of 30 minutes.
+It throws if the repository is not in the project or the token's allowlist.
+Call it between adding a repository and launching its first scan.
+
+`isTerminalScanStatus(status)` and `TERMINAL_SCAN_STATUSES` tell whether a status is final, for your own loops.
+
+## Errors
+
+Every non-2xx response throws `ZkaoApiError`.
+
+| Property | Meaning |
+| --- | --- |
+| `status` | HTTP status. |
+| `code` | Machine-readable error code from the response, such as `insufficient_credits`. |
+| `message` | Human-readable message. |
+
+Branch on `code`, not on the message.
+
+```ts
+import { ZkaoApiError } from "@zksecurity/zkao-sdk";
+
+try {
+  await zkao.launchScan({ repositoryId, presetRef });
+} catch (err) {
+  if (err instanceof ZkaoApiError && err.code === "repository_initializing") {
+    await zkao.waitForRepositoryReady(repositoryId);
+  } else if (err instanceof ZkaoApiError && err.code === "insufficient_credits") {
+    console.error("Not enough credits for this budget.");
+  } else {
+    throw err;
+  }
+}
+```
+
+The full list of codes is in [API conventions](/reference/api-conventions/).
+Timeouts and aborts in the polling helpers throw a plain `Error`, not `ZkaoApiError`.
+
+## Types
+
+The package exports a named type for each API object.
+
+| Type | Meaning |
+| --- | --- |
+| `Repository`, `RepositoryGuidance`, `SetGuidanceResult` | Repositories and their guidance. |
+| `Scan`, `ScanDetail`, `ScanStatus`, `ScanPreset` | Scans, their status, and presets. |
+| `LaunchScanRequest`, `LaunchScanResult`, `CancelScanResult` | Launch and cancel bodies and results. |
+| `Finding`, `FindingDetail`, `FindingNote`, `ChangeNote` | Findings and their notes. |
+| `Severity`, `ResolutionStatus`, `ResolutionReason`, `TriageStatus` | Finding enums. |
+| `PublishArtifactResult` | Result of publishing a scan or finding. |
+| `TokenInfo` | The calling token and its project. |
+| `BillingBalance`, `BillingUsage`, `UsageEvent`, `UsageEventType`, `BillingSummary`, `UsageMonthSummary` | Credit balance and ledger. |
+| `Paginated<T>` | `{ items, page, limit, total }` for list endpoints. |
+| `ZkaoClientOptions`, `WaitForScanOptions`, `WaitForRepositoryReadyOptions` | Option objects. |
+
+The raw generated types are exported as `components` and `paths`.
+Any schema without a named export is available as `components["schemas"]["<Name>"]`, for example `components["schemas"]["AuditArea"]`.

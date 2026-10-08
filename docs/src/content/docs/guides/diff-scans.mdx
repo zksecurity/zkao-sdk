@@ -1,6 +1,92 @@
 ---
-title: diff-scans
-description: TODO
+title: Diff scans
+description: Audit only what changed between a base and a head commit, which is cheap enough to run on every pull request.
 ---
 
-TODO
+import { Tabs, TabItem, Aside, Steps } from "@astrojs/starlight/components";
+
+A diff scan audits one change instead of the whole repository.
+It reads the code that changed between a base and a head commit.
+The rest of the repository is context, not a target.
+That makes it cheap and fast.
+
+## How the change is measured
+
+- The **head** is the commit you scan. Set it with `commitHash` or `branch`, as for any scan.
+- The **base** is what the change is measured from. It can be a commit SHA, a branch, or a tag.
+
+zkao compares the two on GitHub and audits the change from their merge base to the head.
+The scan records that merge base SHA as its `baseCommit`.
+So a base branch that moved on since you branched off does not pull its new commits into the diff.
+
+## Launch a diff scan
+
+<Steps>
+
+1. Push the head commit to GitHub. zkao reads both commits from there.
+2. Launch with the diff scan preset and a base.
+3. Wait for it, as for any scan. See [Run scans](/guides/scans/#follow-a-scan).
+
+</Steps>
+
+<Tabs syncKey="client">
+<TabItem label="CLI">
+```bash
+zkao scans launch --repo <repoId> --preset "builtin:Diff Scan" \
+  --base main --commit <headSha>
+zkao scans wait <scanId>
+```
+</TabItem>
+<TabItem label="TypeScript">
+```ts
+const { scanId } = await zkao.launchScan({
+  repositoryId: repoId,
+  presetRef: "builtin:Diff Scan",
+  baseCommit: "main",
+  commitHash: headSha,
+});
+const scan = await zkao.waitForScan(scanId);
+```
+</TabItem>
+<TabItem label="curl">
+```bash
+curl -X POST -H "Authorization: Bearer $ZKAO_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"repositoryId":"<repoId>","presetRef":"builtin:Diff Scan","baseCommit":"main","commitHash":"<headSha>"}' \
+  https://zkao.io/api/v1/projects/$ZKAO_PROJECT_ID/scans
+```
+</TabItem>
+</Tabs>
+
+Confirm the preset ref with `zkao presets`.
+The budget works as for any scan.
+Leave it out to use the recommended budget.
+You can also scope a diff scan to audit areas or give it per-scan guidance.
+
+## Diff scan errors
+
+Only a diff scan preset takes a base, and it always needs one.
+
+| Status | Code | Cause |
+| --- | --- | --- |
+| `400` | `diff_base_required` | A diff scan was launched without a base. |
+| `400` | `diff_base_not_allowed` | A base was sent with a preset that is not a diff scan. |
+| `400` | `diff_base_invalid` | The base is not a valid name, does not exist, or shares no history with the head. |
+| `422` | `diff_empty` | The head changes nothing since the base. There is nothing to audit. |
+
+The message says which case applies.
+A failed comparison on GitHub's side returns `400 bad_request`.
+That one is transient, so retry it later.
+
+## Run diff scans in CI
+
+Diff scans fit pull requests.
+Use the pull request's base branch as the base and its head commit as the head.
+
+The [zkao GitHub Action](/guides/github-action/) does this for you with `scan: diff`.
+It picks the pull request's base, or the commit before a push.
+It can also fail the job when the scan finds issues above a severity.
+
+<Aside type="tip">
+After a complex change to cryptographic code, a diff scan is a cheap second look before merging.
+</Aside>
