@@ -40,6 +40,7 @@ export default defineConfig({
       components: {
         Banner: "./src/components/Banner.astro",
         PageTitle: "./src/components/PageTitle.astro",
+        SocialIcons: "./src/components/SocialIcons.astro",
       },
       plugins: [
         starlightOpenAPI([
