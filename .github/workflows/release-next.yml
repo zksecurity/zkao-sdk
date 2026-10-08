@@ -7,6 +7,8 @@ name: Release next
 on:
   push:
     branches: [next]
+    # A docs-only push changes neither package.
+    paths-ignore: ["docs/**"]
 
 concurrency:
   group: release-next

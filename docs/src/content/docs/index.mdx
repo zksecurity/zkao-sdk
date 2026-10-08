@@ -1,6 +1,80 @@
 ---
-title: zkao docs
+title: Build on zkao
+description: Launch security audits, triage findings, and publish results from your terminal, your CI, your code, or your AI agent.
 template: splash
+hero:
+  tagline: Launch security audits, triage findings, and publish results from your terminal, your CI, your code, or your AI agent.
+  image:
+    file: ../../assets/robot-launch.png
+    alt: The zkao robot running with a checkered flag
+  actions:
+    - text: Quickstart
+      link: /quickstart/
+      icon: right-arrow
+    - text: API reference
+      link: /api/
+      variant: minimal
 ---
 
-TODO
+import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
+
+zkao audits code for security bugs, with a focus on cryptography and zero-knowledge circuits.
+Everything you can do on a project in the app, you can also do through its API.
+
+```bash
+npm install -g @zksecurity/zkao-cli
+zkao login
+zkao scans launch --repo <repoId> --budget 500
+```
+
+## Pick your tool
+
+<CardGrid>
+  <LinkCard
+    title="CLI"
+    description="The zkao command. JSON on stdout, built for shells and scripts."
+    href="/reference/cli/"
+  />
+  <LinkCard
+    title="TypeScript SDK"
+    description="A typed client generated from the OpenAPI spec, with helpers to wait on scans."
+    href="/reference/sdk/"
+  />
+  <LinkCard
+    title="REST API"
+    description="Every endpoint, request body, and response shape."
+    href="/api/"
+  />
+  <LinkCard
+    title="GitHub Action"
+    description="Scan every pull request's diff, or the whole repository on a schedule."
+    href="/guides/github-action/"
+  />
+  <LinkCard
+    title="AI agents"
+    description="A skill that teaches Claude Code and other agents to drive your project."
+    href="/guides/agents/"
+  />
+  <LinkCard
+    title="Authentication"
+    description="Log in from a browser, or mint a scoped token for CI."
+    href="/authentication/"
+  />
+</CardGrid>
+
+## Made for agents too
+
+<CardGrid>
+  <Card title="llms.txt" icon="document">
+    An index of these docs at [`/llms.txt`](/llms.txt), and all of them in one file at [`/llms-full.txt`](/llms-full.txt).
+  </Card>
+  <Card title="Markdown pages" icon="seti:markdown">
+    Every page is also served as Markdown. Add `.md` to its URL, or use the copy button next to its title.
+  </Card>
+  <Card title="Agent skill" icon="rocket">
+    The skill lives at [`/skill.md`](/skill.md). Point your agent at it.
+  </Card>
+  <Card title="OpenAPI spec" icon="seti:yml">
+    The contract the SDK is generated from, at [`/openapi/v1.yaml`](/openapi/v1.yaml).
+  </Card>
+</CardGrid>

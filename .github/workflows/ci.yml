@@ -24,3 +24,17 @@ jobs:
       # the SDK's dist/, which doesn't exist on a fresh checkout.
       - run: bun run build
       - run: bun run typecheck
+
+  docs:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: docs/.node-version
+      - run: bun install --frozen-lockfile
+      - run: bun run build

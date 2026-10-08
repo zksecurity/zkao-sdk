@@ -13,7 +13,8 @@ export const getStaticPaths = (async () => {
 export const GET: APIRoute<{ page: CollectionEntry<"docs"> }> = ({ props }) => {
   const { title, description } = props.page.data;
   const header = description ? `# ${title}\n\n> ${description}\n\n` : `# ${title}\n\n`;
-  return new Response(header + (props.page.body ?? ""), {
+  const body = (props.page.body ?? "").replace(/^import .+ from ".+";\n+/gm, "");
+  return new Response(header + body, {
     headers: { "Content-Type": "text/markdown; charset=utf-8" },
   });
 };
