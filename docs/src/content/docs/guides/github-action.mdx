@@ -73,6 +73,85 @@ The diff runs from the merge base of `base` to the scanned commit. `base` defaul
 
 On `pull_request` and `pull_request_target` events, the action scans the head of the pull request. On every other event it scans `github.sha`.
 
+## Comment on the pull request
+
+`comment: true` posts to the pull request twice: once when the scan starts, and again with the result when the job waits for it. Both carry a link to the scan. The job needs `pull-requests: write`.
+
+```yaml
+name: zkao
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: zksecurity/zkao-action@v1
+        with:
+          token: ${{ secrets.ZKAO_API_TOKEN }}
+          project: ${{ vars.ZKAO_PROJECT_ID }}
+          scan: diff
+          mode: wait
+          comment: true
+```
+
+The result comment carries counts and a link, never the findings themselves. On a public repository, spelling them out would disclose unfixed vulnerabilities to anyone who can read the pull request.
+
+Comments are posted by `github-actions[bot]`, since the action uses the workflow's own token. To post under your own bot, mint a GitHub App installation token in an earlier step and pass it as `github-token`.
+
+<Aside type="note">
+A push carries no pull request. When the pushed branch has one open, the action finds it and comments there anyway.
+</Aside>
+
+## Run a scan from a comment
+
+Trigger on `issue_comment` and the action takes commands from the pull request itself.
+
+```yaml
+name: zkao
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  scan:
+    if: github.event.issue.pull_request && contains(github.event.comment.body, '@zkao')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: zksecurity/zkao-action@v1
+        with:
+          token: ${{ secrets.ZKAO_API_TOKEN }}
+          project: ${{ vars.ZKAO_PROJECT_ID }}
+          scan: diff
+          mode: wait
+          comment: true
+```
+
+| Comment | What happens |
+| --- | --- |
+| `@zkao /scan` | Audits the pull request's change, with the kind the workflow configures. |
+| `@zkao /scan deep-audit` | Audits it as `diff`, `quick-look` or `deep-audit` instead. |
+| `@zkao /help` | Posts the usage. No scan. |
+| `@zkao` | Posts the usage. Deliberately does not scan, so a passing mention never spends credits. |
+
+A mention followed by ordinary prose, such as "ask @zkao about this later", is left alone.
+
+<Aside type="caution">
+A workflow triggered by `issue_comment` only ever runs from the repository's **default branch**. On any other branch GitHub never dispatches it, and nothing happens with no error to explain it. The default branch is also where the comment event reads the workflow from, so the commit under test comes from the pull request, not from `github.sha`.
+</Aside>
+
+Only the repository's owner, members and collaborators can start a scan this way. Comments from anyone else are ignored, so a passer-by cannot spend the project's credits.
+
+Change the handle with the `mention` input.
+
 ## Modes
 
 | `mode` | What happens |
@@ -108,6 +187,9 @@ On `pull_request` and `pull_request_target` events, the action scans the head of
 | `guidance-file` | none | A file whose content replaces the repository's guidance for this scan. |
 | `timeout` | `10800` | Seconds to wait in `wait` and `gate` modes. The scan keeps running on zkao after a timeout. |
 | `summary` | `true` | Write the scan link, and the findings once waited for, to the job summary. |
+| `comment` | `false` | Comment on the pull request when the scan starts and when it finishes. Needs `pull-requests: write`. |
+| `mention` | `@zkao` | The handle a comment names to reach zkao. |
+| `github-token` | the workflow's | Token used to comment, and to read the pull request on an `issue_comment` event. |
 | `base-url` | `https://zkao.io` | The zkao instance. |
 | `cli-version` | pinned | Version of `@zksecurity/zkao-cli` the action runs. |
 
