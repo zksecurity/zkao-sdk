@@ -996,6 +996,32 @@ components:
             - type: "null"
           description: Null for a scan launched without a budget.
 
+    ScanTrigger:
+      type: object
+      required: [kind]
+      description: >-
+        Where a launch came from. References only: no URL is accepted, and the
+        link the scan page shows is built from the scanned repository, so a
+        token can never point that page somewhere of its own choosing.
+      properties:
+        kind:
+          type: string
+          enum: [github_action, pr_comment, agent, api]
+          description: What asked for the scan.
+        pullRequest:
+          type: [integer, "null"]
+          minimum: 1
+          description: >-
+            Pull request number in the scanned repository. Its existence is not
+            checked: a wrong number only yields a dead link in your own
+            repository.
+        commentId:
+          type: [string, "null"]
+          pattern: "^[0-9]{1,32}$"
+          description: >-
+            The comment that asked for the scan, so the link lands on it.
+            Requires pullRequest.
+
     ScanBudget:
       type: object
       required: [limitCredits, spentCredits, nextBudgetRecommendation]
@@ -1200,6 +1226,13 @@ components:
             What a diff scan's change is measured from: a commit SHA, branch, or
             tag. Required by a diff scan preset and refused by every other. The
             scan records the merge base of this and the scanned commit.
+        trigger:
+          oneOf:
+            - $ref: "#/components/schemas/ScanTrigger"
+            - type: "null"
+          description: >-
+            Where this launch came from, shown on the scan page. Optional, and
+            display only: nothing in the pipeline reads it.
         auditAreaKeys:
           type: array
           items: { type: string }

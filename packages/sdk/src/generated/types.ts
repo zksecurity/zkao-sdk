@@ -572,6 +572,18 @@ export interface components {
             /** @description Null for a scan launched without a budget. */
             budget?: components["schemas"]["ScanBudget"] | null;
         };
+        /** @description Where a launch came from. References only: no URL is accepted, and the link the scan page shows is built from the scanned repository, so a token can never point that page somewhere of its own choosing. */
+        ScanTrigger: {
+            /**
+             * @description What asked for the scan.
+             * @enum {string}
+             */
+            kind: "github_action" | "pr_comment" | "agent" | "api";
+            /** @description Pull request number in the scanned repository. Its existence is not checked: a wrong number only yields a dead link in your own repository. */
+            pullRequest?: number | null;
+            /** @description The comment that asked for the scan, so the link lands on it. Requires pullRequest. */
+            commentId?: string | null;
+        };
         /** @description What a scan was allowed to spend, what it was charged, and whether the next scan of its type and scope should get more. Check the last scan of a type before choosing the next one's budget. */
         ScanBudget: {
             /** @description The most the scan could spend, in credits. */
@@ -692,6 +704,8 @@ export interface components {
             commitMessage?: string | null;
             /** @description What a diff scan's change is measured from: a commit SHA, branch, or tag. Required by a diff scan preset and refused by every other. The scan records the merge base of this and the scanned commit. */
             baseCommit?: string | null;
+            /** @description Where this launch came from, shown on the scan page. Optional, and display only: nothing in the pipeline reads it. */
+            trigger?: components["schemas"]["ScanTrigger"] | null;
             /** @description Area keys from /audit-areas to scope this scan to. Omit or send an empty array to scan the whole repository. A key the repository's current map no longer names fails the launch rather than being dropped, so a scan budgeted for one subsystem never silently runs against everything. */
             auditAreaKeys?: string[];
             /** @description Guidance for this scan only, replacing the repository's configured guidance layer (it is still layered over any committed zkao.md). Omit the field to inherit the repository's guidance; send null to scan with no guidance layer. */

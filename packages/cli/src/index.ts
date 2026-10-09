@@ -409,6 +409,19 @@ scans
     collect,
     []
   )
+  .option(
+    "--trigger <kind>",
+    "where this launch came from, shown on the scan page: github_action, pr_comment, agent or api"
+  )
+  .option(
+    "--pull-request <number>",
+    "pull request this scan is about, linked from the scan page",
+    toInt
+  )
+  .option(
+    "--comment-id <id>",
+    "the comment that asked for the scan, so the scan page links to it (needs --pull-request)"
+  )
   .action(
     (opts: {
       repo: string;
@@ -420,6 +433,9 @@ scans
       message?: string;
       area: string[];
       guidance?: string;
+      trigger?: string;
+      pullRequest?: number;
+      commentId?: string;
     }) => {
       const body: LaunchScanRequest = {
         repositoryId: opts.repo,
@@ -432,6 +448,17 @@ scans
         auditAreaKeys: opts.area.length > 0 ? opts.area : undefined,
         ...(opts.guidance !== undefined
           ? { guidance: readContentArg(opts.guidance) }
+          : {}),
+        ...(opts.trigger
+          ? {
+              trigger: {
+                kind: opts.trigger as NonNullable<
+                  LaunchScanRequest["trigger"]
+                >["kind"],
+                ...(opts.pullRequest ? { pullRequest: opts.pullRequest } : {}),
+                ...(opts.commentId ? { commentId: opts.commentId } : {}),
+              },
+            }
           : {}),
       };
       return run((c) => c.launchScan(body));
