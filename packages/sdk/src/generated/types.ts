@@ -569,6 +569,20 @@ export interface components {
             completedAt?: string | null;
             /** @description Phase progress while the scan is in flight. Null once the scan reaches a terminal state, and null before it has been dispatched (no phases exist yet). */
             progress?: components["schemas"]["ScanProgress"] | null;
+            /** @description Null for a scan launched without a budget. */
+            budget?: components["schemas"]["ScanBudget"] | null;
+        };
+        /** @description What a scan was allowed to spend, what it was charged, and whether the next scan of its type and scope should get more. Check the last scan of a type before choosing the next one's budget. */
+        ScanBudget: {
+            /** @description The most the scan could spend, in credits. */
+            limitCredits: number;
+            /** @description Credits charged for the scan. Null until it finishes. */
+            spentCredits: number | null;
+            /**
+             * @description Whether the next scan of this type and scope should keep this budget or raise it. A raise is half again, never above twice the scan type's minimum. A raise can follow a scan that spent well under its limit: the limit is divided between the parts of the analysis, and one part cannot use another's unspent share. Null until the scan completes.
+             * @enum {string|null}
+             */
+            nextBudgetRecommendation: "keep" | "raise" | null;
         };
         /** @description How far a running scan has got through its phases. Deliberately not a time estimate: a phase's duration moves with the guidance it was given, the repository, and the model that ran it. */
         ScanProgress: {

@@ -209,6 +209,12 @@ it before choosing `--budget`. `zkao billing usage` lists the ledger
 movements behind a balance the user disputes, and `zkao billing summary` gives
 per-month spend. Credits are the only unit here: never convert them to money.
 
+Each scan's `budget` gives its limit, the credits it was charged, and
+`nextBudgetRecommendation`: whether the next scan of the same type and scope
+should `keep` that budget or `raise` it. A `raise` can follow a scan that spent
+well under its limit, because each part of the analysis has its own share.
+Read it on the last scan of that type before choosing `--budget`.
+
 ## Direct HTTP (no CLI)
 
 Base: `https://zkao.io/api/v1/projects/{projectId}`. Examples:
