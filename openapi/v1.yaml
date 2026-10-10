@@ -526,14 +526,15 @@ paths:
 
         `fixedIn` is the point of this endpoint. A patch notice stays blocked
         until some range names a fixed version, and only the people who shipped
-        the release know it. Recording one cannot send anything: it moves a
-        notice from blocked to scheduled, and a scheduled notice still waits
-        for a person.
+        the release know it.
 
 
-        Taking a fixed version away puts the notice back, and drops any
-        approval it was carrying, so nobody approves wording a later fix
-        rewrites.
+        This call never sends anything. It records versions and recomputes the
+        disclosure plan: a notice blocked for want of a fix becomes eligible to
+        go, and one that loses its fix is blocked again, dropping any approval
+        it was carrying so nobody approves wording a later fix rewrites. When
+        an eligible notice is actually sent is governed by the programme's own
+        settings, not by this call.
       parameters:
         - $ref: "#/components/parameters/ProjectId"
         - name: publicId

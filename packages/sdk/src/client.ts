@@ -555,8 +555,11 @@ export class ZkaoClient {
    * Replaces the whole set, so send what is affected now rather than a patch.
    * `fixedIn` is the point: a patch notice stays blocked until some range
    * names a fixed version, and only the people who shipped the release know
-   * it. Recording one cannot send anything - it moves a notice from blocked
-   * to scheduled, and a scheduled notice still waits for a person.
+   * it.
+   *
+   * This call never sends anything. It records versions and recomputes the
+   * plan; when an eligible notice is actually sent is the programme's
+   * business.
    */
   async replaceAdvisoryAffected(
     publicId: string,
