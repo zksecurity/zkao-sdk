@@ -191,6 +191,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{projectId}/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List incoming reports
+         * @description Requires scope: `read`. Vulnerability reports the programme has received, newest first. Optionally filter by `status`.
+         *
+         *     `publicId` is what `investigateReport` takes. `intakeState` says whether the report has been read and split into claims yet: an investigation waits for `COMPLETE`, so a `PENDING` or `RUNNING` report is one to come back to rather than one to retry.
+         */
+        get: operations["listReports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/reports/{publicId}/investigate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Investigate an incoming report against the code
+         * @description Requires scope: `scans:launch`. Runs the triage flow over the report's claims: each is checked against the repository, deduplicated against the findings already confirmed there, and given a proof of concept where one can be written. Returns immediately with the scan doing the work; poll `/projects/{projectId}/scans/{scanId}` and then read its findings.
+         *
+         *     Idempotent. A report already under investigation returns the existing scan with `claimsQueued: null`, so a retry costs nothing.
+         */
+        post: operations["investigateReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/advisories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List advisories
+         * @description Requires scope: `read`. The project's coordinated-disclosure advisories, newest first. Optionally filter by `status`.
+         */
+        get: operations["listAdvisories"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/advisories/{publicId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get an advisory
+         * @description Requires scope: `read`. The advisory, the versions it affects, and the notices planned for it.
+         *
+         *     A notice the plan is holding back carries `blockedReason`. The commonest one is that no affected range names a fixed version, which only the people who shipped the release can supply; record it in the app and the notice becomes schedulable.
+         */
+        get: operations["getAdvisory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{projectId}/findings": {
         parameters: {
             query?: never;
@@ -668,6 +754,105 @@ export interface components {
             limit: number;
             total: number;
         };
+        Report: {
+            /** @description The identifier `investigateReport` takes. */
+            publicId: string;
+            title: string;
+            /** @description How it arrived. Today always GitHub private vulnerability reporting. */
+            source: string;
+            /** @description What the reporter claimed, which is not an assessment. */
+            claimedSeverity?: components["schemas"]["Severity"] | null;
+            /** @enum {string} */
+            status: "NEW" | "TRIAGING" | "NEEDS_INFO" | "ACCEPTED" | "DUPLICATE" | "REJECTED";
+            /**
+             * @description Whether the report has been read and split into claims. An investigation waits for COMPLETE.
+             * @enum {string}
+             */
+            intakeState: "PENDING" | "RUNNING" | "REVIEW" | "COMPLETE" | "FAILED";
+            /**
+             * @description How the investigation is going, or null if none has run.
+             * @enum {string|null}
+             */
+            evaluationState?: "QUEUED" | "RUNNING" | "COMPLETE" | "FAILED" | null;
+            reporterName?: string | null;
+            reporterGithubLogin?: string | null;
+            /** @description The GitHub advisory it arrived as. */
+            githubUrl?: string | null;
+            /** Format: date-time */
+            acknowledgedAt?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        PaginatedReports: {
+            items: components["schemas"]["Report"][];
+            page: number;
+            limit: number;
+            total: number;
+        };
+        Advisory: {
+            /** @description Readable identifier, e.g. `ADVISORY-ADV-2026-0045`. */
+            publicId: string;
+            title: string;
+            /** @enum {string} */
+            severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "INFO";
+            /** @enum {string} */
+            status: "DRAFT" | "SCHEDULED" | "UNDER_EMBARGO" | "PUBLISHED" | "WITHDRAWN";
+            /**
+             * Format: date-time
+             * @description When the embargo lifts. Null until a date is set.
+             */
+            disclosureAt?: string | null;
+            /** Format: date-time */
+            publishedAt?: string | null;
+            cveId?: string | null;
+            /** @description The GitHub advisory, once one has been filed. */
+            ghsaId?: string | null;
+            ghsaUrl?: string | null;
+            /** @description What GitHub reports. A created entry is a DRAFT, which is private and reaches no scanner; only a published one is public. */
+            ghsaState: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        AdvisoryAffected: {
+            id: string;
+            repository: {
+                owner: string;
+                name: string;
+            };
+            /** @description First version carrying the defect. */
+            introducedIn: string;
+            /** @description Version that closes the range. Null while no patch exists, which is what holds a patch notice back. */
+            fixedIn: string | null;
+        };
+        AdvisoryNotice: {
+            label: string;
+            /** @description Days relative to disclosure. Negative is before it, 0 is the day itself. */
+            offsetDays: number;
+            /** Format: date-time */
+            scheduledFor: string;
+            /** @enum {string} */
+            status: "DRAFT" | "SCHEDULED" | "BLOCKED" | "SENDING" | "SENT" | "CANCELLED";
+            /** @description Why the plan is holding this notice back, if it is. */
+            blockedReason: string | null;
+            /** Format: date-time */
+            sentAt: string | null;
+            /** @description Contacts written to, as recorded when it went. */
+            recipientCount: number;
+        };
+        AdvisoryDetail: components["schemas"]["Advisory"] & {
+            summary: string;
+            description: string;
+            impact: string;
+            cwe?: string | null;
+            affected: components["schemas"]["AdvisoryAffected"][];
+            notices: components["schemas"]["AdvisoryNotice"][];
+        };
+        PaginatedAdvisories: {
+            items: components["schemas"]["Advisory"][];
+            page: number;
+            limit: number;
+            total: number;
+        };
         PaginatedFindings: {
             items: components["schemas"]["Finding"][];
             page: number;
@@ -784,6 +969,13 @@ export interface components {
             status: components["schemas"]["ScanStatus"];
             /** @description Number of in-flight jobs signalled to stop. */
             cancelledJobs: number;
+        };
+        InvestigateReportResult: {
+            publicId: string;
+            /** @description The scan triaging this report's claims. */
+            scanId: string;
+            /** @description Claims queued for triage, or null when an investigation was already running and this call started nothing. */
+            claimsQueued: number | null;
         };
         /** @description Optionally attach or reuse a note alongside a resolution change. */
         ChangeNote: {
@@ -1251,6 +1443,127 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             429: components["responses"]["RateLimited"];
+        };
+    };
+    listReports: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Page"];
+                limit?: components["parameters"]["Limit"];
+                /** @description Only reports in this triage status. */
+                status?: "NEW" | "TRIAGING" | "NEEDS_INFO" | "ACCEPTED" | "DUPLICATE" | "REJECTED";
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedReports"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    investigateReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                /** @description The report's public identifier. */
+                publicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvestigateReportResult"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            402: components["responses"]["InsufficientCredits"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    listAdvisories: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Page"];
+                limit?: components["parameters"]["Limit"];
+                /** @description Only advisories in this status. */
+                status?: "DRAFT" | "SCHEDULED" | "UNDER_EMBARGO" | "PUBLISHED" | "WITHDRAWN";
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedAdvisories"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getAdvisory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                /** @description The advisory's readable identifier. */
+                publicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        advisory: components["schemas"]["AdvisoryDetail"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     listFindings: {
