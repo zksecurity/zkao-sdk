@@ -372,6 +372,42 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         "429": { $ref: "#/components/responses/RateLimited" }
 
+  /projects/{projectId}/reports/{publicId}/investigate:
+    post:
+      tags: [Reports]
+      operationId: investigateReport
+      summary: Investigate an incoming report against the code
+      description: >-
+        Requires scope: `scans:launch`. Runs the triage flow over the report's
+        claims: each is checked against the repository, deduplicated against the
+        findings already confirmed there, and given a proof of concept where one
+        can be written. Returns immediately with the scan doing the work; poll
+        `/projects/{projectId}/scans/{scanId}` and then read its findings.
+
+
+        Idempotent. A report already under investigation returns the existing
+        scan with `claimsQueued: null`, so a retry costs nothing.
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - name: publicId
+          in: path
+          required: true
+          schema: { type: string }
+          description: The report's public identifier.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                { $ref: "#/components/schemas/InvestigateReportResult" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "402": { $ref: "#/components/responses/InsufficientCredits" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
   /projects/{projectId}/findings:
     get:
       tags: [Findings]
@@ -1377,6 +1413,20 @@ components:
         cancelledJobs:
           type: integer
           description: Number of in-flight jobs signalled to stop.
+
+    InvestigateReportResult:
+      type: object
+      required: [publicId, scanId, claimsQueued]
+      properties:
+        publicId: { type: string }
+        scanId:
+          type: string
+          description: The scan triaging this report's claims.
+        claimsQueued:
+          type: [integer, "null"]
+          description: >-
+            Claims queued for triage, or null when an investigation was already
+            running and this call started nothing.
 
     ChangeNote:
       type: object

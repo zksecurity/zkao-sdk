@@ -191,6 +191,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{projectId}/reports/{publicId}/investigate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Investigate an incoming report against the code
+         * @description Requires scope: `scans:launch`. Runs the triage flow over the report's claims: each is checked against the repository, deduplicated against the findings already confirmed there, and given a proof of concept where one can be written. Returns immediately with the scan doing the work; poll `/projects/{projectId}/scans/{scanId}` and then read its findings.
+         *
+         *     Idempotent. A report already under investigation returns the existing scan with `claimsQueued: null`, so a retry costs nothing.
+         */
+        post: operations["investigateReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{projectId}/findings": {
         parameters: {
             query?: never;
@@ -785,6 +807,13 @@ export interface components {
             /** @description Number of in-flight jobs signalled to stop. */
             cancelledJobs: number;
         };
+        InvestigateReportResult: {
+            publicId: string;
+            /** @description The scan triaging this report's claims. */
+            scanId: string;
+            /** @description Claims queued for triage, or null when an investigation was already running and this call started nothing. */
+            claimsQueued: number | null;
+        };
         /** @description Optionally attach or reuse a note alongside a resolution change. */
         ChangeNote: {
             /** @description Create a new note with this body. */
@@ -1250,6 +1279,36 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    investigateReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                /** @description The report's public identifier. */
+                publicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvestigateReportResult"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            402: components["responses"]["InsufficientCredits"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             429: components["responses"]["RateLimited"];
         };
     };

@@ -35,6 +35,7 @@ export type BillingUsage = Schemas["BillingUsage"];
 export type UsageEvent = Schemas["UsageEvent"];
 export type UsageEventType = Schemas["UsageEventType"];
 export type BillingSummary = Schemas["BillingSummary"];
+export type InvestigateReportResult = Schemas["InvestigateReportResult"];
 export type UsageMonthSummary = Schemas["UsageMonthSummary"];
 export type Paginated<T> = { items: T[]; page: number; limit: number; total: number };
 
@@ -488,6 +489,28 @@ export class ZkaoClient {
    */
   async createManualAudit(body: ManualAuditRequest): Promise<ManualAuditResult> {
     return this.postUntyped<ManualAuditResult>("/manual-audits", body);
+  }
+
+  // --- Incoming reports ---------------------------------------------------
+
+  /**
+   * Check an incoming vulnerability report against the code.
+   *
+   * Requires the `scans:launch` scope. The report's claims are each checked
+   * against the repository, deduplicated against the findings already
+   * confirmed there, and given a proof of concept where one can be written.
+   * Returns at once with the scan doing the work: poll {@link getScan} and
+   * then read its findings.
+   *
+   * Idempotent. A report already under investigation comes back with the
+   * existing scan and `claimsQueued: null`, so a retry costs nothing.
+   */
+  async investigateReport(publicId: string): Promise<InvestigateReportResult> {
+    const res = await this.http.POST(
+      "/projects/{projectId}/reports/{publicId}/investigate",
+      { params: { path: { ...this.path, publicId } } }
+    );
+    return unwrap(res);
   }
 
   // --- Findings -----------------------------------------------------------
