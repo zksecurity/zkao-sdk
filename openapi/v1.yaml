@@ -20,6 +20,7 @@ info:
       - `guidance:write` — read and update a repository's guidance, and manage its audit areas
       - `scans:launch` — start a scan
       - `publish` — publish a finding or a scan
+      - `advisories:write` — record which versions an advisory affects
 
     `GET /token` tells a token which project, and which organization, it
     belongs to.
@@ -512,6 +513,76 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+
+  /projects/{projectId}/advisories/{publicId}/affected:
+    put:
+      tags: [Advisories]
+      operationId: replaceAdvisoryAffected
+      summary: Record which versions an advisory affects
+      description: >-
+        Requires scope: `advisories:write`. Replaces the whole set of affected
+        ranges, so send what is affected now rather than a patch.
+
+
+        `fixedIn` is the point of this endpoint. A patch notice stays blocked
+        until some range names a fixed version, and only the people who shipped
+        the release know it.
+
+
+        This call never sends anything. It records versions and recomputes the
+        disclosure plan: a notice blocked for want of a fix becomes eligible to
+        go, and one that loses its fix is blocked again, dropping any approval
+        it was carrying so nobody approves wording a later fix rewrites. When
+        an eligible notice is actually sent is governed by the programme's own
+        settings, not by this call.
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - name: publicId
+          in: path
+          required: true
+          schema: { type: string }
+          description: The advisory's readable identifier.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [affected]
+              properties:
+                affected:
+                  type: array
+                  items:
+                    type: object
+                    required: [repository, introducedIn]
+                    properties:
+                      repository:
+                        type: object
+                        required: [owner, name]
+                        properties:
+                          owner: { type: string }
+                          name: { type: string }
+                      introducedIn:
+                        type: string
+                        description: First version carrying the defect.
+                      fixedIn:
+                        type: [string, "null"]
+                        description: Version that closes the range, or null.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [advisory]
+                properties:
+                  advisory: { $ref: "#/components/schemas/AdvisoryDetail" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
 
   /projects/{projectId}/findings:
     get:
