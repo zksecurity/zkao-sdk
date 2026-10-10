@@ -36,6 +36,17 @@ export type UsageEvent = Schemas["UsageEvent"];
 export type UsageEventType = Schemas["UsageEventType"];
 export type BillingSummary = Schemas["BillingSummary"];
 export type InvestigateReportResult = Schemas["InvestigateReportResult"];
+export type Advisory = Schemas["Advisory"];
+export type AdvisoryDetail = Schemas["AdvisoryDetail"];
+export type AdvisoryAffected = Schemas["AdvisoryAffected"];
+export type AdvisoryNotice = Schemas["AdvisoryNotice"];
+/** The statuses an advisory moves through. */
+export type AdvisoryStatus =
+  | "DRAFT"
+  | "SCHEDULED"
+  | "UNDER_EMBARGO"
+  | "PUBLISHED"
+  | "WITHDRAWN";
 export type UsageMonthSummary = Schemas["UsageMonthSummary"];
 export type Paginated<T> = { items: T[]; page: number; limit: number; total: number };
 
@@ -489,6 +500,38 @@ export class ZkaoClient {
    */
   async createManualAudit(body: ManualAuditRequest): Promise<ManualAuditResult> {
     return this.postUntyped<ManualAuditResult>("/manual-audits", body);
+  }
+
+  // --- Advisories ---------------------------------------------------------
+
+  /**
+   * The project's coordinated-disclosure advisories, newest first.
+   */
+  async listAdvisories(
+    opts: { page?: number; limit?: number; status?: AdvisoryStatus } = {}
+  ): Promise<Paginated<Advisory>> {
+    const res = await this.http.GET("/projects/{projectId}/advisories", {
+      params: {
+        path: this.path,
+        query: { page: opts.page, limit: opts.limit, status: opts.status },
+      },
+    });
+    return unwrap(res);
+  }
+
+  /**
+   * One advisory, the versions it affects, and the notices planned for it.
+   *
+   * A notice the plan is holding back carries `blockedReason`. The commonest
+   * one is that no affected range names a fixed version, which only the people
+   * who shipped the release can supply.
+   */
+  async getAdvisory(publicId: string): Promise<AdvisoryDetail> {
+    const res = await this.http.GET(
+      "/projects/{projectId}/advisories/{publicId}",
+      { params: { path: { ...this.path, publicId } } }
+    );
+    return unwrap(res).advisory;
   }
 
   // --- Incoming reports ---------------------------------------------------

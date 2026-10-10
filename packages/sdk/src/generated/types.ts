@@ -213,6 +213,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{projectId}/advisories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List advisories
+         * @description Requires scope: `read`. The project's coordinated-disclosure advisories, newest first. Optionally filter by `status`.
+         */
+        get: operations["listAdvisories"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/advisories/{publicId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get an advisory
+         * @description Requires scope: `read`. The advisory, the versions it affects, and the notices planned for it.
+         *
+         *     A notice the plan is holding back carries `blockedReason`. The commonest one is that no affected range names a fixed version, which only the people who shipped the release can supply; record it in the app and the notice becomes schedulable.
+         */
+        get: operations["getAdvisory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{projectId}/findings": {
         parameters: {
             query?: never;
@@ -686,6 +728,70 @@ export interface components {
         };
         PaginatedScans: {
             items: components["schemas"]["Scan"][];
+            page: number;
+            limit: number;
+            total: number;
+        };
+        Advisory: {
+            /** @description Readable identifier, e.g. `ADVISORY-ADV-2026-0045`. */
+            publicId: string;
+            title: string;
+            /** @enum {string} */
+            severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "INFO";
+            /** @enum {string} */
+            status: "DRAFT" | "SCHEDULED" | "UNDER_EMBARGO" | "PUBLISHED" | "WITHDRAWN";
+            /**
+             * Format: date-time
+             * @description When the embargo lifts. Null until a date is set.
+             */
+            disclosureAt?: string | null;
+            /** Format: date-time */
+            publishedAt?: string | null;
+            cveId?: string | null;
+            /** @description The GitHub advisory, once one has been filed. */
+            ghsaId?: string | null;
+            ghsaUrl?: string | null;
+            /** @description What GitHub reports. A created entry is a DRAFT, which is private and reaches no scanner; only a published one is public. */
+            ghsaState: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        AdvisoryAffected: {
+            id: string;
+            repository: {
+                owner: string;
+                name: string;
+            };
+            /** @description First version carrying the defect. */
+            introducedIn: string;
+            /** @description Version that closes the range. Null while no patch exists, which is what holds a patch notice back. */
+            fixedIn: string | null;
+        };
+        AdvisoryNotice: {
+            label: string;
+            /** @description Days relative to disclosure. Negative is before it, 0 is the day itself. */
+            offsetDays: number;
+            /** Format: date-time */
+            scheduledFor: string;
+            /** @enum {string} */
+            status: "DRAFT" | "SCHEDULED" | "BLOCKED" | "SENDING" | "SENT" | "CANCELLED";
+            /** @description Why the plan is holding this notice back, if it is. */
+            blockedReason: string | null;
+            /** Format: date-time */
+            sentAt: string | null;
+            /** @description Contacts written to, as recorded when it went. */
+            recipientCount: number;
+        };
+        AdvisoryDetail: components["schemas"]["Advisory"] & {
+            summary: string;
+            description: string;
+            impact: string;
+            cwe?: string | null;
+            affected: components["schemas"]["AdvisoryAffected"][];
+            notices: components["schemas"]["AdvisoryNotice"][];
+        };
+        PaginatedAdvisories: {
+            items: components["schemas"]["Advisory"][];
             page: number;
             limit: number;
             total: number;
@@ -1310,6 +1416,66 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             429: components["responses"]["RateLimited"];
+        };
+    };
+    listAdvisories: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Page"];
+                limit?: components["parameters"]["Limit"];
+                /** @description Only advisories in this status. */
+                status?: "DRAFT" | "SCHEDULED" | "UNDER_EMBARGO" | "PUBLISHED" | "WITHDRAWN";
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedAdvisories"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getAdvisory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                /** @description The advisory's readable identifier. */
+                publicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        advisory: components["schemas"]["AdvisoryDetail"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     listFindings: {
