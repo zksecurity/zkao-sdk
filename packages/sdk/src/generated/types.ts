@@ -191,6 +191,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{projectId}/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List incoming reports
+         * @description Requires scope: `read`. Vulnerability reports the programme has received, newest first. Optionally filter by `status`.
+         *
+         *     `publicId` is what `investigateReport` takes. `intakeState` says whether the report has been read and split into claims yet: an investigation waits for `COMPLETE`, so a `PENDING` or `RUNNING` report is one to come back to rather than one to retry.
+         */
+        get: operations["listReports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{projectId}/reports/{publicId}/investigate": {
         parameters: {
             query?: never;
@@ -728,6 +750,41 @@ export interface components {
         };
         PaginatedScans: {
             items: components["schemas"]["Scan"][];
+            page: number;
+            limit: number;
+            total: number;
+        };
+        Report: {
+            /** @description The identifier `investigateReport` takes. */
+            publicId: string;
+            title: string;
+            /** @description How it arrived. Today always GitHub private vulnerability reporting. */
+            source: string;
+            /** @description What the reporter claimed, which is not an assessment. */
+            claimedSeverity?: components["schemas"]["Severity"] | null;
+            /** @enum {string} */
+            status: "NEW" | "TRIAGING" | "NEEDS_INFO" | "ACCEPTED" | "DUPLICATE" | "REJECTED";
+            /**
+             * @description Whether the report has been read and split into claims. An investigation waits for COMPLETE.
+             * @enum {string}
+             */
+            intakeState: "PENDING" | "RUNNING" | "REVIEW" | "COMPLETE" | "FAILED";
+            /**
+             * @description How the investigation is going, or null if none has run.
+             * @enum {string|null}
+             */
+            evaluationState?: "QUEUED" | "RUNNING" | "COMPLETE" | "FAILED" | null;
+            reporterName?: string | null;
+            reporterGithubLogin?: string | null;
+            /** @description The GitHub advisory it arrived as. */
+            githubUrl?: string | null;
+            /** Format: date-time */
+            acknowledgedAt?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        PaginatedReports: {
+            items: components["schemas"]["Report"][];
             page: number;
             limit: number;
             total: number;
@@ -1386,6 +1443,37 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             429: components["responses"]["RateLimited"];
+        };
+    };
+    listReports: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Page"];
+                limit?: components["parameters"]["Limit"];
+                /** @description Only reports in this triage status. */
+                status?: "NEW" | "TRIAGING" | "NEEDS_INFO" | "ACCEPTED" | "DUPLICATE" | "REJECTED";
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedReports"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     investigateReport: {

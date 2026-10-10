@@ -36,6 +36,15 @@ export type UsageEvent = Schemas["UsageEvent"];
 export type UsageEventType = Schemas["UsageEventType"];
 export type BillingSummary = Schemas["BillingSummary"];
 export type InvestigateReportResult = Schemas["InvestigateReportResult"];
+export type Report = Schemas["Report"];
+/** The triage statuses a report moves through. */
+export type ReportStatus =
+  | "NEW"
+  | "TRIAGING"
+  | "NEEDS_INFO"
+  | "ACCEPTED"
+  | "DUPLICATE"
+  | "REJECTED";
 export type Advisory = Schemas["Advisory"];
 export type AdvisoryDetail = Schemas["AdvisoryDetail"];
 export type AdvisoryAffected = Schemas["AdvisoryAffected"];
@@ -535,6 +544,25 @@ export class ZkaoClient {
   }
 
   // --- Incoming reports ---------------------------------------------------
+
+  /**
+   * Reports the programme has received, newest first.
+   *
+   * `publicId` is what {@link investigateReport} takes. `intakeState` says
+   * whether a report has been read and split into claims yet: an
+   * investigation waits for `COMPLETE`.
+   */
+  async listReports(
+    opts: { page?: number; limit?: number; status?: ReportStatus } = {}
+  ): Promise<Paginated<Report>> {
+    const res = await this.http.GET("/projects/{projectId}/reports", {
+      params: {
+        path: this.path,
+        query: { page: opts.page, limit: opts.limit, status: opts.status },
+      },
+    });
+    return unwrap(res);
+  }
 
   /**
    * Check an incoming vulnerability report against the code.

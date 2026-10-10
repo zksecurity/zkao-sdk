@@ -68,6 +68,8 @@ tags:
     description: Scan presets for launching
   - name: Billing
     description: The organization's prepaid credit balance, and this project's usage
+  - name: Reports
+    description: Incoming vulnerability reports, and investigating them
   - name: Advisories
     description: Coordinated disclosure advisories and their notification plan
 
@@ -373,6 +375,42 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
         "429": { $ref: "#/components/responses/RateLimited" }
+
+  /projects/{projectId}/reports:
+    get:
+      tags: [Reports]
+      operationId: listReports
+      summary: List incoming reports
+      description: >-
+        Requires scope: `read`. Vulnerability reports the programme has
+        received, newest first. Optionally filter by `status`.
+
+
+        `publicId` is what `investigateReport` takes. `intakeState` says
+        whether the report has been read and split into claims yet: an
+        investigation waits for `COMPLETE`, so a `PENDING` or `RUNNING` report
+        is one to come back to rather than one to retry.
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [NEW, TRIAGING, NEEDS_INFO, ACCEPTED, DUPLICATE, REJECTED]
+          description: Only reports in this triage status.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaginatedReports" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
 
   /projects/{projectId}/reports/{publicId}/investigate:
     post:
@@ -1257,6 +1295,55 @@ components:
         items:
           type: array
           items: { $ref: "#/components/schemas/Scan" }
+        page: { type: integer }
+        limit: { type: integer }
+        total: { type: integer }
+
+    Report:
+      type: object
+      required:
+        [publicId, title, source, status, intakeState, createdAt]
+      properties:
+        publicId:
+          type: string
+          description: The identifier `investigateReport` takes.
+        title: { type: string }
+        source:
+          type: string
+          description: How it arrived. Today always GitHub private vulnerability reporting.
+        claimedSeverity:
+          oneOf:
+            - $ref: "#/components/schemas/Severity"
+            - type: "null"
+          description: What the reporter claimed, which is not an assessment.
+        status:
+          type: string
+          enum: [NEW, TRIAGING, NEEDS_INFO, ACCEPTED, DUPLICATE, REJECTED]
+        intakeState:
+          type: string
+          enum: [PENDING, RUNNING, REVIEW, COMPLETE, FAILED]
+          description: >-
+            Whether the report has been read and split into claims. An
+            investigation waits for COMPLETE.
+        evaluationState:
+          type: [string, "null"]
+          enum: [QUEUED, RUNNING, COMPLETE, FAILED, null]
+          description: How the investigation is going, or null if none has run.
+        reporterName: { type: [string, "null"] }
+        reporterGithubLogin: { type: [string, "null"] }
+        githubUrl:
+          type: [string, "null"]
+          description: The GitHub advisory it arrived as.
+        acknowledgedAt: { type: [string, "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+
+    PaginatedReports:
+      type: object
+      required: [items, page, limit, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Report" }
         page: { type: integer }
         limit: { type: integer }
         total: { type: integer }
