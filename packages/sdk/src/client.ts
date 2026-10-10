@@ -48,6 +48,12 @@ export type ReportStatus =
 export type Advisory = Schemas["Advisory"];
 export type AdvisoryDetail = Schemas["AdvisoryDetail"];
 export type AdvisoryAffected = Schemas["AdvisoryAffected"];
+/** One affected version line, as a caller states it. */
+export type AdvisoryAffectedInput = {
+  repository: { owner: string; name: string };
+  introducedIn: string;
+  fixedIn?: string | null;
+};
 export type AdvisoryNotice = Schemas["AdvisoryNotice"];
 /** The statuses an advisory moves through. */
 export type AdvisoryStatus =
@@ -539,6 +545,29 @@ export class ZkaoClient {
     const res = await this.http.GET(
       "/projects/{projectId}/advisories/{publicId}",
       { params: { path: { ...this.path, publicId } } }
+    );
+    return unwrap(res).advisory;
+  }
+
+  /**
+   * Record which versions this advisory affects.
+   *
+   * Replaces the whole set, so send what is affected now rather than a patch.
+   * `fixedIn` is the point: a patch notice stays blocked until some range
+   * names a fixed version, and only the people who shipped the release know
+   * it. Recording one cannot send anything - it moves a notice from blocked
+   * to scheduled, and a scheduled notice still waits for a person.
+   */
+  async replaceAdvisoryAffected(
+    publicId: string,
+    affected: AdvisoryAffectedInput[]
+  ): Promise<AdvisoryDetail> {
+    const res = await this.http.PUT(
+      "/projects/{projectId}/advisories/{publicId}/affected",
+      {
+        params: { path: { ...this.path, publicId } },
+        body: { affected },
+      }
     );
     return unwrap(res).advisory;
   }

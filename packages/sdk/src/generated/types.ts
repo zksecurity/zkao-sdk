@@ -277,6 +277,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{projectId}/advisories/{publicId}/affected": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Record which versions an advisory affects
+         * @description Requires scope: `advisories:write`. Replaces the whole set of affected ranges, so send what is affected now rather than a patch.
+         *
+         *     `fixedIn` is the point of this endpoint. A patch notice stays blocked until some range names a fixed version, and only the people who shipped the release know it. Recording one cannot send anything: it moves a notice from blocked to scheduled, and a scheduled notice still waits for a person.
+         *
+         *     Taking a fixed version away puts the notice back, and drops any approval it was carrying, so nobody approves wording a later fix rewrites.
+         */
+        put: operations["replaceAdvisoryAffected"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{projectId}/findings": {
         parameters: {
             query?: never;
@@ -1564,6 +1588,52 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    replaceAdvisoryAffected: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                /** @description The advisory's readable identifier. */
+                publicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    affected: {
+                        repository: {
+                            owner: string;
+                            name: string;
+                        };
+                        /** @description First version carrying the defect. */
+                        introducedIn: string;
+                        /** @description Version that closes the range, or null. */
+                        fixedIn?: string | null;
+                    }[];
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        advisory: components["schemas"]["AdvisoryDetail"];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     listFindings: {
