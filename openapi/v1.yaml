@@ -21,6 +21,7 @@ info:
       - `scans:launch` — start a scan
       - `publish` — publish a finding or a scan
       - `advisories:write` — record which versions an advisory affects
+      - `contacts:read` — read the advisory contact list
       - `contacts:write` — add an advisory contact
 
     `GET /token` tells a token which project, and which organization, it
@@ -596,6 +597,44 @@ paths:
         "409": { $ref: "#/components/responses/Conflict" }
 
   /projects/{projectId}/advisory-contacts:
+    get:
+      tags: [Advisories]
+      operationId: listAdvisoryContacts
+      summary: List the advisory contacts
+      description: >-
+        Requires scope: `contacts:read`. The programme's contact list, oldest
+        first, which is the order to read it in when reconciling against a
+        record kept elsewhere.
+
+
+        Its own scope, not `read`: this list is other people's work addresses
+        and the record of who learns about a vulnerability before the public
+        does, so a routine pipeline token does not reach it.
+
+
+        `software` on each row is what notices are matched on. A project with no
+        security programme reads as an empty list.
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+        - name: tier
+          in: query
+          schema: { type: string, enum: [EMBARGO, DOWNSTREAM, ANNOUNCE] }
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [ACTIVE, PENDING_VERIFICATION, BOUNCED, UNSUBSCRIBED]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaginatedAdvisoryContacts" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
     post:
       tags: [Advisories]
       operationId: addAdvisoryContact
@@ -1636,6 +1675,17 @@ components:
               owner: { type: string }
               name: { type: string }
         createdAt: { type: string, format: date-time }
+
+    PaginatedAdvisoryContacts:
+      type: object
+      required: [items, page, limit, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/AdvisoryContact" }
+        page: { type: integer }
+        limit: { type: integer }
+        total: { type: integer }
 
     PaginatedAdvisories:
       type: object

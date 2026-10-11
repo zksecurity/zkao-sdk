@@ -312,7 +312,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * List the advisory contacts
+         * @description Requires scope: `contacts:read`. The programme's contact list, oldest first, which is the order to read it in when reconciling against a record kept elsewhere.
+         *
+         *     Its own scope, not `read`: this list is other people's work addresses and the record of who learns about a vulnerability before the public does, so a routine pipeline token does not reach it.
+         *
+         *     `software` on each row is what notices are matched on. A project with no security programme reads as an empty list.
+         */
+        get: operations["listAdvisoryContacts"];
         put?: never;
         /**
          * Add an advisory contact
@@ -920,6 +928,12 @@ export interface components {
             }[];
             /** Format: date-time */
             createdAt: string;
+        };
+        PaginatedAdvisoryContacts: {
+            items: components["schemas"]["AdvisoryContact"][];
+            page: number;
+            limit: number;
+            total: number;
         };
         PaginatedAdvisories: {
             items: components["schemas"]["Advisory"][];
@@ -1684,6 +1698,36 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    listAdvisoryContacts: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Page"];
+                limit?: components["parameters"]["Limit"];
+                tier?: "EMBARGO" | "DOWNSTREAM" | "ANNOUNCE";
+                status?: "ACTIVE" | "PENDING_VERIFICATION" | "BOUNCED" | "UNSUBSCRIBED";
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedAdvisoryContacts"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
     addAdvisoryContact: {

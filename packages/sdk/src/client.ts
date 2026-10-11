@@ -58,6 +58,12 @@ export type AdvisoryNotice = Schemas["AdvisoryNotice"];
 export type AdvisoryContact = Schemas["AdvisoryContact"];
 /** How early a contact is told. */
 export type ContactTier = "EMBARGO" | "DOWNSTREAM" | "ANNOUNCE";
+/** Whether a contact can be written to. Only ACTIVE hears anything. */
+export type ContactStatus =
+  | "ACTIVE"
+  | "PENDING_VERIFICATION"
+  | "BOUNCED"
+  | "UNSUBSCRIBED";
 /** A contact as a caller states it. */
 export type AdvisoryContactInput = {
   email: string;
@@ -596,6 +602,39 @@ export class ZkaoClient {
   }
 
   /**
+   * The programme's advisory contacts, oldest first.
+   *
+   * Needs `contacts:read`, which is held apart from `read`: this list is other
+   * people's work addresses and the record of who learns about a vulnerability
+   * before the public does. `software` on each row is what notices are matched
+   * on. A project with no security programme reads as an empty list.
+   */
+  async listAdvisoryContacts(
+    opts: {
+      page?: number;
+      limit?: number;
+      tier?: ContactTier;
+      status?: ContactStatus;
+    } = {}
+  ): Promise<Paginated<AdvisoryContact>> {
+    const res = await this.http.GET(
+      "/projects/{projectId}/advisory-contacts",
+      {
+        params: {
+          path: this.path,
+          query: {
+            page: opts.page,
+            limit: opts.limit,
+            tier: opts.tier,
+            status: opts.status,
+          },
+        },
+      }
+    );
+    return unwrap(res);
+  }
+
+  /**
    * Put one address on the programme's advisory contact list.
    *
    * `software` says which of the project's repositories this contact runs, and
@@ -605,9 +644,6 @@ export class ZkaoClient {
    * The contact starts `PENDING_VERIFICATION`, and an unconfirmed address
    * receives nothing embargoed. Nothing is emailed by this call: the
    * confirmation mail is sent from the app.
-   *
-   * There is no method that reads the contact list back, and there is no
-   * endpoint behind one.
    */
   async addAdvisoryContact(
     contact: AdvisoryContactInput

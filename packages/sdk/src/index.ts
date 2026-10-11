@@ -50,6 +50,7 @@ export {
   type AdvisoryContactInput,
   type AdvisoryStatus,
   type ContactTier,
+  type ContactStatus,
   type Report,
   type ReportStatus,
 } from "./client";
