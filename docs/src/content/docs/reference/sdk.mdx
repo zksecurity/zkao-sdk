@@ -159,6 +159,74 @@ await zkao.setFindingResolution(findingId, "WONT_FIX", { reason: "risk_accepted"
 | --- | --- | --- |
 | `listScanPresets()` | `ScanPreset[]` | Presets the project can launch. Pass a `ref` as `presetRef`. [API](/api/operations/listscanpresets/) |
 
+### Advisories
+
+A coordinated-disclosure advisory. `publicId` is the readable identifier, like
+`ADVISORY-ADV-2026-0045`.
+
+An advisory makes two separate statements, and the difference matters.
+`software` is which repositories it is about, and it is what every notice is
+matched on: a contact is told only if they run something on that list.
+`affected` is the version ranges that carry the bug, and it is often empty
+because when a report arrives nobody yet knows which releases are involved.
+
+| Method | Returns | Meaning |
+| --- | --- | --- |
+| `listAdvisories(opts?)` | `Paginated<Advisory>` | Advisories, newest first. `opts` takes `status`, `page`, and `limit`. [API](/api/operations/listadvisories/) |
+| `getAdvisory(publicId)` | `AdvisoryDetail` | The advisory, its `software`, its `affected` versions, and every planned `notice`. [API](/api/operations/getadvisory/) |
+| `replaceAdvisoryAffected(publicId, affected)` | `AdvisoryDetail` | Replace the affected version ranges. Needs `advisories:write`. [API](/api/operations/replaceadvisoryaffected/) |
+
+`replaceAdvisoryAffected` is the one write worth putting in a release pipeline.
+A patch notice is held back until some range names the version that fixed the
+bug, and nothing but whatever cut the release knows it:
+
+```ts
+await zkao.replaceAdvisoryAffected("ADVISORY-ADV-2026-0045", [
+  { repository: { owner: "acme", name: "libfoo" }, introducedIn: "1.0.0", fixedIn: "2.0.3" },
+]);
+```
+
+It replaces the whole set, so send what is affected now rather than a patch. It
+records versions and nothing else: a range may name only software already on
+the advisory's `software`, and anything else is a `400`. Which software an
+advisory concerns decides who hears about it, so it is changed in the app, not
+from a token that records versions.
+
+Reading an advisory also reports why a notice is held back. `notices[].status`
+is `BLOCKED` with a `blockedReason` when the plan is withholding one.
+
+### Advisory contacts
+
+The teams running your software. Each contact records which of your
+repositories they run, which is what notices are matched on, and a `tier`
+saying how early they hear: `EMBARGO` first and alone, `DOWNSTREAM` once a
+patch exists, `ANNOUNCE` at public disclosure.
+
+| Method | Returns | Meaning |
+| --- | --- | --- |
+| `listAdvisoryContacts(opts?)` | `Paginated<AdvisoryContact>` | The contact list, oldest first. `opts` takes `tier`, `status`, `page`, and `limit`. Needs `contacts:read`. [API](/api/operations/listadvisorycontacts/) |
+| `addAdvisoryContact(contact)` | `AdvisoryContact` | Put one address on the list. Needs `contacts:write`. [API](/api/operations/addadvisorycontact/) |
+
+`software` is required when adding one. A contact who runs nothing is told
+nothing, so an empty list is a `400` rather than a contact that sits silent.
+
+```ts
+await zkao.addAdvisoryContact({
+  email: "security@downstream.example",
+  organization: "Downstream Inc",
+  tier: "DOWNSTREAM",
+  software: [{ owner: "acme", name: "libfoo" }],
+});
+```
+
+A new contact starts `PENDING_VERIFICATION`, and an unconfirmed address
+receives nothing embargoed. Nothing is emailed by this call: the confirmation
+mail is sent from the app.
+
+The two contact scopes are separate from the rest on purpose. This list is who
+learns about a vulnerability before the public does, so `read` does not reach
+it and `advisories:write` cannot add to it.
+
 ### Billing
 
 The balance belongs to the project's organization and is shared by all its projects.

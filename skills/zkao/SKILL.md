@@ -75,7 +75,8 @@ Never print the token back to the user or write it into files.
 
 - Send the token as `Authorization: Bearer <token>`. Header only, never in the URL.
 - A token carries a subset of scopes: `read`, `findings:write`, `guidance:write`,
-  `scans:launch`, `publish`. A `403` means the token lacks the scope for that action.
+  `scans:launch`, `publish`, `advisories:write`, `contacts:read`,
+  `contacts:write`. A `403` means the token lacks the scope for that action.
 - A token is bound to one project (and possibly a subset of its repos). Anything
   outside its scope returns `404` (it is not revealed to exist), not `403`.
   On a project mismatch, the `404` message names the token's own project.
