@@ -293,7 +293,7 @@ export interface paths {
          *
          *     `fixedIn` is the point of this endpoint. A patch notice stays blocked until some range names a fixed version, and only the people who shipped the release know it.
          *
-         *     A repository named here joins the advisory's `software`, since stating versions of something says the advisory concerns it. Nothing is removed from `software` by this call.
+         *     Versions only. A range may name only software already on the advisory's `software`, and anything else is a `400`. Which software an advisory concerns decides who hears about it, and that is its own statement, made in the app: a call about versions does not change it in either direction.
          *
          *     This call never sends anything. It records versions and recomputes the disclosure plan: a notice blocked for want of a fix becomes eligible to go, and one that loses its fix is blocked again, dropping any approval it was carrying so nobody approves wording a later fix rewrites. When an eligible notice is actually sent is governed by the programme's own settings, not by this call.
          */

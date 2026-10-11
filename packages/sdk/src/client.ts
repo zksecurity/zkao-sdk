@@ -583,6 +583,11 @@ export class ZkaoClient {
    * names a fixed version, and only the people who shipped the release know
    * it.
    *
+   * Versions only. A range may name only software already on the advisory's
+   * `software`, and anything else is a 400: which software an advisory
+   * concerns decides who hears about it, and that is its own statement made
+   * in the app.
+   *
    * This call never sends anything. It records versions and recomputes the
    * plan; when an eligible notice is actually sent is the programme's
    * business.
