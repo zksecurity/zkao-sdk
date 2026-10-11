@@ -41,5 +41,16 @@ export {
   type UsageEventType,
   type BillingSummary,
   type UsageMonthSummary,
+  type Advisory,
+  type AdvisoryDetail,
+  type AdvisoryAffected,
+  type AdvisoryAffectedInput,
+  type AdvisoryNotice,
+  type AdvisoryContact,
+  type AdvisoryContactInput,
+  type AdvisoryStatus,
+  type ContactTier,
+  type Report,
+  type ReportStatus,
 } from "./client";
 export type { components, paths } from "./generated/types";

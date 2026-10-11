@@ -55,6 +55,21 @@ export type AdvisoryAffectedInput = {
   fixedIn?: string | null;
 };
 export type AdvisoryNotice = Schemas["AdvisoryNotice"];
+export type AdvisoryContact = Schemas["AdvisoryContact"];
+/** How early a contact is told. */
+export type ContactTier = "EMBARGO" | "DOWNSTREAM" | "ANNOUNCE";
+/** A contact as a caller states it. */
+export type AdvisoryContactInput = {
+  email: string;
+  organization: string;
+  tier: ContactTier;
+  /** The repositories this contact runs. At least one. */
+  software: { owner: string; name: string }[];
+  name?: string | null;
+  title?: string | null;
+  notes?: string | null;
+  tags?: string[];
+};
 /** The statuses an advisory moves through. */
 export type AdvisoryStatus =
   | "DRAFT"
@@ -535,7 +550,12 @@ export class ZkaoClient {
   }
 
   /**
-   * One advisory, the versions it affects, and the notices planned for it.
+   * One advisory, the software it concerns, the versions it affects, and the
+   * notices planned for it.
+   *
+   * `software` is what decides the audience: a contact is notified about an
+   * advisory only when they run some of it. `affected` is a separate statement
+   * about versions, and is often empty.
    *
    * A notice the plan is holding back carries `blockedReason`. The commonest
    * one is that no affected range names a fixed version, which only the people
@@ -573,6 +593,30 @@ export class ZkaoClient {
       }
     );
     return unwrap(res).advisory;
+  }
+
+  /**
+   * Put one address on the programme's advisory contact list.
+   *
+   * `software` says which of the project's repositories this contact runs, and
+   * is required: it is what every notice is matched on, so a contact who runs
+   * nothing is told nothing.
+   *
+   * The contact starts `PENDING_VERIFICATION`, and an unconfirmed address
+   * receives nothing embargoed. Nothing is emailed by this call: the
+   * confirmation mail is sent from the app.
+   *
+   * There is no method that reads the contact list back, and there is no
+   * endpoint behind one.
+   */
+  async addAdvisoryContact(
+    contact: AdvisoryContactInput
+  ): Promise<AdvisoryContact> {
+    const res = await this.http.POST("/projects/{projectId}/advisory-contacts", {
+      params: { path: this.path },
+      body: contact,
+    });
+    return unwrap(res).contact;
   }
 
   // --- Incoming reports ---------------------------------------------------
