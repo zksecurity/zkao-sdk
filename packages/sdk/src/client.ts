@@ -48,7 +48,34 @@ export type ReportStatus =
 export type Advisory = Schemas["Advisory"];
 export type AdvisoryDetail = Schemas["AdvisoryDetail"];
 export type AdvisoryAffected = Schemas["AdvisoryAffected"];
+/** One affected version line, as a caller states it. */
+export type AdvisoryAffectedInput = {
+  repository: { owner: string; name: string };
+  introducedIn: string;
+  fixedIn?: string | null;
+};
 export type AdvisoryNotice = Schemas["AdvisoryNotice"];
+export type AdvisoryContact = Schemas["AdvisoryContact"];
+/** How early a contact is told. */
+export type ContactTier = "EMBARGO" | "DOWNSTREAM" | "ANNOUNCE";
+/** Whether a contact can be written to. Only ACTIVE hears anything. */
+export type ContactStatus =
+  | "ACTIVE"
+  | "PENDING_VERIFICATION"
+  | "BOUNCED"
+  | "UNSUBSCRIBED";
+/** A contact as a caller states it. */
+export type AdvisoryContactInput = {
+  email: string;
+  organization: string;
+  tier: ContactTier;
+  /** The repositories this contact runs. At least one. */
+  software: { owner: string; name: string }[];
+  name?: string | null;
+  title?: string | null;
+  notes?: string | null;
+  tags?: string[];
+};
 /** The statuses an advisory moves through. */
 export type AdvisoryStatus =
   | "DRAFT"
@@ -529,7 +556,12 @@ export class ZkaoClient {
   }
 
   /**
-   * One advisory, the versions it affects, and the notices planned for it.
+   * One advisory, the software it concerns, the versions it affects, and the
+   * notices planned for it.
+   *
+   * `software` is what decides the audience: a contact is notified about an
+   * advisory only when they run some of it. `affected` is a separate statement
+   * about versions, and is often empty.
    *
    * A notice the plan is holding back carries `blockedReason`. The commonest
    * one is that no affected range names a fixed version, which only the people
@@ -541,6 +573,91 @@ export class ZkaoClient {
       { params: { path: { ...this.path, publicId } } }
     );
     return unwrap(res).advisory;
+  }
+
+  /**
+   * Record which versions this advisory affects.
+   *
+   * Replaces the whole set, so send what is affected now rather than a patch.
+   * `fixedIn` is the point: a patch notice stays blocked until some range
+   * names a fixed version, and only the people who shipped the release know
+   * it.
+   *
+   * Versions only. A range may name only software already on the advisory's
+   * `software`, and anything else is a 400: which software an advisory
+   * concerns decides who hears about it, and that is its own statement made
+   * in the app.
+   *
+   * This call never sends anything. It records versions and recomputes the
+   * plan; when an eligible notice is actually sent is the programme's
+   * business.
+   */
+  async replaceAdvisoryAffected(
+    publicId: string,
+    affected: AdvisoryAffectedInput[]
+  ): Promise<AdvisoryDetail> {
+    const res = await this.http.PUT(
+      "/projects/{projectId}/advisories/{publicId}/affected",
+      {
+        params: { path: { ...this.path, publicId } },
+        body: { affected },
+      }
+    );
+    return unwrap(res).advisory;
+  }
+
+  /**
+   * The programme's advisory contacts, oldest first.
+   *
+   * Needs `contacts:read`, which is held apart from `read`: this list is other
+   * people's work addresses and the record of who learns about a vulnerability
+   * before the public does. `software` on each row is what notices are matched
+   * on. A project with no security programme reads as an empty list.
+   */
+  async listAdvisoryContacts(
+    opts: {
+      page?: number;
+      limit?: number;
+      tier?: ContactTier;
+      status?: ContactStatus;
+    } = {}
+  ): Promise<Paginated<AdvisoryContact>> {
+    const res = await this.http.GET(
+      "/projects/{projectId}/advisory-contacts",
+      {
+        params: {
+          path: this.path,
+          query: {
+            page: opts.page,
+            limit: opts.limit,
+            tier: opts.tier,
+            status: opts.status,
+          },
+        },
+      }
+    );
+    return unwrap(res);
+  }
+
+  /**
+   * Put one address on the programme's advisory contact list.
+   *
+   * `software` says which of the project's repositories this contact runs, and
+   * is required: it is what every notice is matched on, so a contact who runs
+   * nothing is told nothing.
+   *
+   * The contact starts `PENDING_VERIFICATION`, and an unconfirmed address
+   * receives nothing embargoed. Nothing is emailed by this call: the
+   * confirmation mail is sent from the app.
+   */
+  async addAdvisoryContact(
+    contact: AdvisoryContactInput
+  ): Promise<AdvisoryContact> {
+    const res = await this.http.POST("/projects/{projectId}/advisory-contacts", {
+      params: { path: this.path },
+      body: contact,
+    });
+    return unwrap(res).contact;
   }
 
   // --- Incoming reports ---------------------------------------------------

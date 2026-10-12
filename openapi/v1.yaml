@@ -20,6 +20,9 @@ info:
       - `guidance:write` — read and update a repository's guidance, and manage its audit areas
       - `scans:launch` — start a scan
       - `publish` — publish a finding or a scan
+      - `advisories:write` — record which versions an advisory affects
+      - `contacts:read` — read the advisory contact list
+      - `contacts:write` — add an advisory contact
 
     `GET /token` tells a token which project, and which organization, it
     belongs to.
@@ -484,8 +487,13 @@ paths:
       operationId: getAdvisory
       summary: Get an advisory
       description: >-
-        Requires scope: `read`. The advisory, the versions it affects, and the
-        notices planned for it.
+        Requires scope: `read`. The advisory, the software it concerns, the
+        versions it affects, and the notices planned for it.
+
+
+        `software` is what decides the audience: a contact is notified about an
+        advisory only when they run some of it. `affected` is a separate
+        statement about versions, and is often empty.
 
 
         A notice the plan is holding back carries `blockedReason`. The commonest
@@ -512,6 +520,201 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+
+  /projects/{projectId}/advisories/{publicId}/affected:
+    put:
+      tags: [Advisories]
+      operationId: replaceAdvisoryAffected
+      summary: Record which versions an advisory affects
+      description: >-
+        Requires scope: `advisories:write`. Replaces the whole set of affected
+        ranges, so send what is affected now rather than a patch.
+
+
+        `fixedIn` is the point of this endpoint. A patch notice stays blocked
+        until some range names a fixed version, and only the people who shipped
+        the release know it.
+
+
+        Versions only. A range may name only software already on the
+        advisory's `software`, and anything else is a `400`. Which software an
+        advisory concerns decides who hears about it, and that is its own
+        statement, made in the app: a call about versions does not change it in
+        either direction.
+
+
+        This call never sends anything. It records versions and recomputes the
+        disclosure plan: a notice blocked for want of a fix becomes eligible to
+        go, and one that loses its fix is blocked again, dropping any approval
+        it was carrying so nobody approves wording a later fix rewrites. When
+        an eligible notice is actually sent is governed by the programme's own
+        settings, not by this call.
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - name: publicId
+          in: path
+          required: true
+          schema: { type: string }
+          description: The advisory's readable identifier.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [affected]
+              properties:
+                affected:
+                  type: array
+                  items:
+                    type: object
+                    required: [repository, introducedIn]
+                    properties:
+                      repository:
+                        type: object
+                        required: [owner, name]
+                        properties:
+                          owner: { type: string }
+                          name: { type: string }
+                      introducedIn:
+                        type: string
+                        description: First version carrying the defect.
+                      fixedIn:
+                        type: [string, "null"]
+                        description: Version that closes the range, or null.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [advisory]
+                properties:
+                  advisory: { $ref: "#/components/schemas/AdvisoryDetail" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /projects/{projectId}/advisory-contacts:
+    get:
+      tags: [Advisories]
+      operationId: listAdvisoryContacts
+      summary: List the advisory contacts
+      description: >-
+        Requires scope: `contacts:read`. The programme's contact list, oldest
+        first, which is the order to read it in when reconciling against a
+        record kept elsewhere.
+
+
+        Its own scope, not `read`: this list is other people's work addresses
+        and the record of who learns about a vulnerability before the public
+        does, so a routine pipeline token does not reach it.
+
+
+        `software` on each row is what notices are matched on. A project with no
+        security programme reads as an empty list.
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+        - name: tier
+          in: query
+          schema: { type: string, enum: [EMBARGO, DOWNSTREAM, ANNOUNCE] }
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [ACTIVE, PENDING_VERIFICATION, BOUNCED, UNSUBSCRIBED]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaginatedAdvisoryContacts" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      tags: [Advisories]
+      operationId: addAdvisoryContact
+      summary: Add an advisory contact
+      description: >-
+        Requires scope: `contacts:write`. Puts one address on the programme's
+        contact list.
+
+
+        `software` says which of the project's repositories this contact runs,
+        and is required. It is what every notice is matched on: a contact who
+        runs nothing is told nothing.
+
+
+        The contact starts `PENDING_VERIFICATION`, and an unconfirmed address
+        receives nothing embargoed. The confirmation mail is sent from the app,
+        not by this call, so nothing is emailed to the address you send here.
+
+
+        There is no endpoint that reads the contact list back. It is other
+        people's work addresses and the record of who hears about a
+        vulnerability early.
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, organization, tier, software]
+              properties:
+                email: { type: string }
+                organization:
+                  description: The organisation this contact speaks for.
+                  type: string
+                tier:
+                  description: >-
+                    How early this contact is told. `EMBARGO` hears first and
+                    alone, `DOWNSTREAM` joins once a patch exists, `ANNOUNCE`
+                    learns at public disclosure.
+                  type: string
+                  enum: [EMBARGO, DOWNSTREAM, ANNOUNCE]
+                software:
+                  description: The repositories this contact runs. At least one.
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [owner, name]
+                    properties:
+                      owner: { type: string }
+                      name: { type: string }
+                name: { type: [string, "null"] }
+                title: { type: [string, "null"] }
+                notes: { type: [string, "null"] }
+                tags:
+                  type: array
+                  items: { type: string }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [contact]
+                properties:
+                  contact: { $ref: "#/components/schemas/AdvisoryContact" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: That address is already on the programme's contact list.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
 
   /projects/{projectId}/findings:
     get:
@@ -1427,18 +1630,64 @@ components:
       allOf:
         - $ref: "#/components/schemas/Advisory"
         - type: object
-          required: [summary, description, impact, affected, notices]
+          required: [summary, description, impact, software, affected, notices]
           properties:
             summary: { type: string }
             description: { type: string }
             impact: { type: string }
             cwe: { type: [string, "null"] }
+            software:
+              description: >-
+                The software the advisory is about. A contact hears about it
+                only when they run some of it.
+              type: array
+              items:
+                type: object
+                required: [owner, name]
+                properties:
+                  owner: { type: string }
+                  name: { type: string }
             affected:
               type: array
               items: { $ref: "#/components/schemas/AdvisoryAffected" }
             notices:
               type: array
               items: { $ref: "#/components/schemas/AdvisoryNotice" }
+
+    AdvisoryContact:
+      type: object
+      required: [id, email, organization, tier, status, software, createdAt]
+      properties:
+        id: { type: string }
+        email: { type: string }
+        organization: { type: string }
+        tier: { type: string }
+        status:
+          description: >-
+            `PENDING_VERIFICATION` until the contact confirms the address. An
+            unconfirmed address receives nothing embargoed.
+          type: string
+        software:
+          description: The software this contact runs, which notices are matched on.
+          type: array
+          items:
+            type: object
+            required: [owner, name]
+            properties:
+              owner: { type: string }
+              name: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    PaginatedAdvisoryContacts:
+      type: object
+      required: [items, page, limit, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/AdvisoryContact" }
+        page: { type: integer }
+        limit: { type: integer }
+        total: { type: integer }
 
     PaginatedAdvisories:
       type: object
