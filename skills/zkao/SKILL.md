@@ -75,7 +75,8 @@ Never print the token back to the user or write it into files.
 
 - Send the token as `Authorization: Bearer <token>`. Header only, never in the URL.
 - A token carries a subset of scopes: `read`, `findings:write`, `guidance:write`,
-  `scans:launch`, `publish`. A `403` means the token lacks the scope for that action.
+  `scans:launch`, `publish`, `automations:write`. A `403` means the token lacks the
+  scope for that action.
 - A token is bound to one project (and possibly a subset of its repos). Anything
   outside its scope returns `404` (it is not revealed to exist), not `403`.
   On a project mismatch, the `404` message names the token's own project.
@@ -114,6 +115,11 @@ zkao guidance clear <repoId>                      # remove a repo's guidance
 zkao areas list <repoId> [--branch <branch>]      # subsystems a scan can be scoped to
 zkao areas add <repoId> "<name>" [--description <text>]
 zkao areas rm <repoId> <areaKey>                  # delete a custom area
+zkao continuous get <repoId> [--branch <branch>]  # Continuous Testing schedule, spend this month, recommended and minimum budgets
+zkao continuous on <repoId> [--budget <credits>] [--area <key>...]  # turn it on or resume it
+zkao continuous set <repoId> [--budget <credits>] [--area <key>... | --whole-repo]
+zkao continuous off <repoId>                      # pause it, keeping its settings
+zkao continuous rm <repoId>                       # remove the schedule
 zkao billing balance                              # credits available for new scans
 zkao billing usage [--from <d>] [--to <d>]        # credit ledger, last 30 days by default
 zkao billing summary [--months <n>]               # credits spent/purchased per month

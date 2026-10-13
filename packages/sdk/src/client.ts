@@ -28,6 +28,10 @@ export type RepositoryGuidance = Schemas["RepositoryGuidance"];
 export type AuditArea = Schemas["AuditArea"];
 export type AuditAreaList = Schemas["AuditAreaList"];
 export type DeleteAuditAreaResult = Schemas["DeleteAuditAreaResult"];
+export type ContinuousTesting = Schemas["ContinuousTesting"];
+export type SetContinuousTestingRequest = Schemas["SetContinuousTestingRequest"];
+export type RemoveContinuousTestingResult =
+  Schemas["RemoveContinuousTestingResult"];
 export type SetGuidanceResult = Schemas["SetGuidanceResult"];
 export type TokenInfo = Schemas["TokenInfo"];
 export type BillingBalance = Schemas["BillingBalance"];
@@ -377,6 +381,69 @@ export class ZkaoClient {
     const res = await this.http.DELETE(
       "/projects/{projectId}/repositories/{repositoryId}/audit-areas/{areaKey}",
       { params: { path: { ...this.path, repositoryId, areaKey } } }
+    );
+    return unwrap(res);
+  }
+
+  // --- Continuous Testing -------------------------------------------------
+
+  /**
+   * Read a repository's Continuous Testing schedule for one branch (requires
+   * the `read` scope). Defaults to the repository's default branch. With no
+   * schedule, `enabled` is false and the budget fields are null; the
+   * recommended and minimum monthly budgets are still returned.
+   */
+  async getContinuousTesting(
+    repositoryId: string,
+    opts: { branch?: string } = {}
+  ): Promise<ContinuousTesting> {
+    const res = await this.http.GET(
+      "/projects/{projectId}/repositories/{repositoryId}/continuous-testing",
+      {
+        params: {
+          path: { ...this.path, repositoryId },
+          query: opts.branch === undefined ? {} : { branch: opts.branch },
+        },
+      }
+    );
+    return unwrap(res);
+  }
+
+  /**
+   * Turn Continuous Testing on or off, set its monthly budget, or choose the
+   * audit areas it rotates through (requires the `automations:write` scope).
+   * Every field is optional. Turning it on with no schedule creates one at
+   * the recommended monthly budget. zkao picks the cadence from the budget: a
+   * daily run when it covers one, otherwise weekly. A budget below the weekly
+   * minimum is refused with a `400`.
+   */
+  async setContinuousTesting(
+    repositoryId: string,
+    body: SetContinuousTestingRequest
+  ): Promise<ContinuousTesting> {
+    const res = await this.http.PUT(
+      "/projects/{projectId}/repositories/{repositoryId}/continuous-testing",
+      { params: { path: { ...this.path, repositoryId } }, body }
+    );
+    return unwrap(res);
+  }
+
+  /**
+   * Remove a repository's Continuous Testing schedule for one branch
+   * (requires the `automations:write` scope). Scans it already ran are kept.
+   */
+  async removeContinuousTesting(
+    repositoryId: string,
+    opts: { branch?: string } = {}
+  ): Promise<RemoveContinuousTestingResult> {
+    const res = await this.http.DELETE(
+      "/projects/{projectId}/repositories/{repositoryId}/continuous-testing",
+      {
+        params: {
+          path: { ...this.path, repositoryId },
+          query: opts.branch === undefined ? {} : { branch: opts.branch },
+        },
+      }
     );
     return unwrap(res);
   }

@@ -112,6 +112,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{projectId}/repositories/{repositoryId}/continuous-testing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a repository's Continuous Testing schedule
+         * @description Requires scope: `read`. Continuous Testing scans one branch on a schedule paid from a monthly budget. With no schedule on the branch, `enabled` is false and the schedule fields are null. The recommended monthly budget funds a run every day at the repository's recommended per-run budget; the minimum funds a run every week at it.
+         */
+        get: operations["getContinuousTesting"];
+        /**
+         * Turn Continuous Testing on, change it, or pause it
+         * @description Requires scope: `automations:write`. Every field is optional. With no schedule on the branch, the request creates one at the recommended monthly budget unless `monthlyBudgetCredits` is given; `enabled: false` then changes nothing. A monthly budget at or above the recommended one runs every day, one at or above the minimum runs once a week with larger runs, and one below the minimum is refused with `400`. `areaKeys` replaces the audit areas runs rotate through, one per run. `enabled: false` pauses the schedule and keeps it. A change re-arms a schedule that had stopped. Each run still needs spendable credits when it launches.
+         */
+        put: operations["setContinuousTesting"];
+        post?: never;
+        /**
+         * Remove a repository's Continuous Testing schedule
+         * @description Requires scope: `automations:write`. Scans the schedule already ran stay. Responds `404` when the branch has no schedule.
+         */
+        delete: operations["removeContinuousTesting"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{projectId}/scans": {
         parameters: {
             query?: never;
@@ -1057,6 +1085,59 @@ export interface components {
             key: string;
             deleted: boolean;
         };
+        ContinuousTesting: {
+            repositoryId: string;
+            /** @description False when Continuous Testing is not offered. */
+            available: boolean;
+            /** @description False when there is no schedule or it is paused. */
+            enabled: boolean;
+            /**
+             * @description Why an enabled schedule is not running: `budget_reached` when the project's monthly automation cap is spent, `error` after repeated failures. Null with no schedule.
+             * @enum {string|null}
+             */
+            state: "active" | "converged" | "budget_reached" | "error" | null;
+            branch: string;
+            /** @description The per-run budget times the runs the cadence fits in a month. */
+            monthlyBudgetCredits: number | null;
+            /**
+             * @description New and re-planned schedules are daily or weekly. Older schedules may be biweekly or monthly until their budget changes.
+             * @enum {string|null}
+             */
+            cadence: "daily" | "weekly" | "biweekly" | "monthly" | null;
+            perRunBudgetCredits: number | null;
+            /** @description Audit areas the runs rotate through, one per run, least recently scanned first. Empty means every run scans the whole repository. */
+            areaKeys: string[];
+            /** @description Net credits the schedule's runs spent since the UTC month began. */
+            spentThisMonthCredits: number;
+            /** @description Runs the schedule launched since the UTC month began. */
+            runsThisMonth: number;
+            /** Format: date-time */
+            lastRunAt: string | null;
+            /**
+             * Format: date-time
+             * @description When the next run becomes due. A past time means within the hour. Null when paused or stopped.
+             */
+            nextRunAt: string | null;
+            /** @description A month that funds a daily run at the recommended per-run budget. */
+            recommendedMonthlyCredits: number | null;
+            /** @description A month that funds a weekly run at that budget. Less is refused. */
+            minimumMonthlyCredits: number | null;
+        };
+        SetContinuousTestingRequest: {
+            /** @description False pauses the schedule; true turns it on or resumes it. */
+            enabled?: boolean;
+            /** @description Re-plans the cadence and the per-run budget. */
+            monthlyBudgetCredits?: number;
+            /** @description Replaces the rotation set. An empty array scans the whole repository every run. */
+            areaKeys?: string[];
+            /** @description The scheduled branch. Defaults to the repository's default branch. */
+            branch?: string;
+        };
+        RemoveContinuousTestingResult: {
+            repositoryId: string;
+            branch: string;
+            removed: boolean;
+        };
         CancelScanResult: {
             scanId: string;
             /** @description Terminal status after cancellation (always CANCELLED). */
@@ -1212,6 +1293,8 @@ export interface components {
         /** @description The finding id, or the `ZK-` label shown on the finding page (the id's last eight characters, prefix optional). A label that matches more than one finding in the project is refused with `409 conflict`; use the full id. */
         FindingId: string;
         RepositoryId: string;
+        /** @description The scheduled branch. Defaults to the repository's default branch. */
+        ContinuousTestingBranch: string;
         Page: number;
         Limit: number;
     };
@@ -1416,6 +1499,97 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    getContinuousTesting: {
+        parameters: {
+            query?: {
+                /** @description The scheduled branch. Defaults to the repository's default branch. */
+                branch?: components["parameters"]["ContinuousTestingBranch"];
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                repositoryId: components["parameters"]["RepositoryId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContinuousTesting"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    setContinuousTesting: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                repositoryId: components["parameters"]["RepositoryId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetContinuousTestingRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContinuousTesting"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    removeContinuousTesting: {
+        parameters: {
+            query?: {
+                /** @description The scheduled branch. Defaults to the repository's default branch. */
+                branch?: components["parameters"]["ContinuousTestingBranch"];
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                repositoryId: components["parameters"]["RepositoryId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemoveContinuousTestingResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     listScans: {

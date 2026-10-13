@@ -23,6 +23,7 @@ info:
       - `advisories:write` — record which versions an advisory affects
       - `contacts:read` — read the advisory contact list
       - `contacts:write` — add an advisory contact
+      - `automations:write` — turn scheduled scans on or off and set their budgets
 
     `GET /token` tells a token which project, and which organization, it
     belongs to.
@@ -256,6 +257,86 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
+
+  /projects/{projectId}/repositories/{repositoryId}/continuous-testing:
+    get:
+      tags: [Repositories]
+      operationId: getContinuousTesting
+      summary: Get a repository's Continuous Testing schedule
+      description: >-
+        Requires scope: `read`. Continuous Testing scans one branch on a
+        schedule paid from a monthly budget. With no schedule on the branch,
+        `enabled` is false and the schedule fields are null. The recommended
+        monthly budget funds a run every day at the repository's recommended
+        per-run budget; the minimum funds a run every week at it.
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/RepositoryId"
+        - $ref: "#/components/parameters/ContinuousTestingBranch"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ContinuousTesting" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      tags: [Repositories]
+      operationId: setContinuousTesting
+      summary: Turn Continuous Testing on, change it, or pause it
+      description: >-
+        Requires scope: `automations:write`. Every field is optional. With no
+        schedule on the branch, the request creates one at the recommended
+        monthly budget unless `monthlyBudgetCredits` is given; `enabled: false`
+        then changes nothing. A monthly budget at or above the recommended one
+        runs every day, one at or above the minimum runs once a week with
+        larger runs, and one below the minimum is refused with `400`.
+        `areaKeys` replaces the audit areas runs rotate through, one per run.
+        `enabled: false` pauses the schedule and keeps it. A change re-arms a
+        schedule that had stopped. Each run still needs spendable credits when
+        it launches.
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/RepositoryId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SetContinuousTestingRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ContinuousTesting" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: [Repositories]
+      operationId: removeContinuousTesting
+      summary: Remove a repository's Continuous Testing schedule
+      description: >-
+        Requires scope: `automations:write`. Scans the schedule already ran
+        stay. Responds `404` when the branch has no schedule.
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/RepositoryId"
+        - $ref: "#/components/parameters/ContinuousTestingBranch"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RemoveContinuousTestingResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
 
   /projects/{projectId}/scans:
     get:
@@ -1114,6 +1195,12 @@ components:
       in: path
       required: true
       schema: { type: string }
+    ContinuousTestingBranch:
+      name: branch
+      in: query
+      required: false
+      schema: { type: string }
+      description: The scheduled branch. Defaults to the repository's default branch.
     Page:
       name: page
       in: query
@@ -1919,6 +2006,106 @@ components:
         repositoryId: { type: string }
         key: { type: string }
         deleted: { type: boolean }
+
+    ContinuousTesting:
+      type: object
+      required:
+        [
+          repositoryId,
+          available,
+          enabled,
+          state,
+          branch,
+          monthlyBudgetCredits,
+          cadence,
+          perRunBudgetCredits,
+          areaKeys,
+          spentThisMonthCredits,
+          runsThisMonth,
+          lastRunAt,
+          nextRunAt,
+          recommendedMonthlyCredits,
+          minimumMonthlyCredits,
+        ]
+      properties:
+        repositoryId: { type: string }
+        available:
+          type: boolean
+          description: False when Continuous Testing is not offered.
+        enabled:
+          type: boolean
+          description: False when there is no schedule or it is paused.
+        state:
+          type: [string, "null"]
+          enum: [active, converged, budget_reached, error, null]
+          description: >-
+            Why an enabled schedule is not running: `budget_reached` when the
+            project's monthly automation cap is spent, `error` after repeated
+            failures. Null with no schedule.
+        branch: { type: string }
+        monthlyBudgetCredits:
+          type: [integer, "null"]
+          description: The per-run budget times the runs the cadence fits in a month.
+        cadence:
+          type: [string, "null"]
+          enum: [daily, weekly, biweekly, monthly, null]
+          description: >-
+            New and re-planned schedules are daily or weekly. Older schedules
+            may be biweekly or monthly until their budget changes.
+        perRunBudgetCredits: { type: [integer, "null"] }
+        areaKeys:
+          type: array
+          items: { type: string }
+          description: >-
+            Audit areas the runs rotate through, one per run, least recently
+            scanned first. Empty means every run scans the whole repository.
+        spentThisMonthCredits:
+          type: integer
+          description: Net credits the schedule's runs spent since the UTC month began.
+        runsThisMonth:
+          type: integer
+          description: Runs the schedule launched since the UTC month began.
+        lastRunAt: { type: [string, "null"], format: date-time }
+        nextRunAt:
+          type: [string, "null"]
+          format: date-time
+          description: >-
+            When the next run becomes due. A past time means within the hour.
+            Null when paused or stopped.
+        recommendedMonthlyCredits:
+          type: [integer, "null"]
+          description: A month that funds a daily run at the recommended per-run budget.
+        minimumMonthlyCredits:
+          type: [integer, "null"]
+          description: A month that funds a weekly run at that budget. Less is refused.
+
+    SetContinuousTestingRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        enabled:
+          type: boolean
+          description: False pauses the schedule; true turns it on or resumes it.
+        monthlyBudgetCredits:
+          type: integer
+          minimum: 1
+          description: Re-plans the cadence and the per-run budget.
+        areaKeys:
+          type: array
+          maxItems: 20
+          items: { type: string }
+          description: Replaces the rotation set. An empty array scans the whole repository every run.
+        branch:
+          type: string
+          description: The scheduled branch. Defaults to the repository's default branch.
+
+    RemoveContinuousTestingResult:
+      type: object
+      required: [repositoryId, branch, removed]
+      properties:
+        repositoryId: { type: string }
+        branch: { type: string }
+        removed: { type: boolean }
 
     CancelScanResult:
       type: object

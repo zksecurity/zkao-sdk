@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { Command } from "commander";
+import { Command, InvalidArgumentError } from "commander";
 import {
   type LaunchScanRequest,
   type ResolutionReason,
   type ResolutionStatus,
+  type SetContinuousTestingRequest,
   type Severity,
   ZkaoApiError,
   ZkaoClient,
@@ -347,6 +348,118 @@ areas
   .description("Delete a custom audit area")
   .action((repoId: string, areaKey: string) =>
     run((c) => c.deleteAuditArea(repoId, areaKey))
+  );
+
+// --- continuous testing ---------------------------------------------------
+
+/** A whole number of credits. */
+const toCredits = (value: string): number => {
+  const credits = Number(value);
+  if (!Number.isInteger(credits) || credits <= 0) {
+    throw new InvalidArgumentError("Expected a whole number of credits.");
+  }
+  return credits;
+};
+
+type ContinuousOptions = {
+  branch?: string;
+  budget?: number;
+  area: string[];
+  wholeRepo?: boolean;
+};
+
+/** The schedule fields a command line sets, leaving the rest as they are. */
+function continuousChanges(
+  opts: ContinuousOptions
+): SetContinuousTestingRequest {
+  if (opts.wholeRepo && opts.area.length > 0) {
+    fail("Pass --area or --whole-repo, not both.");
+  }
+  return {
+    ...(opts.branch === undefined ? {} : { branch: opts.branch }),
+    ...(opts.budget === undefined ? {} : { monthlyBudgetCredits: opts.budget }),
+    ...(opts.wholeRepo ? { areaKeys: [] } : {}),
+    ...(opts.area.length > 0 ? { areaKeys: opts.area } : {}),
+  };
+}
+
+const continuous = program
+  .command("continuous")
+  .description(
+    "Turn Continuous Testing on or off for a repository and set its monthly budget"
+  );
+continuous
+  .command("get <repoId>")
+  .description(
+    "Show the schedule, this month's spend, and the recommended and minimum monthly budgets"
+  )
+  .option("--branch <branch>", "the scheduled branch (default: the repository's default branch)")
+  .action((repoId: string, opts: { branch?: string }) =>
+    run((c) =>
+      c.getContinuousTesting(repoId, {
+        ...(opts.branch === undefined ? {} : { branch: opts.branch }),
+      })
+    )
+  );
+for (const [name, description, enabled] of [
+  [
+    "on",
+    "Turn it on or resume it. A new schedule starts at the recommended budget unless --budget is given",
+    true,
+  ],
+  [
+    "set",
+    "Change the monthly budget or the audit areas without turning it on or off",
+    undefined,
+  ],
+] as const) {
+  continuous
+    .command(`${name} <repoId>`)
+    .description(description)
+    .option("--branch <branch>", "the scheduled branch")
+    .option(
+      "--budget <credits>",
+      "monthly budget in credits; zkao picks a daily or weekly run from it",
+      toCredits
+    )
+    .option(
+      "--area <key>",
+      "audit area to rotate through, one per run (repeatable; see `zkao areas list`)",
+      collect,
+      []
+    )
+    .option("--whole-repo", "scan the whole repository every run")
+    .action((repoId: string, opts: ContinuousOptions) =>
+      run((c) =>
+        c.setContinuousTesting(repoId, {
+          ...(enabled === undefined ? {} : { enabled }),
+          ...continuousChanges(opts),
+        })
+      )
+    );
+}
+continuous
+  .command("off <repoId>")
+  .description("Pause it. The schedule and its settings are kept")
+  .option("--branch <branch>", "the scheduled branch")
+  .action((repoId: string, opts: { branch?: string }) =>
+    run((c) =>
+      c.setContinuousTesting(repoId, {
+        enabled: false,
+        ...(opts.branch === undefined ? {} : { branch: opts.branch }),
+      })
+    )
+  );
+continuous
+  .command("rm <repoId>")
+  .description("Remove the schedule. Scans it already ran are kept")
+  .option("--branch <branch>", "the scheduled branch")
+  .action((repoId: string, opts: { branch?: string }) =>
+    run((c) =>
+      c.removeContinuousTesting(repoId, {
+        ...(opts.branch === undefined ? {} : { branch: opts.branch }),
+      })
+    )
   );
 
 // --- scans ----------------------------------------------------------------

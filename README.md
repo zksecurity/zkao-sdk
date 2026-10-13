@@ -25,7 +25,8 @@ to.
 
 Or create one yourself in zkao under **Project Settings → Integrations**: it is
 scoped to one project, carries a chosen set of permissions (`read`,
-`findings:write`, `guidance:write`, `scans:launch`, `publish`), and can be
+`findings:write`, `guidance:write`, `scans:launch`, `publish`,
+`automations:write`), and can be
 limited to specific repositories. The token (`zkao_proj_…`) is shown once,
 together with the project id.
 
@@ -60,6 +61,10 @@ zkao guidance get <repoId>                       # read a repo's guidance
 zkao guidance set <repoId> <file|->              # update it (guidance:write scope)
 zkao areas list <repoId>                         # subsystems a scan can be scoped to
 zkao areas add <repoId> "<name>"                 # add a custom area (guidance:write scope)
+zkao continuous get <repoId>                     # Continuous Testing: schedule, this month's spend
+zkao continuous on <repoId> [--budget <credits>] # turn it on (automations:write scope)
+zkao continuous set <repoId> --area <key>        # change the budget or the areas it rotates through
+zkao continuous off <repoId>                     # pause it
 zkao billing balance                             # credits available for new scans
 zkao billing usage                               # credit ledger, last 30 days
 zkao billing summary                             # credits spent/purchased per month
