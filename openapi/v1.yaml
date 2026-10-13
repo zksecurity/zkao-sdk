@@ -459,6 +459,8 @@ paths:
       description: >-
         Requires scope: `read`. The project's coordinated-disclosure
         advisories, newest first. Optionally filter by `status`.
+        A repository-restricted token sees an advisory only when every
+        associated repository is in its allowlist.
       parameters:
         - $ref: "#/components/parameters/ProjectId"
         - $ref: "#/components/parameters/Page"
@@ -489,6 +491,7 @@ paths:
       description: >-
         Requires scope: `read`. The advisory, the software it concerns, the
         versions it affects, and the notices planned for it.
+        Every associated repository must be in the token's allowlist.
 
 
         `software` is what decides the audience: a contact is notified about an
@@ -529,6 +532,8 @@ paths:
       description: >-
         Requires scope: `advisories:write`. Replaces the whole set of affected
         ranges, so send what is affected now rather than a patch.
+        Every existing and requested repository must be in the token's
+        allowlist. This check also applies to an empty replacement.
 
 
         `fixedIn` is the point of this endpoint. A patch notice stays blocked
@@ -1316,6 +1321,13 @@ components:
       properties:
         id: { type: string }
         status: { $ref: "#/components/schemas/ScanStatus" }
+        failureCode:
+          type: [string, "null"]
+          enum: [NO_MEMBER_REPO_ACCESS, GITHUB_APP_PERMISSIONS_PENDING, null]
+          description: >-
+            An actionable setup failure for a failed scan. Null for other
+            statuses and internal failures. Restore a project member's GitHub
+            access or approve the App permissions before launching again.
         repositoryId: { type: string }
         commitHash: { type: [string, "null"] }
         baseCommit:
@@ -2020,14 +2032,18 @@ components:
           description: A note id on the finding to pin as the published note.
         withPassword:
           type: boolean
-          description: Generate a password to gate access to the public artifact.
+          description: >-
+            True generates a new access password. False removes password
+            protection. Omission preserves an existing password.
 
     PublishScanRequest:
       type: object
       properties:
         withPassword:
           type: boolean
-          description: Generate a password to gate access to the public artifact.
+          description: >-
+            True generates a new access password. False removes password
+            protection. Omission preserves an existing password.
 
     PublishArtifactResult:
       type: object
@@ -2037,4 +2053,4 @@ components:
         publicId: { type: string, description: "Slug in /public/{scans,findings}/<publicId>." }
         accessPassword:
           type: [string, "null"]
-          description: The generated access password when withPassword was requested; otherwise null.
+          description: The artifact's current access password, or null when it has no password.

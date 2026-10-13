@@ -244,7 +244,7 @@ export interface paths {
         };
         /**
          * List advisories
-         * @description Requires scope: `read`. The project's coordinated-disclosure advisories, newest first. Optionally filter by `status`.
+         * @description Requires scope: `read`. The project's coordinated-disclosure advisories, newest first. Optionally filter by `status`. A repository-restricted token sees an advisory only when every associated repository is in its allowlist.
          */
         get: operations["listAdvisories"];
         put?: never;
@@ -264,7 +264,7 @@ export interface paths {
         };
         /**
          * Get an advisory
-         * @description Requires scope: `read`. The advisory, the software it concerns, the versions it affects, and the notices planned for it.
+         * @description Requires scope: `read`. The advisory, the software it concerns, the versions it affects, and the notices planned for it. Every associated repository must be in the token's allowlist.
          *
          *     `software` is what decides the audience: a contact is notified about an advisory only when they run some of it. `affected` is a separate statement about versions, and is often empty.
          *
@@ -289,7 +289,7 @@ export interface paths {
         get?: never;
         /**
          * Record which versions an advisory affects
-         * @description Requires scope: `advisories:write`. Replaces the whole set of affected ranges, so send what is affected now rather than a patch.
+         * @description Requires scope: `advisories:write`. Replaces the whole set of affected ranges, so send what is affected now rather than a patch. Every existing and requested repository must be in the token's allowlist. This check also applies to an empty replacement.
          *
          *     `fixedIn` is the point of this endpoint. A patch notice stays blocked until some range names a fixed version, and only the people who shipped the release know it.
          *
@@ -703,6 +703,11 @@ export interface components {
         Scan: {
             id: string;
             status: components["schemas"]["ScanStatus"];
+            /**
+             * @description An actionable setup failure for a failed scan. Null for other statuses and internal failures. Restore a project member's GitHub access or approve the App permissions before launching again.
+             * @enum {string|null}
+             */
+            failureCode?: "NO_MEMBER_REPO_ACCESS" | "GITHUB_APP_PERMISSIONS_PENDING" | null;
             repositoryId: string;
             commitHash?: string | null;
             /** @description A diff scan's base, as the merge base SHA its change is measured from. Null for other scans. */
@@ -1101,18 +1106,18 @@ export interface components {
         PublishFindingRequest: {
             /** @description A note id on the finding to pin as the published note. */
             noteId?: string;
-            /** @description Generate a password to gate access to the public artifact. */
+            /** @description True generates a new access password. False removes password protection. Omission preserves an existing password. */
             withPassword?: boolean;
         };
         PublishScanRequest: {
-            /** @description Generate a password to gate access to the public artifact. */
+            /** @description True generates a new access password. False removes password protection. Omission preserves an existing password. */
             withPassword?: boolean;
         };
         PublishArtifactResult: {
             artifactId: string;
             /** @description Slug in /public/{scans,findings}/<publicId>. */
             publicId: string;
-            /** @description The generated access password when withPassword was requested; otherwise null. */
+            /** @description The artifact's current access password, or null when it has no password. */
             accessPassword?: string | null;
         };
     };
