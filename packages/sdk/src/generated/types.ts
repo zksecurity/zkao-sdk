@@ -191,6 +191,154 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{projectId}/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List incoming reports
+         * @description Requires scope: `read`. Vulnerability reports the programme has received, newest first. Optionally filter by `status`.
+         *
+         *     `publicId` is what `investigateReport` takes. `intakeState` says whether the report has been read and split into claims yet: an investigation waits for `COMPLETE`, so a `PENDING` or `RUNNING` report is one to come back to rather than one to retry.
+         */
+        get: operations["listReports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/reports/{publicId}/investigate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Investigate an incoming report against the code
+         * @description Requires scope: `scans:launch`. Runs the triage flow over the report's claims: each is checked against the repository, deduplicated against the findings already confirmed there, and given a proof of concept where one can be written. Returns immediately with the scan doing the work; poll `/projects/{projectId}/scans/{scanId}` and then read its findings.
+         *
+         *     Idempotent. A report already under investigation returns the existing scan with `claimsQueued: null`, so a retry costs nothing.
+         */
+        post: operations["investigateReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/advisories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List advisories
+         * @description Requires scope: `read`. The project's coordinated-disclosure advisories, newest first. Optionally filter by `status`.
+         */
+        get: operations["listAdvisories"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/advisories/{publicId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get an advisory
+         * @description Requires scope: `read`. The advisory, the software it concerns, the versions it affects, and the notices planned for it.
+         *
+         *     `software` is what decides the audience: a contact is notified about an advisory only when they run some of it. `affected` is a separate statement about versions, and is often empty.
+         *
+         *     A notice the plan is holding back carries `blockedReason`. The commonest one is that no affected range names a fixed version, which only the people who shipped the release can supply; record it in the app and the notice becomes schedulable.
+         */
+        get: operations["getAdvisory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/advisories/{publicId}/affected": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Record which versions an advisory affects
+         * @description Requires scope: `advisories:write`. Replaces the whole set of affected ranges, so send what is affected now rather than a patch.
+         *
+         *     `fixedIn` is the point of this endpoint. A patch notice stays blocked until some range names a fixed version, and only the people who shipped the release know it.
+         *
+         *     Versions only. A range may name only software already on the advisory's `software`, and anything else is a `400`. Which software an advisory concerns decides who hears about it, and that is its own statement, made in the app: a call about versions does not change it in either direction.
+         *
+         *     This call never sends anything. It records versions and recomputes the disclosure plan: a notice blocked for want of a fix becomes eligible to go, and one that loses its fix is blocked again, dropping any approval it was carrying so nobody approves wording a later fix rewrites. When an eligible notice is actually sent is governed by the programme's own settings, not by this call.
+         */
+        put: operations["replaceAdvisoryAffected"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/advisory-contacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the advisory contacts
+         * @description Requires scope: `contacts:read`. The programme's contact list, oldest first, which is the order to read it in when reconciling against a record kept elsewhere.
+         *
+         *     Its own scope, not `read`: this list is other people's work addresses and the record of who learns about a vulnerability before the public does, so a routine pipeline token does not reach it.
+         *
+         *     `software` on each row is what notices are matched on. A project with no security programme reads as an empty list.
+         */
+        get: operations["listAdvisoryContacts"];
+        put?: never;
+        /**
+         * Add an advisory contact
+         * @description Requires scope: `contacts:write`. Puts one address on the programme's contact list.
+         *
+         *     `software` says which of the project's repositories this contact runs, and is required. It is what every notice is matched on: a contact who runs nothing is told nothing.
+         *
+         *     The contact starts `PENDING_VERIFICATION`, and an unconfirmed address receives nothing embargoed. The confirmation mail is sent from the app, not by this call, so nothing is emailed to the address you send here.
+         *
+         *     There is no endpoint that reads the contact list back. It is other people's work addresses and the record of who hears about a vulnerability early.
+         */
+        post: operations["addAdvisoryContact"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{projectId}/findings": {
         parameters: {
             query?: never;
@@ -635,6 +783,7 @@ export interface components {
         };
         FindingNote: {
             id: string;
+            /** @description Markdown. A page of the app the assistant names is an absolute link. */
             body: string;
             /** Format: date-time */
             createdAt: string;
@@ -664,6 +813,131 @@ export interface components {
         };
         PaginatedScans: {
             items: components["schemas"]["Scan"][];
+            page: number;
+            limit: number;
+            total: number;
+        };
+        Report: {
+            /** @description The identifier `investigateReport` takes. */
+            publicId: string;
+            title: string;
+            /** @description How it arrived. Today always GitHub private vulnerability reporting. */
+            source: string;
+            /** @description What the reporter claimed, which is not an assessment. */
+            claimedSeverity?: components["schemas"]["Severity"] | null;
+            /** @enum {string} */
+            status: "NEW" | "TRIAGING" | "NEEDS_INFO" | "ACCEPTED" | "DUPLICATE" | "REJECTED";
+            /**
+             * @description Whether the report has been read and split into claims. An investigation waits for COMPLETE.
+             * @enum {string}
+             */
+            intakeState: "PENDING" | "RUNNING" | "REVIEW" | "COMPLETE" | "FAILED";
+            /**
+             * @description How the investigation is going, or null if none has run.
+             * @enum {string|null}
+             */
+            evaluationState?: "QUEUED" | "RUNNING" | "COMPLETE" | "FAILED" | null;
+            reporterName?: string | null;
+            reporterGithubLogin?: string | null;
+            /** @description The GitHub advisory it arrived as. */
+            githubUrl?: string | null;
+            /** Format: date-time */
+            acknowledgedAt?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        PaginatedReports: {
+            items: components["schemas"]["Report"][];
+            page: number;
+            limit: number;
+            total: number;
+        };
+        Advisory: {
+            /** @description Readable identifier, e.g. `ADVISORY-ADV-2026-0045`. */
+            publicId: string;
+            title: string;
+            /** @enum {string} */
+            severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "INFO";
+            /** @enum {string} */
+            status: "DRAFT" | "SCHEDULED" | "UNDER_EMBARGO" | "PUBLISHED" | "WITHDRAWN";
+            /**
+             * Format: date-time
+             * @description When the embargo lifts. Null until a date is set.
+             */
+            disclosureAt?: string | null;
+            /** Format: date-time */
+            publishedAt?: string | null;
+            cveId?: string | null;
+            /** @description The GitHub advisory, once one has been filed. */
+            ghsaId?: string | null;
+            ghsaUrl?: string | null;
+            /** @description What GitHub reports. A created entry is a DRAFT, which is private and reaches no scanner; only a published one is public. */
+            ghsaState: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        AdvisoryAffected: {
+            id: string;
+            repository: {
+                owner: string;
+                name: string;
+            };
+            /** @description First version carrying the defect. */
+            introducedIn: string;
+            /** @description Version that closes the range. Null while no patch exists, which is what holds a patch notice back. */
+            fixedIn: string | null;
+        };
+        AdvisoryNotice: {
+            label: string;
+            /** @description Days relative to disclosure. Negative is before it, 0 is the day itself. */
+            offsetDays: number;
+            /** Format: date-time */
+            scheduledFor: string;
+            /** @enum {string} */
+            status: "DRAFT" | "SCHEDULED" | "BLOCKED" | "SENDING" | "SENT" | "CANCELLED";
+            /** @description Why the plan is holding this notice back, if it is. */
+            blockedReason: string | null;
+            /** Format: date-time */
+            sentAt: string | null;
+            /** @description Contacts written to, as recorded when it went. */
+            recipientCount: number;
+        };
+        AdvisoryDetail: components["schemas"]["Advisory"] & {
+            summary: string;
+            description: string;
+            impact: string;
+            cwe?: string | null;
+            /** @description The software the advisory is about. A contact hears about it only when they run some of it. */
+            software: {
+                owner: string;
+                name: string;
+            }[];
+            affected: components["schemas"]["AdvisoryAffected"][];
+            notices: components["schemas"]["AdvisoryNotice"][];
+        };
+        AdvisoryContact: {
+            id: string;
+            email: string;
+            organization: string;
+            tier: string;
+            /** @description `PENDING_VERIFICATION` until the contact confirms the address. An unconfirmed address receives nothing embargoed. */
+            status: string;
+            /** @description The software this contact runs, which notices are matched on. */
+            software: {
+                owner: string;
+                name: string;
+            }[];
+            /** Format: date-time */
+            createdAt: string;
+        };
+        PaginatedAdvisoryContacts: {
+            items: components["schemas"]["AdvisoryContact"][];
+            page: number;
+            limit: number;
+            total: number;
+        };
+        PaginatedAdvisories: {
+            items: components["schemas"]["Advisory"][];
             page: number;
             limit: number;
             total: number;
@@ -784,6 +1058,13 @@ export interface components {
             status: components["schemas"]["ScanStatus"];
             /** @description Number of in-flight jobs signalled to stop. */
             cancelledJobs: number;
+        };
+        InvestigateReportResult: {
+            publicId: string;
+            /** @description The scan triaging this report's claims. */
+            scanId: string;
+            /** @description Claims queued for triage, or null when an investigation was already running and this call started nothing. */
+            claimsQueued: number | null;
         };
         /** @description Optionally attach or reuse a note alongside a resolution change. */
         ChangeNote: {
@@ -1251,6 +1532,262 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             429: components["responses"]["RateLimited"];
+        };
+    };
+    listReports: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Page"];
+                limit?: components["parameters"]["Limit"];
+                /** @description Only reports in this triage status. */
+                status?: "NEW" | "TRIAGING" | "NEEDS_INFO" | "ACCEPTED" | "DUPLICATE" | "REJECTED";
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedReports"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    investigateReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                /** @description The report's public identifier. */
+                publicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvestigateReportResult"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            402: components["responses"]["InsufficientCredits"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    listAdvisories: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Page"];
+                limit?: components["parameters"]["Limit"];
+                /** @description Only advisories in this status. */
+                status?: "DRAFT" | "SCHEDULED" | "UNDER_EMBARGO" | "PUBLISHED" | "WITHDRAWN";
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedAdvisories"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getAdvisory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                /** @description The advisory's readable identifier. */
+                publicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        advisory: components["schemas"]["AdvisoryDetail"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    replaceAdvisoryAffected: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                /** @description The advisory's readable identifier. */
+                publicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    affected: {
+                        repository: {
+                            owner: string;
+                            name: string;
+                        };
+                        /** @description First version carrying the defect. */
+                        introducedIn: string;
+                        /** @description Version that closes the range, or null. */
+                        fixedIn?: string | null;
+                    }[];
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        advisory: components["schemas"]["AdvisoryDetail"];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listAdvisoryContacts: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Page"];
+                limit?: components["parameters"]["Limit"];
+                tier?: "EMBARGO" | "DOWNSTREAM" | "ANNOUNCE";
+                status?: "ACTIVE" | "PENDING_VERIFICATION" | "BOUNCED" | "UNSUBSCRIBED";
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedAdvisoryContacts"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    addAdvisoryContact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    email: string;
+                    /** @description The organisation this contact speaks for. */
+                    organization: string;
+                    /**
+                     * @description How early this contact is told. `EMBARGO` hears first and alone, `DOWNSTREAM` joins once a patch exists, `ANNOUNCE` learns at public disclosure.
+                     * @enum {string}
+                     */
+                    tier: "EMBARGO" | "DOWNSTREAM" | "ANNOUNCE";
+                    /** @description The repositories this contact runs. At least one. */
+                    software: {
+                        owner: string;
+                        name: string;
+                    }[];
+                    name?: string | null;
+                    title?: string | null;
+                    notes?: string | null;
+                    tags?: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        contact: components["schemas"]["AdvisoryContact"];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description That address is already on the programme's contact list. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     listFindings: {
