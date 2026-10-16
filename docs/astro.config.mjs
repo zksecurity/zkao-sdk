@@ -3,6 +3,7 @@ import starlight from "@astrojs/starlight";
 import { defineConfig } from "astro/config";
 import starlightLlmsTxt from "starlight-llms-txt";
 import starlightOpenAPI, { openAPISidebarGroups } from "starlight-openapi";
+import markdown from "./scripts/markdown.ts";
 
 // One site per release channel: main builds docs.zkao.io, staging builds
 // docs.staging.zkao.io with PUBLIC_DOCS_CHANNEL=staging.
@@ -53,7 +54,7 @@ export default defineConfig({
         starlightLlmsTxt({
           projectName: "zkao",
           details:
-            `zkao audits code repositories for security bugs, with a focus on cryptography and zero-knowledge circuits. A project API token drives one project: list repositories, launch and poll scans, triage findings, edit repository guidance, read credit usage, and publish results. Every page is also served as Markdown at its URL with \`.md\` appended. The agent skill is at ${site}/skill.md and the OpenAPI spec at ${site}/openapi/v1.yaml.` +
+            `zkao audits code repositories for security bugs, with a focus on cryptography and zero-knowledge circuits. A project API token drives one project: list repositories, launch and poll scans, triage findings, edit repository guidance, read credit usage, and publish results. Each page has a Markdown version. Replace its trailing slash with \`.md\`, or request the page with Accept: text/markdown. The home page is at /index.md. The agent skill is at ${site}/skill.md and the OpenAPI spec at ${site}/openapi/v1.yaml.` +
             (staging
               ? " These docs describe staging (https://staging.zkao.io) and the @zksecurity/zkao-cli@next release. Set ZKAO_URL=staging.zkao.io."
               : ""),
@@ -84,5 +85,6 @@ export default defineConfig({
         { label: "API reference", items: openAPISidebarGroups },
       ],
     }),
+    markdown(),
   ],
 });

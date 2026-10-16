@@ -40,12 +40,14 @@ Every page on this site has a plain Markdown version for agents.
 | URL | What it holds |
 | --- | --- |
 | [`/llms.txt`](/llms.txt) | An index of the docs, following the [llms.txt](https://llmstxt.org/) convention. |
-| [`/llms-full.txt`](/llms-full.txt) | Every page in one file. |
-| [`/llms-small.txt`](/llms-small.txt) | Every page in one file, trimmed for small context windows. |
-| `<page URL>.md` | One page as Markdown, such as [`/guides/findings.md`](/guides/findings.md). |
+| [`/llms-full.txt`](/llms-full.txt) | All guides and API reference pages in one file. |
+| [`/llms-small.txt`](/llms-small.txt) | A shorter bundle of guides. |
+| `.md` pages | One page as Markdown. Replace the trailing slash with `.md`. |
 | [`/openapi/v1.yaml`](/openapi/v1.yaml) | The full API contract. |
 
 Each page also has a **Copy as Markdown** button next to its title.
+
+Requests with `Accept: text/markdown` receive Markdown at the normal page URL.
 
 ## Logging in from an agent
 

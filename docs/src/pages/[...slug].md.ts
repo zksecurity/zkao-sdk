@@ -1,7 +1,7 @@
 import type { APIRoute, GetStaticPaths } from "astro";
 import { getCollection, type CollectionEntry } from "astro:content";
 
-// Serves every docs page as raw Markdown at its URL plus `.md`, for agents.
+// Development fallback. The build integration replaces these with rendered Markdown.
 export const getStaticPaths = (async () => {
   const pages = await getCollection("docs");
   return pages.map((page) => ({

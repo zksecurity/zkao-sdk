@@ -144,6 +144,11 @@ new API version, regenerate, and bump the package versions.
 
 ## Publishing
 
+The documentation site lives in `docs/`. Run `bun run --cwd docs build` and
+`bun run --cwd docs test` after installing its dependencies. The build generates
+Markdown for every guide and API page. Cloudflare Pages runs `docs/public/_worker.js`
+to serve those files when a request prefers `text/markdown`.
+
 Each push to the `staging` branch publishes both packages as `X.Y.Z-next.N` under
 the npm `next` tag. The workflow is `.github/workflows/release-next.yml`. It
 publishes through npm trusted publishing, so it needs no token. Each package

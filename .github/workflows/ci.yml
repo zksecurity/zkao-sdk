@@ -38,3 +38,4 @@ jobs:
           node-version-file: docs/.node-version
       - run: bun install --frozen-lockfile
       - run: bun run build
+      - run: bun run test

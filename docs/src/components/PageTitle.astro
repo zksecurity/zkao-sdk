@@ -5,17 +5,14 @@ import { getCollection } from "astro:content";
 const PAGE_TITLE_ID = "_top";
 
 const { entry, id } = Astro.locals.starlightRoute;
-// Generated API pages are not in the collection, so they get no Markdown link.
-const docIds = new Set((await getCollection("docs")).map((doc) => doc.id));
-const markdownHref = docIds.has(id)
-  ? `/${id === "" ? "index" : id}.md`
-  : undefined;
+const hasMarkdown = import.meta.env.PROD || (await getCollection("docs")).some((page) => page.id === id);
+const markdownHref = `/${id === "" ? "index" : id.replace(/\/$/, "")}.md`;
 ---
 
 <div class="title-row">
   <h1 id={PAGE_TITLE_ID}>{entry.data.title}</h1>
   {
-    markdownHref && (
+    hasMarkdown && (
       <div class="md-actions">
         <button type="button" data-md-copy={markdownHref}>
           Copy as Markdown
@@ -31,7 +28,9 @@ const markdownHref = docIds.has(id)
     button.addEventListener("click", async () => {
       const label = button.textContent;
       try {
-        const text = await fetch(button.dataset.mdCopy ?? "").then((r) => r.text());
+        const response = await fetch(button.dataset.mdCopy ?? "");
+        if (!response.ok) throw new Error(`Markdown request failed: ${response.status}`);
+        const text = await response.text();
         await navigator.clipboard.writeText(text);
         button.textContent = "Copied";
       } catch (error) {
