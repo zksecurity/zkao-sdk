@@ -104,6 +104,7 @@ A token carries a subset of these scopes:
 | `advisories:write` | Record which versions a security advisory affects. |
 | `contacts:read` | Read the advisory contact list. |
 | `contacts:write` | Add an advisory contact. |
+| `automations:write` | Configure Continuous Testing schedules and budgets. |
 
 A call that needs a scope the token lacks returns `403 forbidden`.
 
