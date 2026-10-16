@@ -101,8 +101,15 @@ A token carries a subset of these scopes:
 | `guidance:write` | Update a repository's guidance and manage its audit areas. |
 | `scans:launch` | Launch and cancel scans. |
 | `publish` | Publish a finding or a scan as a public page. |
+| `advisories:write` | Record which versions a security advisory affects. |
+| `contacts:read` | Read the advisory contact list. |
+| `contacts:write` | Add an advisory contact. |
 
 A call that needs a scope the token lacks returns `403 forbidden`.
+
+The two contact scopes are held apart from the others. That list is who learns
+about a vulnerability before the public does, so neither `read` nor
+`advisories:write` reaches it.
 
 ## Limits on a token
 
