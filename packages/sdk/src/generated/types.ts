@@ -1092,12 +1092,12 @@ export interface components {
             /** @description False when there is no schedule or it is paused. */
             enabled: boolean;
             /**
-             * @description Why an enabled schedule is not running: `budget_reached` when the project's monthly automation cap is spent, `error` after repeated failures. Null with no schedule.
+             * @description Why an enabled schedule is not running: `budget_reached` when the schedule's or project's monthly automation cap is reached, `error` after repeated failures. Null with no schedule.
              * @enum {string|null}
              */
             state: "active" | "converged" | "budget_reached" | "error" | null;
             branch: string;
-            /** @description The configured monthly budget. Legacy schedules derive it from their cadence and per-run budget. */
+            /** @description The configured monthly spending cap. Legacy schedules derive the budget from their cadence and per-run budget. */
             monthlyBudgetCredits: number | null;
             /**
              * @description Legacy fixed cadence. Null for a custom interval or no schedule. Use intervalHours for the actual interval.

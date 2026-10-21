@@ -2043,12 +2043,12 @@ components:
           enum: [active, converged, budget_reached, error, null]
           description: >-
             Why an enabled schedule is not running: `budget_reached` when the
-            project's monthly automation cap is spent, `error` after repeated
+            schedule's or project's monthly automation cap is reached, `error` after repeated
             failures. Null with no schedule.
         branch: { type: string }
         monthlyBudgetCredits:
           type: [integer, "null"]
-          description: The configured monthly budget. Legacy schedules derive it from their cadence and per-run budget.
+          description: The configured monthly spending cap. Legacy schedules derive the budget from their cadence and per-run budget.
         cadence:
           type: [string, "null"]
           enum: [daily, weekly, biweekly, monthly, null]
