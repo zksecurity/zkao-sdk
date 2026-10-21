@@ -267,7 +267,7 @@ paths:
         Requires scope: `read`. Continuous Testing scans one branch on a
         schedule paid from a monthly budget. With no schedule on the branch,
         `enabled` is false and the schedule fields are null. The recommended
-        monthly budget funds a run every day at the repository's recommended
+        monthly budget funds a run about every three days at the repository's recommended
         per-run budget; the minimum funds a run every week at it.
       parameters:
         - $ref: "#/components/parameters/ProjectId"
@@ -291,9 +291,10 @@ paths:
         Requires scope: `automations:write`. Every field is optional. With no
         schedule on the branch, the request creates one at the recommended
         monthly budget unless `monthlyBudgetCredits` is given; `enabled: false`
-        then changes nothing. A monthly budget at or above the recommended one
-        runs every day, one at or above the minimum runs once a week with
-        larger runs, and one below the minimum is refused with `400`.
+        then changes nothing. The budget sets the interval smoothly from once a week
+        to twice a day. The recommended budget funds a run about every three
+        days. A budget outside the returned minimum and maximum is refused
+        with `400`. Administrators can raise the maximum monthly budget.
         `areaKeys` replaces the audit areas runs rotate through, one per run.
         `enabled: false` pauses the schedule and keeps it. A change re-arms a
         schedule that had stopped. Each run still needs spendable credits when
@@ -2018,6 +2019,7 @@ components:
           branch,
           monthlyBudgetCredits,
           cadence,
+          intervalHours,
           perRunBudgetCredits,
           areaKeys,
           spentThisMonthCredits,
@@ -2026,6 +2028,7 @@ components:
           nextRunAt,
           recommendedMonthlyCredits,
           minimumMonthlyCredits,
+          maximumMonthlyCredits,
         ]
       properties:
         repositoryId: { type: string }
@@ -2045,13 +2048,17 @@ components:
         branch: { type: string }
         monthlyBudgetCredits:
           type: [integer, "null"]
-          description: The per-run budget times the runs the cadence fits in a month.
+          description: The configured monthly budget. Legacy schedules derive it from their cadence and per-run budget.
         cadence:
           type: [string, "null"]
           enum: [daily, weekly, biweekly, monthly, null]
           description: >-
-            New and re-planned schedules are daily or weekly. Older schedules
-            may be biweekly or monthly until their budget changes.
+            Legacy fixed cadence. Null for a custom interval or no schedule.
+            Use intervalHours for the actual interval.
+        intervalHours:
+          type: [integer, "null"]
+          minimum: 1
+          description: Hours between scheduled runs. Null when no schedule exists.
         perRunBudgetCredits: { type: [integer, "null"] }
         areaKeys:
           type: array
@@ -2074,10 +2081,13 @@ components:
             Null when paused or stopped.
         recommendedMonthlyCredits:
           type: [integer, "null"]
-          description: A month that funds a daily run at the recommended per-run budget.
+          description: A month that funds a run about every three days at the recommended per-run budget.
         minimumMonthlyCredits:
           type: [integer, "null"]
           description: A month that funds a weekly run at that budget. Less is refused.
+        maximumMonthlyCredits:
+          type: [integer, "null"]
+          description: The largest monthly budget currently allowed for the repository. Administrators can raise it.
 
     SetContinuousTestingRequest:
       type: object
@@ -2089,7 +2099,7 @@ components:
         monthlyBudgetCredits:
           type: integer
           minimum: 1
-          description: Re-plans the cadence and the per-run budget.
+          description: Re-plans the interval and the per-run budget within the returned minimum and maximum.
         areaKeys:
           type: array
           maxItems: 20

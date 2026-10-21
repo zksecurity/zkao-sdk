@@ -461,9 +461,9 @@ export class ZkaoClient {
    * Turn Continuous Testing on or off, set its monthly budget, or choose the
    * audit areas it rotates through (requires the `automations:write` scope).
    * Every field is optional. Turning it on with no schedule creates one at
-   * the recommended monthly budget. zkao picks the cadence from the budget: a
-   * daily run when it covers one, otherwise weekly. A budget below the weekly
-   * minimum is refused with a `400`.
+   * the recommended monthly budget, funding a run about every three days. The
+   * budget sets the interval from weekly to twice daily. A budget outside the
+   * returned minimum and maximum is refused with a `400`.
    */
   async setContinuousTesting(
     repositoryId: string,

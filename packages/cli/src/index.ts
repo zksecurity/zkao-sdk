@@ -391,7 +391,7 @@ const continuous = program
 continuous
   .command("get <repoId>")
   .description(
-    "Show the schedule, this month's spend, and the recommended and minimum monthly budgets"
+    "Show the schedule, this month's spend, and the recommended, minimum and maximum monthly budgets"
   )
   .option("--branch <branch>", "the scheduled branch (default: the repository's default branch)")
   .action((repoId: string, opts: { branch?: string }) =>
@@ -419,7 +419,7 @@ for (const [name, description, enabled] of [
     .option("--branch <branch>", "the scheduled branch")
     .option(
       "--budget <credits>",
-      "monthly budget in credits; zkao picks a daily or weekly run from it",
+      "monthly budget in credits; sets the interval from weekly to twice daily",
       toCredits
     )
     .option(

@@ -121,12 +121,12 @@ export interface paths {
         };
         /**
          * Get a repository's Continuous Testing schedule
-         * @description Requires scope: `read`. Continuous Testing scans one branch on a schedule paid from a monthly budget. With no schedule on the branch, `enabled` is false and the schedule fields are null. The recommended monthly budget funds a run every day at the repository's recommended per-run budget; the minimum funds a run every week at it.
+         * @description Requires scope: `read`. Continuous Testing scans one branch on a schedule paid from a monthly budget. With no schedule on the branch, `enabled` is false and the schedule fields are null. The recommended monthly budget funds a run about every three days at the repository's recommended per-run budget; the minimum funds a run every week at it.
          */
         get: operations["getContinuousTesting"];
         /**
          * Turn Continuous Testing on, change it, or pause it
-         * @description Requires scope: `automations:write`. Every field is optional. With no schedule on the branch, the request creates one at the recommended monthly budget unless `monthlyBudgetCredits` is given; `enabled: false` then changes nothing. A monthly budget at or above the recommended one runs every day, one at or above the minimum runs once a week with larger runs, and one below the minimum is refused with `400`. `areaKeys` replaces the audit areas runs rotate through, one per run. `enabled: false` pauses the schedule and keeps it. A change re-arms a schedule that had stopped. Each run still needs spendable credits when it launches.
+         * @description Requires scope: `automations:write`. Every field is optional. With no schedule on the branch, the request creates one at the recommended monthly budget unless `monthlyBudgetCredits` is given; `enabled: false` then changes nothing. The budget sets the interval smoothly from once a week to twice a day. The recommended budget funds a run about every three days. A budget outside the returned minimum and maximum is refused with `400`. Administrators can raise the maximum monthly budget. `areaKeys` replaces the audit areas runs rotate through, one per run. `enabled: false` pauses the schedule and keeps it. A change re-arms a schedule that had stopped. Each run still needs spendable credits when it launches.
          */
         put: operations["setContinuousTesting"];
         post?: never;
@@ -1097,13 +1097,15 @@ export interface components {
              */
             state: "active" | "converged" | "budget_reached" | "error" | null;
             branch: string;
-            /** @description The per-run budget times the runs the cadence fits in a month. */
+            /** @description The configured monthly budget. Legacy schedules derive it from their cadence and per-run budget. */
             monthlyBudgetCredits: number | null;
             /**
-             * @description New and re-planned schedules are daily or weekly. Older schedules may be biweekly or monthly until their budget changes.
+             * @description Legacy fixed cadence. Null for a custom interval or no schedule. Use intervalHours for the actual interval.
              * @enum {string|null}
              */
             cadence: "daily" | "weekly" | "biweekly" | "monthly" | null;
+            /** @description Hours between scheduled runs. Null when no schedule exists. */
+            intervalHours: number | null;
             perRunBudgetCredits: number | null;
             /** @description Audit areas the runs rotate through, one per run, least recently scanned first. Empty means every run scans the whole repository. */
             areaKeys: string[];
@@ -1118,15 +1120,17 @@ export interface components {
              * @description When the next run becomes due. A past time means within the hour. Null when paused or stopped.
              */
             nextRunAt: string | null;
-            /** @description A month that funds a daily run at the recommended per-run budget. */
+            /** @description A month that funds a run about every three days at the recommended per-run budget. */
             recommendedMonthlyCredits: number | null;
             /** @description A month that funds a weekly run at that budget. Less is refused. */
             minimumMonthlyCredits: number | null;
+            /** @description The largest monthly budget currently allowed for the repository. Administrators can raise it. */
+            maximumMonthlyCredits: number | null;
         };
         SetContinuousTestingRequest: {
             /** @description False pauses the schedule; true turns it on or resumes it. */
             enabled?: boolean;
-            /** @description Re-plans the cadence and the per-run budget. */
+            /** @description Re-plans the interval and the per-run budget within the returned minimum and maximum. */
             monthlyBudgetCredits?: number;
             /** @description Replaces the rotation set. An empty array scans the whole repository every run. */
             areaKeys?: string[];
