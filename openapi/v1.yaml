@@ -1026,7 +1026,7 @@ paths:
       tags: [Publishing]
       operationId: publishFinding
       summary: Publish a finding as a public artifact
-      description: "Requires scope: `publish`. Pin a note as the published note via `noteId`."
+      description: "Requires scope: `publish`. Pin a note as the published note via `noteId`. An omitted body uses defaults. A nonempty body must be valid JSON or the request returns 400 without publishing."
       parameters:
         - $ref: "#/components/parameters/ProjectId"
         - $ref: "#/components/parameters/FindingId"
@@ -1052,7 +1052,7 @@ paths:
       tags: [Publishing]
       operationId: publishScan
       summary: Publish a scan as a public artifact
-      description: "Requires scope: `publish`. The scan must be COMPLETED."
+      description: "Requires scope: `publish`. The scan must be COMPLETED. An omitted body uses defaults. A nonempty body must be valid JSON or the request returns 400 without publishing."
       parameters:
         - $ref: "#/components/parameters/ProjectId"
         - $ref: "#/components/parameters/ScanId"

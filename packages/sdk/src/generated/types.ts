@@ -518,7 +518,7 @@ export interface paths {
         put?: never;
         /**
          * Publish a finding as a public artifact
-         * @description Requires scope: `publish`. Pin a note as the published note via `noteId`.
+         * @description Requires scope: `publish`. Pin a note as the published note via `noteId`. An omitted body uses defaults. A nonempty body must be valid JSON or the request returns 400 without publishing.
          */
         post: operations["publishFinding"];
         delete?: never;
@@ -538,7 +538,7 @@ export interface paths {
         put?: never;
         /**
          * Publish a scan as a public artifact
-         * @description Requires scope: `publish`. The scan must be COMPLETED.
+         * @description Requires scope: `publish`. The scan must be COMPLETED. An omitted body uses defaults. A nonempty body must be valid JSON or the request returns 400 without publishing.
          */
         post: operations["publishScan"];
         delete?: never;
