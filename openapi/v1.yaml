@@ -446,6 +446,7 @@ paths:
         marks the scan CANCELLED, and releases its reserved credits (in-flight
         jobs settle their actual spend as they wind down). A scan that already
         reached COMPLETED or FAILED cannot be cancelled (`400`).
+        Cancellation remains available when the organization has no available credits.
       parameters:
         - $ref: "#/components/parameters/ProjectId"
         - $ref: "#/components/parameters/ScanId"

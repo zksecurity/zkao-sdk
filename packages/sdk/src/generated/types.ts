@@ -210,7 +210,7 @@ export interface paths {
         put?: never;
         /**
          * Cancel a running or queued scan
-         * @description Requires scope: `scans:launch`. Signals any in-flight jobs to stop, marks the scan CANCELLED, and releases its reserved credits (in-flight jobs settle their actual spend as they wind down). A scan that already reached COMPLETED or FAILED cannot be cancelled (`400`).
+         * @description Requires scope: `scans:launch`. Signals any in-flight jobs to stop, marks the scan CANCELLED, and releases its reserved credits (in-flight jobs settle their actual spend as they wind down). A scan that already reached COMPLETED or FAILED cannot be cancelled (`400`). Cancellation remains available when the organization has no available credits.
          */
         post: operations["cancelScan"];
         delete?: never;
