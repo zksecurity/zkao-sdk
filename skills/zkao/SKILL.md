@@ -147,10 +147,12 @@ capabilities described nowhere here.
 3. Triage: `zkao findings comment ...`, `zkao findings severity ...`,
    `zkao findings resolution ...`.
 
-When the user gives a reason or extra context for a resolution or severity
-change, record it alongside the change: the status alone captures the outcome,
-not the why. `zkao findings resolution <id> <status> --note "<text>"` attaches
-it in the same call (the resolution PATCH takes the same `note` over HTTP/SDK).
+Later scans of the repository read each finding's comments and resolution
+notes. They calibrate how future reports are judged. When you or the user
+reach a conclusion about a finding, record the reasoning there. The status
+alone captures the outcome, not the why.
+`zkao findings resolution <id> <status> --note "<text>"` attaches it in the
+same call (the resolution PATCH takes the same `note` over HTTP/SDK).
 
 For a plain, categorical why, `--reason <code>` records a catalog entry instead.
 The codes offered depend on the status, and a code from another status is
@@ -162,9 +164,9 @@ detail worth keeping; a code alone loses it.
 
 Scan agents read repo-specific guidance (scoping, build quirks, project
 context, known non-issues) that layers over any `zkao.md` committed at the repo
-root. When triage surfaces knowledge that applies to the whole repo rather than
-one finding, a comment on a single finding will not carry it forward: it belongs
-in the repository's guidance so every future scan reads it.
+root. A comment informs how similar reports are judged. Knowledge that applies
+to the whole repo belongs in the repository's guidance, which every future scan
+reads.
 
 Read the current guidance with `zkao guidance get <repoId>` and update it with
 `zkao guidance set <repoId> <file|->`. Prefer editing the existing text over

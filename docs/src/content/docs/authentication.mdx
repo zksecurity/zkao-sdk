@@ -31,12 +31,12 @@ The CLI starts a device authorization flow:
 Only approve a login you started yourself.
 Approving mints a real token for the project you select.
 
-By default the CLI requests `read`, `scans:launch`, and `findings:write`.
+By default the CLI requests `read`, `scans:launch`, `findings:write`, and `guidance:write`.
 The approval page pre-ticks them, and the approver can change them.
 To request other scopes, pass `--scope`:
 
 ```bash
-zkao login --scope read guidance:write
+zkao login --scope read publish
 ```
 
 `zkao login --project <projectId>` preselects a project on the approval page.

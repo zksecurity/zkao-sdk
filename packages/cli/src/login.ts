@@ -66,8 +66,13 @@ export type LoginFlags = {
   scopes?: string[];
 };
 
-/** What launching and triaging scans needs. The approver can change it. */
-export const DEFAULT_LOGIN_SCOPES = ["read", "scans:launch", "findings:write"];
+/** What launching, triaging, and editing guidance need. The approver can change it. */
+export const DEFAULT_LOGIN_SCOPES = [
+  "read",
+  "scans:launch",
+  "findings:write",
+  "guidance:write",
+];
 
 /**
  * The app base the device endpoints live on: the API base URL minus its
