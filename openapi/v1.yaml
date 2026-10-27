@@ -262,13 +262,13 @@ paths:
     get:
       tags: [Repositories]
       operationId: getContinuousTesting
-      summary: Get a repository's Continuous Testing schedule
+      summary: Get a repository's Continuous Security schedule
       description: >-
-        Requires scope: `read`. Continuous Testing scans one branch on a
+        Requires scope: `read`. Continuous Security scans one branch on a
         schedule paid from a monthly budget. With no schedule on the branch,
         `enabled` is false and the schedule fields are null. The recommended
-        monthly budget funds a run about every three days at the repository's recommended
-        per-run budget; the minimum funds a run every week at it.
+        monthly budget supports ongoing analysis. The minimum funds one useful analysis
+        step. Scheduling adapts to the available allocation.
       parameters:
         - $ref: "#/components/parameters/ProjectId"
         - $ref: "#/components/parameters/RepositoryId"
@@ -286,7 +286,7 @@ paths:
     put:
       tags: [Repositories]
       operationId: setContinuousTesting
-      summary: Turn Continuous Testing on, change it, or pause it
+      summary: Turn Continuous Security on, change it, or pause it
       description: >-
         Requires scope: `automations:write`. Every field is optional. With no
         schedule on the branch, the request creates one at the recommended
@@ -320,7 +320,7 @@ paths:
     delete:
       tags: [Repositories]
       operationId: removeContinuousTesting
-      summary: Remove a repository's Continuous Testing schedule
+      summary: Remove a repository's Continuous Security schedule
       description: >-
         Requires scope: `automations:write`. Scans the schedule already ran
         stay. Responds `404` when the branch has no schedule.
@@ -2035,7 +2035,7 @@ components:
         repositoryId: { type: string }
         available:
           type: boolean
-          description: False when Continuous Testing is not offered.
+          description: False when Continuous Security is not offered.
         enabled:
           type: boolean
           description: False when there is no schedule or it is paused.
@@ -2082,10 +2082,10 @@ components:
             Null when paused or stopped.
         recommendedMonthlyCredits:
           type: [integer, "null"]
-          description: A month that funds a run about every three days at the recommended per-run budget.
+          description: A suggested allocation for ongoing work, based on the repository's estimated analysis budget.
         minimumMonthlyCredits:
           type: [integer, "null"]
-          description: A month that funds a weekly run at that budget. Less is refused.
+          description: The smallest month that funds one analysis step. Less is refused.
         maximumMonthlyCredits:
           type: [integer, "null"]
           description: The largest monthly budget currently allowed for the repository. Administrators can raise it.

@@ -120,18 +120,18 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get a repository's Continuous Testing schedule
-         * @description Requires scope: `read`. Continuous Testing scans one branch on a schedule paid from a monthly budget. With no schedule on the branch, `enabled` is false and the schedule fields are null. The recommended monthly budget funds a run about every three days at the repository's recommended per-run budget; the minimum funds a run every week at it.
+         * Get a repository's Continuous Security schedule
+         * @description Requires scope: `read`. Continuous Security scans one branch on a schedule paid from a monthly budget. With no schedule on the branch, `enabled` is false and the schedule fields are null. The recommended monthly budget supports ongoing analysis. The minimum funds one useful analysis step. Scheduling adapts to the available allocation.
          */
         get: operations["getContinuousTesting"];
         /**
-         * Turn Continuous Testing on, change it, or pause it
+         * Turn Continuous Security on, change it, or pause it
          * @description Requires scope: `automations:write`. Every field is optional. With no schedule on the branch, the request creates one at the recommended monthly budget unless `monthlyBudgetCredits` is given; `enabled: false` then changes nothing. The budget sets the interval smoothly from once a week to twice a day. The recommended budget funds a run about every three days. A budget outside the returned minimum and maximum is refused with `400`. Administrators can raise the maximum monthly budget. `areaKeys` replaces the audit areas runs rotate through, one per run. `enabled: false` pauses the schedule and keeps it. A change re-arms a schedule that had stopped. Each run still needs spendable credits when it launches.
          */
         put: operations["setContinuousTesting"];
         post?: never;
         /**
-         * Remove a repository's Continuous Testing schedule
+         * Remove a repository's Continuous Security schedule
          * @description Requires scope: `automations:write`. Scans the schedule already ran stay. Responds `404` when the branch has no schedule.
          */
         delete: operations["removeContinuousTesting"];
@@ -1087,7 +1087,7 @@ export interface components {
         };
         ContinuousTesting: {
             repositoryId: string;
-            /** @description False when Continuous Testing is not offered. */
+            /** @description False when Continuous Security is not offered. */
             available: boolean;
             /** @description False when there is no schedule or it is paused. */
             enabled: boolean;
@@ -1120,9 +1120,9 @@ export interface components {
              * @description When the next run becomes due. A past time means within the hour. Null when paused or stopped.
              */
             nextRunAt: string | null;
-            /** @description A month that funds a run about every three days at the recommended per-run budget. */
+            /** @description A suggested allocation for ongoing work, based on the repository's estimated analysis budget. */
             recommendedMonthlyCredits: number | null;
-            /** @description A month that funds a weekly run at that budget. Less is refused. */
+            /** @description The smallest month that funds one analysis step. Less is refused. */
             minimumMonthlyCredits: number | null;
             /** @description The largest monthly budget currently allowed for the repository. Administrators can raise it. */
             maximumMonthlyCredits: number | null;
