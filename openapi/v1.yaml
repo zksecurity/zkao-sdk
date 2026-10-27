@@ -995,7 +995,16 @@ paths:
       tags: [Findings]
       operationId: updateFindingResolution
       summary: Change a finding's resolution status
-      description: "Requires scope: `findings:write`."
+      description: >
+        Requires scope: `findings:write`.
+
+
+        On a finding triage dismissed (`triageStatus` `FALSE_POSITIVE`), any
+        status other than `FALSE_POSITIVE` or `DUPLICATE` reopens it: its
+        `triageStatus` becomes `CONFIRMED` and the override fields record who
+        did it. `NOT_STARTED` reopens it even when that is already its
+        resolution. Setting `FALSE_POSITIVE` on a reopened finding restores the
+        triage verdict and clears the override.
       parameters:
         - $ref: "#/components/parameters/ProjectId"
         - $ref: "#/components/parameters/FindingId"
@@ -1533,7 +1542,7 @@ components:
 
     Finding:
       type: object
-      required: [id, displayId, title, location, severity, category, triageStatus, resolutionStatus, notesCount]
+      required: [id, displayId, title, location, severity, category, triageStatus, resolutionStatus, notesCount, dismissalReason, triageOverriddenFrom, triageOverriddenAt, triageOverriddenByName]
       properties:
         id: { type: string }
         displayId: { type: integer }
@@ -1550,6 +1559,18 @@ components:
           description: What backs a CONFIRMED verdict. POC means a proof of concept ran and demonstrated the issue. ANALYSIS means it was confirmed by code analysis alone. Null for other statuses or when not recorded.
         resolutionStatus: { $ref: "#/components/schemas/ResolutionStatus" }
         notesCount: { type: integer }
+        dismissalReason:
+          type: [string, "null"]
+          description: Why triage dismissed the finding as a false positive. Null when triage did not dismiss it or gave no reason.
+        triageOverriddenFrom:
+          description: The triage verdict a member replaced, kept from the first override. Null when nobody overrode triage.
+          oneOf:
+            - { $ref: "#/components/schemas/TriageStatus" }
+            - { type: "null" }
+        triageOverriddenAt: { type: [string, "null"], format: date-time }
+        triageOverriddenByName:
+          type: [string, "null"]
+          description: Name, or email when there is no name, of the member who overrode triage.
 
     FindingNote:
       type: object
@@ -2178,10 +2199,13 @@ components:
 
     FindingResolutionResult:
       type: object
-      required: [findingId, resolutionStatus]
+      required: [findingId, resolutionStatus, triageStatus]
       properties:
         findingId: { type: string }
         resolutionStatus: { $ref: "#/components/schemas/ResolutionStatus" }
+        triageStatus:
+          $ref: "#/components/schemas/TriageStatus"
+          description: The triage status after the change. It moves when the change reopens a finding triage dismissed, or restores that verdict.
 
     ResolutionReason:
       type: string

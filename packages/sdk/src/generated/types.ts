@@ -503,6 +503,8 @@ export interface paths {
         /**
          * Change a finding's resolution status
          * @description Requires scope: `findings:write`.
+         *
+         *     On a finding triage dismissed (`triageStatus` `FALSE_POSITIVE`), any status other than `FALSE_POSITIVE` or `DUPLICATE` reopens it: its `triageStatus` becomes `CONFIRMED` and the override fields record who did it. `NOT_STARTED` reopens it even when that is already its resolution. Setting `FALSE_POSITIVE` on a reopened finding restores the triage verdict and clears the override.
          */
         patch: operations["updateFindingResolution"];
         trace?: never;
@@ -813,6 +815,14 @@ export interface components {
             confirmationEvidence?: "POC" | "ANALYSIS" | null;
             resolutionStatus: components["schemas"]["ResolutionStatus"];
             notesCount: number;
+            /** @description Why triage dismissed the finding as a false positive. Null when triage did not dismiss it or gave no reason. */
+            dismissalReason: string | null;
+            /** @description The triage verdict a member replaced, kept from the first override. Null when nobody overrode triage. */
+            triageOverriddenFrom: components["schemas"]["TriageStatus"] | null;
+            /** Format: date-time */
+            triageOverriddenAt: string | null;
+            /** @description Name, or email when there is no name, of the member who overrode triage. */
+            triageOverriddenByName: string | null;
         };
         FindingNote: {
             id: string;
@@ -1179,6 +1189,8 @@ export interface components {
         FindingResolutionResult: {
             findingId: string;
             resolutionStatus: components["schemas"]["ResolutionStatus"];
+            /** @description The triage status after the change. It moves when the change reopens a finding triage dismissed, or restores that verdict. */
+            triageStatus: components["schemas"]["TriageStatus"];
         };
         /**
          * @description Short code for why a finding is being closed, chosen from the set offered for the `resolutionStatus` it is sent with; a code belonging to a different status is rejected with 400. Ignored for the open statuses (`NOT_STARTED`, `IN_PROGRESS`) and when `note` is also given. It is not stored as a field: it is recorded as a comment on the finding stating what was chosen, which is returned by the notes endpoints.
