@@ -1025,6 +1025,8 @@ export interface components {
             backlogRecheck?: {
                 /** @description Also include In progress findings. Defaults to false. */
                 includeInProgress?: boolean;
+                /** @description Restrict the recheck to these findings. Eligibility is still checked against the selected repository and branch. Omit to include all eligible findings. Cannot be combined with resumeScanId. */
+                findingIds?: string[];
                 /** @description Continue a finished recheck's unassessed findings on the same repository. Uses that scan's branch, commit, and status selection. */
                 resumeScanId?: string;
             };

@@ -1895,6 +1895,11 @@ components:
         backlogRecheck:
           type: object
           additionalProperties: false
+          not:
+            required: [findingIds, resumeScanId]
+            properties:
+              findingIds: {}
+              resumeScanId: {}
           description: >-
             Options for Recheck open findings. Omit to reassess eligible Not
             started findings on the selected branch. Fresh rechecks require
@@ -1903,6 +1908,17 @@ components:
             includeInProgress:
               type: boolean
               description: Also include In progress findings. Defaults to false.
+            findingIds:
+              type: array
+              minItems: 1
+              maxItems: 500
+              items:
+                type: string
+                minLength: 1
+              description: >-
+                Restrict the recheck to these findings. Eligibility is still
+                checked against the selected repository and branch. Omit to
+                include all eligible findings. Cannot be combined with resumeScanId.
             resumeScanId:
               type: string
               minLength: 1
