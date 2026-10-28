@@ -504,7 +504,7 @@ export interface paths {
          * Change a finding's resolution status
          * @description Requires scope: `findings:write`.
          *
-         *     On a finding triage dismissed (`triageStatus` `FALSE_POSITIVE`), any status other than `FALSE_POSITIVE` or `DUPLICATE` reopens it: its `triageStatus` becomes `CONFIRMED` and the override fields record who did it. `NOT_STARTED` reopens it even when that is already its resolution. Setting `FALSE_POSITIVE` on a reopened finding restores the triage verdict and clears the override.
+         *     On a finding triage dismissed (`triageStatus` `FALSE_POSITIVE`), any status other than `FALSE_POSITIVE` or `DUPLICATE` reopens it: its `triageStatus` becomes `CONFIRMED` and the override fields record who did it. `NOT_STARTED` reopens it even when that is already its resolution. Setting `FALSE_POSITIVE` on a reopened finding undoes the reopen: the triage verdict comes back, the override is cleared, and the resolution returns to `NOT_STARTED`. The response carries the stored statuses.
          */
         patch: operations["updateFindingResolution"];
         trace?: never;
@@ -1021,6 +1021,13 @@ export interface components {
             commitMessage?: string | null;
             /** @description What a diff scan's change is measured from: a commit SHA, branch, or tag. Required by a diff scan preset and refused by every other. The scan records the merge base of this and the scanned commit. */
             baseCommit?: string | null;
+            /** @description Options for Recheck open findings. Omit to reassess eligible Not started findings on the selected branch. Fresh rechecks require the branch's latest commit and reject a pinned commit or audit scope. */
+            backlogRecheck?: {
+                /** @description Also include In progress findings. Defaults to false. */
+                includeInProgress?: boolean;
+                /** @description Continue a finished recheck's unassessed findings on the same repository. Uses that scan's branch, commit, and status selection. */
+                resumeScanId?: string;
+            };
             /** @description Where this launch came from, shown on the scan page. Optional, and display only: nothing in the pipeline reads it. */
             trigger?: components["schemas"]["ScanTrigger"] | null;
             /** @description Area keys from /audit-areas to scope this scan to. Omit or send an empty array to scan the whole repository. A key the repository's current map no longer names fails the launch rather than being dropped, so a scan budgeted for one subsystem never silently runs against everything. */
@@ -1189,7 +1196,7 @@ export interface components {
         FindingResolutionResult: {
             findingId: string;
             resolutionStatus: components["schemas"]["ResolutionStatus"];
-            /** @description The triage status after the change. It moves when the change reopens a finding triage dismissed, or restores that verdict. */
+            /** @description The triage status after the change. It moves when the change reopens a finding triage dismissed, or undoes that reopen. */
             triageStatus: components["schemas"]["TriageStatus"];
         };
         /**

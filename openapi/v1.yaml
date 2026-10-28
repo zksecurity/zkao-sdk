@@ -1003,8 +1003,10 @@ paths:
         status other than `FALSE_POSITIVE` or `DUPLICATE` reopens it: its
         `triageStatus` becomes `CONFIRMED` and the override fields record who
         did it. `NOT_STARTED` reopens it even when that is already its
-        resolution. Setting `FALSE_POSITIVE` on a reopened finding restores the
-        triage verdict and clears the override.
+        resolution. Setting `FALSE_POSITIVE` on a reopened finding undoes the
+        reopen: the triage verdict comes back, the override is cleared, and the
+        resolution returns to `NOT_STARTED`. The response carries the stored
+        statuses.
       parameters:
         - $ref: "#/components/parameters/ProjectId"
         - $ref: "#/components/parameters/FindingId"
@@ -1890,6 +1892,23 @@ components:
             What a diff scan's change is measured from: a commit SHA, branch, or
             tag. Required by a diff scan preset and refused by every other. The
             scan records the merge base of this and the scanned commit.
+        backlogRecheck:
+          type: object
+          additionalProperties: false
+          description: >-
+            Options for Recheck open findings. Omit to reassess eligible Not
+            started findings on the selected branch. Fresh rechecks require
+            the branch's latest commit and reject a pinned commit or audit scope.
+          properties:
+            includeInProgress:
+              type: boolean
+              description: Also include In progress findings. Defaults to false.
+            resumeScanId:
+              type: string
+              minLength: 1
+              description: >-
+                Continue a finished recheck's unassessed findings on the same
+                repository. Uses that scan's branch, commit, and status selection.
         trigger:
           oneOf:
             - $ref: "#/components/schemas/ScanTrigger"
@@ -2205,7 +2224,7 @@ components:
         resolutionStatus: { $ref: "#/components/schemas/ResolutionStatus" }
         triageStatus:
           $ref: "#/components/schemas/TriageStatus"
-          description: The triage status after the change. It moves when the change reopens a finding triage dismissed, or restores that verdict.
+          description: The triage status after the change. It moves when the change reopens a finding triage dismissed, or undoes that reopen.
 
     ResolutionReason:
       type: string
