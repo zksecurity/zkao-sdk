@@ -41,6 +41,8 @@ export type UsageEventType = Schemas["UsageEventType"];
 export type BillingSummary = Schemas["BillingSummary"];
 export type InvestigateReportResult = Schemas["InvestigateReportResult"];
 export type Report = Schemas["Report"];
+export type SubmitReportRequest = Schemas["SubmitReportRequest"];
+export type SubmitReportResult = Schemas["SubmitReportResult"];
 /** The triage statuses a report moves through. */
 export type ReportStatus =
   | "NEW"
@@ -728,6 +730,34 @@ export class ZkaoClient {
   }
 
   // --- Incoming reports ---------------------------------------------------
+
+  /**
+   * File a vulnerability report against one of the programme's repositories.
+   *
+   * Requires the `reports:write` scope. Send prose: this is read and split
+   * into claims for you, so write it for a reader rather than as fields.
+   *
+   * Comes back with `intakeState: "PENDING"`, because the reading is queued.
+   * {@link investigateReport} refuses the report until that reaches
+   * `COMPLETE`, so poll {@link listReports} before asking for one.
+   *
+   * Idempotent on content: the same title and body against the same
+   * repository name the same report, so a retry after a timeout returns the
+   * original rather than filing a second copy.
+   */
+  async submitReport(
+    repositoryId: string,
+    report: SubmitReportRequest
+  ): Promise<SubmitReportResult> {
+    const res = await this.http.POST(
+      "/projects/{projectId}/repositories/{repositoryId}/reports",
+      {
+        params: { path: { ...this.path, repositoryId } },
+        body: report,
+      }
+    );
+    return unwrap(res);
+  }
 
   /**
    * Reports the programme has received, newest first.

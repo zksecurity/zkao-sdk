@@ -24,6 +24,7 @@ info:
       - `contacts:read` — read the advisory contact list
       - `contacts:write` — add an advisory contact
       - `automations:write` — turn scheduled scans on or off and set their budgets
+      - `reports:write` — submit a vulnerability report to the programme
 
     `GET /token` tells a token which project, and which organization, it
     belongs to.
@@ -262,13 +263,13 @@ paths:
     get:
       tags: [Repositories]
       operationId: getContinuousTesting
-      summary: Get a repository's Continuous Testing schedule
+      summary: Get a repository's Continuous Security schedule
       description: >-
-        Requires scope: `read`. Continuous Testing scans one branch on a
+        Requires scope: `read`. Continuous Security scans one branch on a
         schedule paid from a monthly budget. With no schedule on the branch,
         `enabled` is false and the schedule fields are null. The recommended
-        monthly budget funds a run about every three days at the repository's recommended
-        per-run budget; the minimum funds a run every week at it.
+        monthly budget supports ongoing analysis. The minimum funds one useful analysis
+        step. Scheduling adapts to the available allocation.
       parameters:
         - $ref: "#/components/parameters/ProjectId"
         - $ref: "#/components/parameters/RepositoryId"
@@ -286,7 +287,7 @@ paths:
     put:
       tags: [Repositories]
       operationId: setContinuousTesting
-      summary: Turn Continuous Testing on, change it, or pause it
+      summary: Turn Continuous Security on, change it, or pause it
       description: >-
         Requires scope: `automations:write`. Every field is optional. With no
         schedule on the branch, the request creates one at the recommended
@@ -320,7 +321,7 @@ paths:
     delete:
       tags: [Repositories]
       operationId: removeContinuousTesting
-      summary: Remove a repository's Continuous Testing schedule
+      summary: Remove a repository's Continuous Security schedule
       description: >-
         Requires scope: `automations:write`. Scans the schedule already ran
         stay. Responds `404` when the branch has no schedule.
@@ -338,6 +339,56 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+
+  /projects/{projectId}/repositories/{repositoryId}/reports:
+    post:
+      tags: [Reports]
+      operationId: submitReport
+      summary: File a vulnerability report against a repository
+      description: >-
+        Requires scope: `reports:write`. Files a report into the programme that
+        takes reports for this repository, as prose. It arrives exactly as a
+        GitHub private vulnerability report does and is read and split into
+        claims by the same step, so nothing downstream distinguishes them.
+
+
+        Returns with `intakeState: PENDING`. `investigateReport` refuses a
+        report until that reaches `COMPLETE`, so poll
+        `/projects/{projectId}/reports` before asking for an investigation.
+
+
+        Idempotent on content: the same title and body against the same
+        repository name the same report, so a retried call returns the
+        original with `200` rather than filing a second copy.
+
+
+        Free. The reading that follows is charged to the project, and the
+        investigation is charged when someone asks for it.
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/RepositoryId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SubmitReportRequest" }
+      responses:
+        "201":
+          description: Filed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SubmitReportResult" }
+        "200":
+          description: Already filed, by an identical earlier call
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SubmitReportResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "429": { $ref: "#/components/responses/RateLimited" }
 
   /projects/{projectId}/scans:
     get:
@@ -995,7 +1046,18 @@ paths:
       tags: [Findings]
       operationId: updateFindingResolution
       summary: Change a finding's resolution status
-      description: "Requires scope: `findings:write`."
+      description: >
+        Requires scope: `findings:write`.
+
+
+        On a finding triage dismissed (`triageStatus` `FALSE_POSITIVE`), any
+        status other than `FALSE_POSITIVE` or `DUPLICATE` reopens it: its
+        `triageStatus` becomes `CONFIRMED` and the override fields record who
+        did it. `NOT_STARTED` reopens it even when that is already its
+        resolution. Setting `FALSE_POSITIVE` on a reopened finding undoes the
+        reopen: the triage verdict comes back, the override is cleared, and the
+        resolution returns to `NOT_STARTED`. The response carries the stored
+        statuses.
       parameters:
         - $ref: "#/components/parameters/ProjectId"
         - $ref: "#/components/parameters/FindingId"
@@ -1533,7 +1595,7 @@ components:
 
     Finding:
       type: object
-      required: [id, displayId, title, location, severity, category, triageStatus, resolutionStatus, notesCount]
+      required: [id, displayId, title, location, severity, category, triageStatus, resolutionStatus, notesCount, dismissalReason, triageOverriddenFrom, triageOverriddenAt, triageOverriddenByName]
       properties:
         id: { type: string }
         displayId: { type: integer }
@@ -1550,6 +1612,18 @@ components:
           description: What backs a CONFIRMED verdict. POC means a proof of concept ran and demonstrated the issue. ANALYSIS means it was confirmed by code analysis alone. Null for other statuses or when not recorded.
         resolutionStatus: { $ref: "#/components/schemas/ResolutionStatus" }
         notesCount: { type: integer }
+        dismissalReason:
+          type: [string, "null"]
+          description: Why triage dismissed the finding as a false positive. Null when triage did not dismiss it or gave no reason.
+        triageOverriddenFrom:
+          description: The triage verdict a member replaced, kept from the first override. Null when nobody overrode triage.
+          oneOf:
+            - { $ref: "#/components/schemas/TriageStatus" }
+            - { type: "null" }
+        triageOverriddenAt: { type: [string, "null"], format: date-time }
+        triageOverriddenByName:
+          type: [string, "null"]
+          description: Name, or email when there is no name, of the member who overrode triage.
 
     FindingNote:
       type: object
@@ -1869,6 +1943,39 @@ components:
             What a diff scan's change is measured from: a commit SHA, branch, or
             tag. Required by a diff scan preset and refused by every other. The
             scan records the merge base of this and the scanned commit.
+        backlogRecheck:
+          type: object
+          additionalProperties: false
+          not:
+            required: [findingIds, resumeScanId]
+            properties:
+              findingIds: {}
+              resumeScanId: {}
+          description: >-
+            Options for Recheck open findings. Omit to reassess eligible Not
+            started findings on the selected branch. Fresh rechecks require
+            the branch's latest commit and reject a pinned commit or audit scope.
+          properties:
+            includeInProgress:
+              type: boolean
+              description: Also include In progress findings. Defaults to false.
+            findingIds:
+              type: array
+              minItems: 1
+              maxItems: 500
+              items:
+                type: string
+                minLength: 1
+              description: >-
+                Restrict the recheck to these findings. Eligibility is still
+                checked against the selected repository and branch. Omit to
+                include all eligible findings. Cannot be combined with resumeScanId.
+            resumeScanId:
+              type: string
+              minLength: 1
+              description: >-
+                Continue a finished recheck's unassessed findings on the same
+                repository. Uses that scan's branch, commit, and status selection.
         trigger:
           oneOf:
             - $ref: "#/components/schemas/ScanTrigger"
@@ -2035,7 +2142,7 @@ components:
         repositoryId: { type: string }
         available:
           type: boolean
-          description: False when Continuous Testing is not offered.
+          description: False when Continuous Security is not offered.
         enabled:
           type: boolean
           description: False when there is no schedule or it is paused.
@@ -2082,10 +2189,10 @@ components:
             Null when paused or stopped.
         recommendedMonthlyCredits:
           type: [integer, "null"]
-          description: A month that funds a run about every three days at the recommended per-run budget.
+          description: A suggested allocation for ongoing work, based on the repository's estimated analysis budget.
         minimumMonthlyCredits:
           type: [integer, "null"]
-          description: A month that funds a weekly run at that budget. Less is refused.
+          description: The smallest month that funds one analysis step. Less is refused.
         maximumMonthlyCredits:
           type: [integer, "null"]
           description: The largest monthly budget currently allowed for the repository. Administrators can raise it.
@@ -2144,6 +2251,52 @@ components:
             Claims queued for triage, or null when an investigation was already
             running and this call started nothing.
 
+    SubmitReportRequest:
+      type: object
+      required: [title, body]
+      properties:
+        title:
+          type: string
+          maxLength: 500
+          description: One line naming the flaw.
+        body:
+          type: string
+          maxLength: 80000
+          description: >-
+            What the flaw is, how to reach it, and what it costs. Prose: this
+            is read and split into claims, so write it for a reader rather
+            than as fields. Anything past the limit would be stored and never
+            read.
+        claimedSeverity:
+          type: [string, "null"]
+          enum: [CRITICAL, HIGH, MEDIUM, LOW, INFO, null]
+          description: >-
+            What the reporter claims, which is not an assessment. It decides
+            how closely the report is read, so an inflated claim costs the
+            programme more.
+        reporter:
+          type: object
+          description: >-
+            Who found it, all self-asserted. Used for attribution on the
+            advisory, never for authorization.
+          properties:
+            name: { type: [string, "null"] }
+            email: { type: [string, "null"] }
+            githubLogin: { type: [string, "null"] }
+
+    SubmitReportResult:
+      type: object
+      required: [publicId, intakeState]
+      properties:
+        publicId:
+          type: string
+          description: The identifier `investigateReport` takes.
+        intakeState:
+          type: string
+          description: >-
+            Always PENDING here. The report is queued to be read and split
+            into claims, and an investigation waits for COMPLETE.
+
     ChangeNote:
       type: object
       description: Optionally attach or reuse a note alongside a resolution change.
@@ -2178,10 +2331,13 @@ components:
 
     FindingResolutionResult:
       type: object
-      required: [findingId, resolutionStatus]
+      required: [findingId, resolutionStatus, triageStatus]
       properties:
         findingId: { type: string }
         resolutionStatus: { $ref: "#/components/schemas/ResolutionStatus" }
+        triageStatus:
+          $ref: "#/components/schemas/TriageStatus"
+          description: The triage status after the change. It moves when the change reopens a finding triage dismissed, or undoes that reopen.
 
     ResolutionReason:
       type: string
