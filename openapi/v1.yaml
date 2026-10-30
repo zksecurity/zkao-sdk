@@ -380,8 +380,9 @@ paths:
         `diff_base_required`, `diff_base_not_allowed`, or `diff_base_invalid`.
         A diff scan also needs a change to audit (otherwise `422`).
 
-        A Rapid Review (the `builtin:Quick Look` preset) reads one audit area
-        or an `auditScope`. It reads the whole repository only while the
+        A Rapid Review (the `builtin:Rapid Review` preset, formerly
+        `builtin:Quick Look`, which still resolves) reads one audit area or an
+        `auditScope`. It reads the whole repository only while the
         repository has no audit areas. On a repository with areas, a Rapid
         Review launch with neither is a `400` whose message lists the areas.
         Naming several areas is a `400` too.

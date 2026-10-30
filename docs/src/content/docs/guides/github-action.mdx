@@ -41,7 +41,7 @@ jobs:
           project: ${{ vars.ZKAO_PROJECT_ID }}
 ```
 
-This launches a quick look of each push and moves on. The results are on zkao when the scan finishes.
+This launches a Rapid Review of each push and moves on. The results are on zkao when the scan finishes.
 
 <Aside type="tip">
 `@v1` follows every `v1.x` release. To pin an exact version, use a full commit SHA instead.
@@ -138,7 +138,7 @@ jobs:
 | Comment | What happens |
 | --- | --- |
 | `/zkao scan` | Audits the pull request's change, with the kind the workflow configures. |
-| `/zkao scan deep-audit` | Audits it as `diff`, `quick-look` or `deep-audit` instead. |
+| `/zkao scan deep-audit` | Audits it as `diff`, `rapid-review` or `deep-audit` instead. |
 | `/zkao help` | Posts the usage. No scan. |
 | `/zkao` | Posts the usage, rather than scanning. |
 
@@ -168,7 +168,7 @@ Change the handle with the `mention` input.
 
 | `scan` | Runs |
 | --- | --- |
-| `quick-look` (default) | The core techniques in one cheap pass. |
+| `rapid-review` (default) | The core techniques in one cheap pass. `quick-look` still works. |
 | `deep-audit` | The full methodology over the whole repository. |
 | `diff` | Only the change since `base`. |
 | a preset ref | That preset, such as `builtin:Deep Audit` or a custom one. List refs with `zkao presets`. |
@@ -181,7 +181,7 @@ Change the handle with the `mention` input.
 | `project` | required | The zkao project id. |
 | `budget` | recommended | Credit budget for the scan. Defaults to what zkao recommends for this scan type on this repository. |
 | `mode` | `launch` | `launch`, `wait`, or `gate`. |
-| `scan` | `quick-look` | `quick-look`, `deep-audit`, `diff`, or a preset ref. |
+| `scan` | `rapid-review` | `rapid-review`, `deep-audit`, `diff`, or a preset ref. |
 | `base` | see above | For `scan: diff`, the commit the change is measured from. |
 | `fail-on` | `high` | For `mode: gate`, the severity that fails the job: `critical`, `high`, `medium`, `low`, or `info`. |
 | `repository` | matched by name | The zkao repository id. By default, the project repository whose owner and name match this GitHub repository. |
