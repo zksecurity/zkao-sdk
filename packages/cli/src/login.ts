@@ -64,6 +64,8 @@ export type LoginFlags = {
   wait?: boolean;
   /** Scopes to request; the approval page pre-ticks them. */
   scopes?: string[];
+  /** Ask the approver to create and select a new project. */
+  createProject?: boolean;
 };
 
 /** What launching, triaging, and editing guidance need. The approver can change it. */
@@ -196,7 +198,7 @@ export async function login(flags: LoginFlags): Promise<void> {
 
   // Preselects the project on the approval page. Only an explicit choice:
   // the saved active project is likely the one the user wants to move off.
-  const project = flags.project ?? process.env.ZKAO_PROJECT_ID;
+  const project = flags.createProject ? undefined : flags.project ?? process.env.ZKAO_PROJECT_ID;
   const start = await postJson<StartResponse>(`${origin}/api/auth/device`, {
     label: hostname(),
     scopes: flags.scopes ?? DEFAULT_LOGIN_SCOPES,
@@ -204,6 +206,9 @@ export async function login(flags: LoginFlags): Promise<void> {
   });
 
   printInstructions(start);
+  if (flags.createProject) {
+    console.log("In the browser, create a project, return to this request, select it, and approve.\n");
+  }
   if (!flags.noBrowser) {
     openBrowser(start.verificationUriComplete);
   }

@@ -3,6 +3,15 @@ export {
   resolveBaseUrlFromEnv,
 } from "./base-url";
 export {
+  startDeviceAuthorization,
+  pollDeviceAuthorization,
+  type DeviceAuthorizationOptions,
+  type DeviceAuthorizationRequest,
+  type DeviceAuthorizationStart,
+  type DeviceAuthorizationToken,
+  type DeviceAuthorizationPoll,
+} from "./device-auth";
+export {
   ZkaoClient,
   ZkaoApiError,
   getTokenInfo,
