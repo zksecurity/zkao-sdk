@@ -120,18 +120,18 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get a repository's Continuous Testing schedule
-         * @description Requires scope: `read`. Continuous Testing scans one branch on a schedule paid from a monthly budget. With no schedule on the branch, `enabled` is false and the schedule fields are null. The recommended monthly budget funds a run about every three days at the repository's recommended per-run budget; the minimum funds a run every week at it.
+         * Get a repository's Continuous Security schedule
+         * @description Requires scope: `read`. Continuous Security scans one branch on a schedule paid from a monthly budget. With no schedule on the branch, `enabled` is false and the schedule fields are null. The recommended monthly budget supports ongoing analysis. The minimum funds one useful analysis step. Scheduling adapts to the available allocation.
          */
         get: operations["getContinuousTesting"];
         /**
-         * Turn Continuous Testing on, change it, or pause it
+         * Turn Continuous Security on, change it, or pause it
          * @description Requires scope: `automations:write`. Every field is optional. With no schedule on the branch, the request creates one at the recommended monthly budget unless `monthlyBudgetCredits` is given; `enabled: false` then changes nothing. The budget sets the interval smoothly from once a week to twice a day. The recommended budget funds a run about every three days. A budget outside the returned minimum and maximum is refused with `400`. Administrators can raise the maximum monthly budget. `areaKeys` replaces the audit areas runs rotate through, one per run. `enabled: false` pauses the schedule and keeps it. A change re-arms a schedule that had stopped. Each run still needs spendable credits when it launches.
          */
         put: operations["setContinuousTesting"];
         post?: never;
         /**
-         * Remove a repository's Continuous Testing schedule
+         * Remove a repository's Continuous Security schedule
          * @description Requires scope: `automations:write`. Scans the schedule already ran stay. Responds `404` when the branch has no schedule.
          */
         delete: operations["removeContinuousTesting"];
@@ -503,6 +503,8 @@ export interface paths {
         /**
          * Change a finding's resolution status
          * @description Requires scope: `findings:write`.
+         *
+         *     On a finding triage dismissed (`triageStatus` `FALSE_POSITIVE`), any status other than `FALSE_POSITIVE` or `DUPLICATE` reopens it: its `triageStatus` becomes `CONFIRMED` and the override fields record who did it. `NOT_STARTED` reopens it even when that is already its resolution. Setting `FALSE_POSITIVE` on a reopened finding undoes the reopen: the triage verdict comes back, the override is cleared, and the resolution returns to `NOT_STARTED`. The response carries the stored statuses.
          */
         patch: operations["updateFindingResolution"];
         trace?: never;
@@ -813,6 +815,14 @@ export interface components {
             confirmationEvidence?: "POC" | "ANALYSIS" | null;
             resolutionStatus: components["schemas"]["ResolutionStatus"];
             notesCount: number;
+            /** @description Why triage dismissed the finding as a false positive. Null when triage did not dismiss it or gave no reason. */
+            dismissalReason: string | null;
+            /** @description The triage verdict a member replaced, kept from the first override. Null when nobody overrode triage. */
+            triageOverriddenFrom: components["schemas"]["TriageStatus"] | null;
+            /** Format: date-time */
+            triageOverriddenAt: string | null;
+            /** @description Name, or email when there is no name, of the member who overrode triage. */
+            triageOverriddenByName: string | null;
         };
         FindingNote: {
             id: string;
@@ -1011,6 +1021,15 @@ export interface components {
             commitMessage?: string | null;
             /** @description What a diff scan's change is measured from: a commit SHA, branch, or tag. Required by a diff scan preset and refused by every other. The scan records the merge base of this and the scanned commit. */
             baseCommit?: string | null;
+            /** @description Options for Recheck open findings. Omit to reassess eligible Not started findings on the selected branch. Fresh rechecks require the branch's latest commit and reject a pinned commit or audit scope. */
+            backlogRecheck?: {
+                /** @description Also include In progress findings. Defaults to false. */
+                includeInProgress?: boolean;
+                /** @description Restrict the recheck to these findings. Eligibility is still checked against the selected repository and branch. Omit to include all eligible findings. Cannot be combined with resumeScanId. */
+                findingIds?: string[];
+                /** @description Continue a finished recheck's unassessed findings on the same repository. Uses that scan's branch, commit, and status selection. */
+                resumeScanId?: string;
+            };
             /** @description Where this launch came from, shown on the scan page. Optional, and display only: nothing in the pipeline reads it. */
             trigger?: components["schemas"]["ScanTrigger"] | null;
             /** @description Area keys from /audit-areas to scope this scan to. Omit or send an empty array to scan the whole repository. A key the repository's current map no longer names fails the launch rather than being dropped, so a scan budgeted for one subsystem never silently runs against everything. */
@@ -1087,7 +1106,7 @@ export interface components {
         };
         ContinuousTesting: {
             repositoryId: string;
-            /** @description False when Continuous Testing is not offered. */
+            /** @description False when Continuous Security is not offered. */
             available: boolean;
             /** @description False when there is no schedule or it is paused. */
             enabled: boolean;
@@ -1120,9 +1139,9 @@ export interface components {
              * @description When the next run becomes due. A past time means within the hour. Null when paused or stopped.
              */
             nextRunAt: string | null;
-            /** @description A month that funds a run about every three days at the recommended per-run budget. */
+            /** @description A suggested allocation for ongoing work, based on the repository's estimated analysis budget. */
             recommendedMonthlyCredits: number | null;
-            /** @description A month that funds a weekly run at that budget. Less is refused. */
+            /** @description The smallest month that funds one analysis step. Less is refused. */
             minimumMonthlyCredits: number | null;
             /** @description The largest monthly budget currently allowed for the repository. Administrators can raise it. */
             maximumMonthlyCredits: number | null;
@@ -1179,6 +1198,8 @@ export interface components {
         FindingResolutionResult: {
             findingId: string;
             resolutionStatus: components["schemas"]["ResolutionStatus"];
+            /** @description The triage status after the change. It moves when the change reopens a finding triage dismissed, or undoes that reopen. */
+            triageStatus: components["schemas"]["TriageStatus"];
         };
         /**
          * @description Short code for why a finding is being closed, chosen from the set offered for the `resolutionStatus` it is sent with; a code belonging to a different status is rejected with 400. Ignored for the open statuses (`NOT_STARTED`, `IN_PROGRESS`) and when `note` is also given. It is not stored as a field: it is recorded as a comment on the finding stating what was chosen, which is returned by the notes endpoints.
