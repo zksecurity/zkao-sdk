@@ -103,6 +103,12 @@ curl -H "Authorization: Bearer $ZKAO_API_TOKEN" \
 </TabItem>
 </Tabs>
 
+The builtin presets come in two tiers.
+Flash runs fewer techniques on a flash model.
+Max runs every technique on flagship models.
+Each tier has a preset for the code (`builtin:Flash`, `builtin:Max`), a change (`builtin:Flash Diff`, `builtin:Max Diff`), open findings (`builtin:Flash Retriage`, `builtin:Max Retriage`), and resolved findings (`builtin:Flash Regression Check`, `builtin:Max Regression Check`).
+Earlier names still resolve.
+
 Each preset has a `ref`, a `name`, a `description`, and a `minCredits` floor.
 Pass the `ref` when you launch.
 Without one, the launch uses the first active preset.
@@ -117,6 +123,7 @@ You can leave the budget out.
 zkao then picks the budget it recommends for this scan type and scope on this repository.
 The recommendation follows what past scans of the repository spent.
 The first scan of a repository starts at the scan type's minimum.
+A diff scan is sized from its change instead, up to three times the minimum.
 The launch response tells you which budget was used.
 
 A scan that runs short of budget stops early, so treat its coverage as partial.
@@ -174,7 +181,7 @@ Scoping a scan to a few areas keeps a large repository affordable.
 <TabItem label="CLI">
 ```bash
 zkao areas list <repoId>
-zkao scans launch --repo <repoId> --preset "builtin:Deep Audit" --area <key> --area <otherKey>
+zkao scans launch --repo <repoId> --preset "builtin:Max" --area <key> --area <otherKey>
 ```
 </TabItem>
 <TabItem label="TypeScript">
@@ -182,7 +189,7 @@ zkao scans launch --repo <repoId> --preset "builtin:Deep Audit" --area <key> --a
 const { areas } = await zkao.listAuditAreas(repoId);
 await zkao.launchScan({
   repositoryId: repoId,
-  presetRef: "builtin:Deep Audit",
+  presetRef: "builtin:Max",
   auditAreaKeys: [areas[0].key],
 });
 ```
@@ -202,10 +209,6 @@ Leave the area list out to scan the whole repository.
 Or describe the code to audit in your own words with `--scope` (or `auditScope`).
 A key the current map no longer names fails the launch.
 zkao never drops it silently, so a budget sized for one area never runs against everything.
-
-A Rapid Review (`builtin:Rapid Review`) reads one area or a written scope.
-It reads the whole repository only while the repository has no areas.
-Otherwise a launch with neither, or with several areas, fails with a `400` that lists the areas.
 
 An area is a name and a description, never a file list.
 Each scan resolves it against the code at its own commit.

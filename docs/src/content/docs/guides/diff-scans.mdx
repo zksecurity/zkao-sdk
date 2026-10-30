@@ -24,7 +24,7 @@ So a base branch that moved on since you branched off does not pull its new comm
 <Steps>
 
 1. Push the head commit to GitHub. zkao reads both commits from there.
-2. Launch with the diff scan preset and a base.
+2. Launch with a diff preset and a base. `builtin:Flash Diff` is the cheap one. `builtin:Max Diff` runs every technique on flagship models.
 3. Wait for it, as for any scan. See [Run scans](/guides/scans/#follow-a-scan).
 
 </Steps>
@@ -32,7 +32,7 @@ So a base branch that moved on since you branched off does not pull its new comm
 <Tabs syncKey="client">
 <TabItem label="CLI">
 ```bash
-zkao scans launch --repo <repoId> --preset "builtin:Diff Scan" \
+zkao scans launch --repo <repoId> --preset "builtin:Flash Diff" \
   --base main --commit <headSha>
 zkao scans wait <scanId>
 ```
@@ -41,7 +41,7 @@ zkao scans wait <scanId>
 ```ts
 const { scanId } = await zkao.launchScan({
   repositoryId: repoId,
-  presetRef: "builtin:Diff Scan",
+  presetRef: "builtin:Flash Diff",
   baseCommit: "main",
   commitHash: headSha,
 });
@@ -52,7 +52,7 @@ const scan = await zkao.waitForScan(scanId);
 ```bash
 curl -X POST -H "Authorization: Bearer $ZKAO_API_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"repositoryId":"<repoId>","presetRef":"builtin:Diff Scan","baseCommit":"main","commitHash":"<headSha>"}' \
+  -d '{"repositoryId":"<repoId>","presetRef":"builtin:Flash Diff","baseCommit":"main","commitHash":"<headSha>"}' \
   https://zkao.io/api/v1/projects/$ZKAO_PROJECT_ID/scans
 ```
 </TabItem>
@@ -61,7 +61,8 @@ curl -X POST -H "Authorization: Bearer $ZKAO_API_TOKEN" \
 Confirm the preset ref with `zkao presets`.
 The budget works as for any scan.
 Leave it out to use the recommended budget.
-You can also scope a diff scan to audit areas or give it per-scan guidance.
+It is sized from the change, up to three times the preset's minimum.
+You can also give a diff scan per-scan guidance.
 
 ## Diff scan errors
 
@@ -83,7 +84,7 @@ That one is transient, so retry it later.
 Diff scans fit pull requests.
 Use the pull request's base branch as the base and its head commit as the head.
 
-The [zkao GitHub Action](/guides/github-action/) does this for you with `scan: diff`.
+The [zkao GitHub Action](/guides/github-action/) does this for you with `scan: flash` or `scan: max`.
 It picks the pull request's base, or the commit before a push.
 It can also fail the job when the scan finds issues above a severity.
 

@@ -129,8 +129,6 @@ zkao billing summary [--months <n>]               # credits spent/purchased per 
 `zkao scans launch` also takes `--guidance <file|->` to set per-scan guidance,
 `--area <key>` (repeatable) to scan only those areas instead of the whole
 repository, and `--scope <text>` to describe the code to scan in words.
-A Rapid Review of a repository that has audit areas reads one area or a
-written scope, never the whole repository.
 
 Every command prints JSON on stdout. `zkao <group> --help` lists subcommands.
 
@@ -203,7 +201,7 @@ cheap and fast. After a complicated task involving cryptography, ask the user
 whether they want a diff scan of the change.
 
 1. Push the head commit to GitHub. The scan reads it from there.
-2. `zkao scans launch --repo <id> --budget <credits> --preset "builtin:Diff Scan" --base <base> --commit <head sha>`.
+2. `zkao scans launch --repo <id> --budget <credits> --preset "builtin:Flash Diff" --base <base> --commit <head sha>`.
    The base is a commit or ref. The scan diffs from its merge base with the head.
 3. `zkao scans wait <scanId>`.
 

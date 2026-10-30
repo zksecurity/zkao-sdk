@@ -172,12 +172,15 @@ export interface paths {
          *     `diff_base_required`, `diff_base_not_allowed`, or `diff_base_invalid`.
          *     A diff scan also needs a change to audit (otherwise `422`).
          *
-         *     A Rapid Review (the `builtin:Rapid Review` preset, formerly
-         *     `builtin:Quick Look`, which still resolves) reads one audit area or an
-         *     `auditScope`. It reads the whole repository only while the
-         *     repository has no audit areas. On a repository with areas, a Rapid
-         *     Review launch with neither is a `400` whose message lists the areas.
-         *     Naming several areas is a `400` too.
+         *     The builtin presets come in two tiers. Flash runs fewer techniques on
+         *     a flash model. Max runs every technique on flagship models. Each tier
+         *     has a preset for the code (`builtin:Flash`, `builtin:Max`), a change
+         *     (`builtin:Flash Diff`, `builtin:Max Diff`), open findings
+         *     (`builtin:Flash Retriage`, `builtin:Max Retriage`) and resolved
+         *     findings (`builtin:Flash Regression Check`,
+         *     `builtin:Max Regression Check`). Earlier names, such as
+         *     `builtin:Rapid Review`, `builtin:Deep Audit` and `builtin:Diff Scan`,
+         *     still resolve.
          */
         post: operations["launchScan"];
         delete?: never;
@@ -1017,7 +1020,7 @@ export interface components {
         };
         LaunchScanRequest: {
             repositoryId: string;
-            /** @description Max budget for the scan, in credits. Reserved at launch. Omit it to launch at the budget zkao recommends for this scan type and scope on this repository. That is the last such scan's budget, or half again when that scan ran short of it, never above twice the scan type's minimum. A first scan starts at twice the minimum. */
+            /** @description Max budget for the scan, in credits. Reserved at launch. Omit it to launch at the budget zkao recommends for this scan type and scope on this repository. That is the last such scan's budget, or half again when that scan ran short of it, never above twice the scan type's minimum. A first scan starts at twice the minimum. A diff scan is sized from its change instead: the minimum for up to 500 changed lines, then in proportion, up to three times the minimum. */
             creditBudget?: number;
             /** @description A preset ref from /scan-presets. Defaults to the first active preset. */
             presetRef?: string;
@@ -1039,7 +1042,7 @@ export interface components {
             };
             /** @description Where this launch came from, shown on the scan page. Optional, and display only: nothing in the pipeline reads it. */
             trigger?: components["schemas"]["ScanTrigger"] | null;
-            /** @description Area keys from /audit-areas to scope this scan to. Omit or send an empty array to scan the whole repository. A Rapid Review takes exactly one key, unless it sends `auditScope`. A key the repository's current map no longer names fails the launch rather than being dropped, so a scan budgeted for one subsystem never silently runs against everything. */
+            /** @description Area keys from /audit-areas to scope this scan to. Omit or send an empty array to scan the whole repository. A key the repository's current map no longer names fails the launch rather than being dropped, so a scan budgeted for one subsystem never silently runs against everything. */
             auditAreaKeys?: string[];
             /** @description The code to audit, described in your own words, instead of `auditAreaKeys`. Send one or the other, not both. */
             auditScope?: string | null;
