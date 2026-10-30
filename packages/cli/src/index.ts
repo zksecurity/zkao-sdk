@@ -160,14 +160,14 @@ program
   .description("Ask an organization admin to create and authorize a project in the browser")
   .option("--no-browser", "print the URL instead of opening a browser")
   .option("--no-wait", "start the request and finish later with `zkao login --resume`")
-  .option("--scope <scopes...>", "scopes to request for the new project")
+  .option("--scope <scopes...>", "scopes to request for the new project (the approver can change them)")
   .action(async (opts: { browser?: boolean; wait?: boolean; scope?: string[] }) => {
     const g = program.opts<{ baseUrl?: string }>();
     await login({
       baseUrl: g.baseUrl,
       createProject: true,
       noBrowser: opts.browser === false,
-      scopes: opts.scope,
+      scopes: opts.scope ?? [...DEFAULT_LOGIN_SCOPES, "repositories:write"],
       wait: opts.wait !== false,
     });
   });
