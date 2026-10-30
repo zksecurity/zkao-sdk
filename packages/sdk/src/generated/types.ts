@@ -171,6 +171,12 @@ export interface paths {
          *     it. A malformed, unknown, or misplaced base is a `400` with code
          *     `diff_base_required`, `diff_base_not_allowed`, or `diff_base_invalid`.
          *     A diff scan also needs a change to audit (otherwise `422`).
+         *
+         *     A Rapid Review (the `builtin:Quick Look` preset) reads one audit area
+         *     or an `auditScope`. It reads the whole repository only while the
+         *     repository has no audit areas. On a repository with areas, a Rapid
+         *     Review launch with neither is a `400` whose message lists the areas.
+         *     Naming several areas is a `400` too.
          */
         post: operations["launchScan"];
         delete?: never;
@@ -1032,8 +1038,10 @@ export interface components {
             };
             /** @description Where this launch came from, shown on the scan page. Optional, and display only: nothing in the pipeline reads it. */
             trigger?: components["schemas"]["ScanTrigger"] | null;
-            /** @description Area keys from /audit-areas to scope this scan to. Omit or send an empty array to scan the whole repository. A key the repository's current map no longer names fails the launch rather than being dropped, so a scan budgeted for one subsystem never silently runs against everything. */
+            /** @description Area keys from /audit-areas to scope this scan to. Omit or send an empty array to scan the whole repository. A Rapid Review takes exactly one key, unless it sends `auditScope`. A key the repository's current map no longer names fails the launch rather than being dropped, so a scan budgeted for one subsystem never silently runs against everything. */
             auditAreaKeys?: string[];
+            /** @description The code to audit, described in your own words, instead of `auditAreaKeys`. Send one or the other, not both. */
+            auditScope?: string | null;
             /** @description Guidance for this scan only, replacing the repository's configured guidance layer (it is still layered over any committed zkao.md). Omit the field to inherit the repository's guidance; send null to scan with no guidance layer. */
             guidance?: string | null;
         };

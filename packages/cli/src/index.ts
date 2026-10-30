@@ -523,6 +523,10 @@ scans
     []
   )
   .option(
+    "--scope <text>",
+    "the code to audit, in your own words, instead of --area"
+  )
+  .option(
     "--trigger <kind>",
     "where this launch came from, shown on the scan page: github_action, pr_comment, agent or api"
   )
@@ -545,6 +549,7 @@ scans
       base?: string;
       message?: string;
       area: string[];
+      scope?: string;
       guidance?: string;
       trigger?: string;
       pullRequest?: number;
@@ -559,6 +564,7 @@ scans
         baseCommit: opts.base,
         commitMessage: opts.message ?? null,
         auditAreaKeys: opts.area.length > 0 ? opts.area : undefined,
+        auditScope: opts.scope,
         ...(opts.guidance !== undefined
           ? { guidance: readContentArg(opts.guidance) }
           : {}),
