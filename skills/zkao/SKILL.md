@@ -127,8 +127,10 @@ zkao billing summary [--months <n>]               # credits spent/purchased per 
 ```
 
 `zkao scans launch` also takes `--guidance <file|->` to set per-scan guidance,
-and `--area <key>` (repeatable) to scan only those areas instead of the whole
-repository.
+`--area <key>` (repeatable) to scan only those areas instead of the whole
+repository, and `--scope <text>` to describe the code to scan in words.
+A Rapid Review of a repository that has audit areas reads one area or a
+written scope, never the whole repository.
 
 Every command prints JSON on stdout. `zkao <group> --help` lists subcommands.
 
