@@ -262,6 +262,11 @@ program
   .action(() => run((c) => c.listRepositories()));
 
 program
+  .command("repos:add <url>")
+  .description("Add a public GitHub repository (requires repositories:write; may start initialization)")
+  .action((url: string) => run((c) => c.addRepository(url)));
+
+program
   .command("repos:wait <repositoryId>")
   .description("Wait until a repository is ready to scan")
   .option("--timeout <ms>", "give up after this long", toInt)

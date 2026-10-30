@@ -278,6 +278,15 @@ export class ZkaoClient {
     return unwrap(res).repositories;
   }
 
+  /** Add a public GitHub repository with `repositories:write`. May start initialization. */
+  async addRepository(repoUrl: string): Promise<Repository> {
+    const res = await this.http.POST("/projects/{projectId}/repositories", {
+      params: { path: this.path },
+      body: { repoUrl },
+    });
+    return unwrap(res).repository;
+  }
+
   /**
    * Block until a repository is ready to scan, then return it.
    *

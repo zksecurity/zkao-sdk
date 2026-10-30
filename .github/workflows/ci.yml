@@ -24,6 +24,7 @@ jobs:
       # the SDK's dist/, which doesn't exist on a fresh checkout.
       - run: bun run build
       - run: bun run typecheck
+      - run: bun test packages/sdk/test packages/cli/test
 
   docs:
     runs-on: ubuntu-latest
