@@ -151,7 +151,7 @@ export interface paths {
         put?: never;
         /**
          * File a vulnerability report against a repository
-         * @description Requires scope: `reports:write`. Files a report into the programme that takes reports for this repository, as prose. It arrives exactly as a GitHub private vulnerability report does and is read and split into claims by the same step, so nothing downstream distinguishes them.
+         * @description Requires scope: `reports:write`. Files a report into this project's security programme for an active repository belonging to the project. GitHub private-report intake setup and repository admin access are not required. The report arrives as prose and is read and split into claims by the same step as an imported GitHub report.
          *
          *     Returns with `intakeState: PENDING`. `investigateReport` refuses a report until that reaches `COMPLETE`, so poll `/projects/{projectId}/reports` before asking for an investigation.
          *
