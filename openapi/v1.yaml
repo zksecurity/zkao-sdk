@@ -24,6 +24,7 @@ info:
       - `contacts:read` — read the advisory contact list
       - `contacts:write` — add an advisory contact
       - `automations:write` — turn scheduled scans on or off and set their budgets
+      - `reports:write` — submit a vulnerability report to the programme
 
     `GET /token` tells a token which project, and which organization, it
     belongs to.
@@ -338,6 +339,56 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+
+  /projects/{projectId}/repositories/{repositoryId}/reports:
+    post:
+      tags: [Reports]
+      operationId: submitReport
+      summary: File a vulnerability report against a repository
+      description: >-
+        Requires scope: `reports:write`. Files a report into the programme that
+        takes reports for this repository, as prose. It arrives exactly as a
+        GitHub private vulnerability report does and is read and split into
+        claims by the same step, so nothing downstream distinguishes them.
+
+
+        Returns with `intakeState: PENDING`. `investigateReport` refuses a
+        report until that reaches `COMPLETE`, so poll
+        `/projects/{projectId}/reports` before asking for an investigation.
+
+
+        Idempotent on content: the same title and body against the same
+        repository name the same report, so a retried call returns the
+        original with `200` rather than filing a second copy.
+
+
+        Free. The reading that follows is charged to the project, and the
+        investigation is charged when someone asks for it.
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/RepositoryId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SubmitReportRequest" }
+      responses:
+        "201":
+          description: Filed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SubmitReportResult" }
+        "200":
+          description: Already filed, by an identical earlier call
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SubmitReportResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "429": { $ref: "#/components/responses/RateLimited" }
 
   /projects/{projectId}/scans:
     get:
@@ -2217,6 +2268,52 @@ components:
           description: >-
             Claims queued for triage, or null when an investigation was already
             running and this call started nothing.
+
+    SubmitReportRequest:
+      type: object
+      required: [title, body]
+      properties:
+        title:
+          type: string
+          maxLength: 500
+          description: One line naming the flaw.
+        body:
+          type: string
+          maxLength: 80000
+          description: >-
+            What the flaw is, how to reach it, and what it costs. Prose: this
+            is read and split into claims, so write it for a reader rather
+            than as fields. Anything past the limit would be stored and never
+            read.
+        claimedSeverity:
+          type: [string, "null"]
+          enum: [CRITICAL, HIGH, MEDIUM, LOW, INFO, null]
+          description: >-
+            What the reporter claims, which is not an assessment. It decides
+            how closely the report is read, so an inflated claim costs the
+            programme more.
+        reporter:
+          type: object
+          description: >-
+            Who found it, all self-asserted. Used for attribution on the
+            advisory, never for authorization.
+          properties:
+            name: { type: [string, "null"] }
+            email: { type: [string, "null"] }
+            githubLogin: { type: [string, "null"] }
+
+    SubmitReportResult:
+      type: object
+      required: [publicId, intakeState]
+      properties:
+        publicId:
+          type: string
+          description: The identifier `investigateReport` takes.
+        intakeState:
+          type: string
+          description: >-
+            Always PENDING here. The report is queued to be read and split
+            into claims, and an investigation waits for COMPLETE.
 
     ChangeNote:
       type: object

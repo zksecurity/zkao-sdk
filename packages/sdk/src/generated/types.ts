@@ -140,6 +140,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{projectId}/repositories/{repositoryId}/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * File a vulnerability report against a repository
+         * @description Requires scope: `reports:write`. Files a report into the programme that takes reports for this repository, as prose. It arrives exactly as a GitHub private vulnerability report does and is read and split into claims by the same step, so nothing downstream distinguishes them.
+         *
+         *     Returns with `intakeState: PENDING`. `investigateReport` refuses a report until that reaches `COMPLETE`, so poll `/projects/{projectId}/reports` before asking for an investigation.
+         *
+         *     Idempotent on content: the same title and body against the same repository name the same report, so a retried call returns the original with `200` rather than filing a second copy.
+         *
+         *     Free. The reading that follows is charged to the project, and the investigation is charged when someone asks for it.
+         */
+        post: operations["submitReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{projectId}/scans": {
         parameters: {
             query?: never;
@@ -1187,6 +1213,29 @@ export interface components {
             /** @description Claims queued for triage, or null when an investigation was already running and this call started nothing. */
             claimsQueued: number | null;
         };
+        SubmitReportRequest: {
+            /** @description One line naming the flaw. */
+            title: string;
+            /** @description What the flaw is, how to reach it, and what it costs. Prose: this is read and split into claims, so write it for a reader rather than as fields. Anything past the limit would be stored and never read. */
+            body: string;
+            /**
+             * @description What the reporter claims, which is not an assessment. It decides how closely the report is read, so an inflated claim costs the programme more.
+             * @enum {string|null}
+             */
+            claimedSeverity?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "INFO" | null;
+            /** @description Who found it, all self-asserted. Used for attribution on the advisory, never for authorization. */
+            reporter?: {
+                name?: string | null;
+                email?: string | null;
+                githubLogin?: string | null;
+            };
+        };
+        SubmitReportResult: {
+            /** @description The identifier `investigateReport` takes. */
+            publicId: string;
+            /** @description Always PENDING here. The report is queued to be read and split into claims, and an investigation waits for COMPLETE. */
+            intakeState: string;
+        };
         /** @description Optionally attach or reuse a note alongside a resolution change. */
         ChangeNote: {
             /** @description Create a new note with this body. */
@@ -1627,6 +1676,48 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    submitReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                repositoryId: components["parameters"]["RepositoryId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitReportRequest"];
+            };
+        };
+        responses: {
+            /** @description Already filed, by an identical earlier call */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubmitReportResult"];
+                };
+            };
+            /** @description Filed */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubmitReportResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
         };
     };
     listScans: {
