@@ -46,6 +46,7 @@ Branch on `code`. The `message` is for people and can change.
 | Status | Code | Meaning |
 | --- | --- | --- |
 | `400` | `bad_request` | The request is invalid. The message says why. |
+| `400` | `budget_below_minimum` | The budget is below the scan's minimum. `minimumCredits` names it. A repository's first diff scan also builds its overview, so its minimum is higher. |
 | `400` | `diff_base_required`, `diff_base_not_allowed`, `diff_base_invalid` | A diff scan's base is missing, given to a preset that refuses it, or malformed. |
 | `401` | `unauthorized` | The token is missing, malformed, expired, or revoked. |
 | `402` | `insufficient_credits` | The organization's credits cannot cover the scan. |

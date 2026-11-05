@@ -165,11 +165,21 @@ export type WaitForScanOptions = {
 export class ZkaoApiError extends Error {
   readonly status: number;
   readonly code: string;
-  constructor(status: number, code: string, message: string) {
+  /** `budget_below_minimum` only: the least the launch could reserve, in credits. */
+  readonly minimumCredits?: number;
+  constructor(
+    status: number,
+    code: string,
+    message: string,
+    minimumCredits?: number
+  ) {
     super(message);
     this.name = "ZkaoApiError";
     this.status = status;
     this.code = code;
+    if (minimumCredits !== undefined) {
+      this.minimumCredits = minimumCredits;
+    }
   }
 }
 
@@ -184,12 +194,14 @@ function unwrap<T>(result: FetchResult<T>): T {
     return result.data;
   }
   const envelope = result.error as
-    | { error?: { code?: string; message?: string } }
+    | { error?: { code?: string; message?: string; minimumCredits?: unknown } }
     | undefined;
+  const minimumCredits = envelope?.error?.minimumCredits;
   throw new ZkaoApiError(
     result.response.status,
     envelope?.error?.code ?? "error",
-    envelope?.error?.message ?? result.response.statusText
+    envelope?.error?.message ?? result.response.statusText,
+    typeof minimumCredits === "number" ? minimumCredits : undefined
   );
 }
 

@@ -738,8 +738,10 @@ export interface components {
         Error: {
             error: {
                 /** @enum {string} */
-                code: "unauthorized" | "forbidden" | "not_found" | "bad_request" | "conflict" | "insufficient_credits" | "repository_initializing" | "diff_base_required" | "diff_base_not_allowed" | "diff_base_invalid" | "diff_empty" | "rate_limited" | "internal";
+                code: "unauthorized" | "forbidden" | "not_found" | "bad_request" | "conflict" | "insufficient_credits" | "budget_below_minimum" | "repository_initializing" | "diff_base_required" | "diff_base_not_allowed" | "diff_base_invalid" | "diff_empty" | "rate_limited" | "internal";
                 message: string;
+                /** @description budget_below_minimum only: the least the launch could have reserved, in credits. A diff scan's first scan of a repository also builds its overview, so its minimum is higher. */
+                minimumCredits?: number;
             };
         };
         /** @enum {string} */
@@ -1046,7 +1048,7 @@ export interface components {
         };
         LaunchScanRequest: {
             repositoryId: string;
-            /** @description Max budget for the scan, in credits. Reserved at launch. Omit it to launch at the budget zkao recommends for this scan type and scope on this repository. A Flash or Max scan of the code is sized from the audit areas it reads: the selected areas, or every area in the repository map. One area gets the minimum, and the budget grows with the square root of the area count. With no map, or with `auditScope`, it is twice the minimum. It is half again the last budget when the last scan of the same scope ran short of it. A diff scan is sized from its change instead: the minimum for up to 500 changed lines, then in proportion, up to three times the minimum. Other scan types use the last such scan's budget, or half again when that scan ran short of it, and a first scan starts at twice the minimum. Except for a diff, the recommendation never exceeds twice the minimum. */
+            /** @description Max budget for the scan, in credits. Reserved at launch. Omit it to launch at the budget zkao recommends for this scan type and scope on this repository. A Flash or Max scan of the code is sized from the audit areas it reads: the selected areas, or every area in the repository map. One area gets the minimum, and the budget grows with the square root of the area count. With no map, or with `auditScope`, it is twice the minimum. It is half again the last budget when the last scan of the same scope ran short of it. A diff scan is sized from its change instead: the minimum for up to 500 changed lines, then in proportion, up to three times the minimum. Other scan types use the last such scan's budget, or half again when that scan ran short of it, and a first scan starts at twice the minimum. Except for a diff, the recommendation never exceeds twice the minimum. A budget below the minimum is refused with `400` `budget_below_minimum`, whose `minimumCredits` names it. */
             creditBudget?: number;
             /** @description A preset ref from /scan-presets. Defaults to the first active preset. */
             presetRef?: string;

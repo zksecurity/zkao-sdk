@@ -1440,8 +1440,14 @@ components:
           properties:
             code:
               type: string
-              enum: [unauthorized, forbidden, not_found, bad_request, conflict, insufficient_credits, repository_initializing, diff_base_required, diff_base_not_allowed, diff_base_invalid, diff_empty, rate_limited, internal]
+              enum: [unauthorized, forbidden, not_found, bad_request, conflict, insufficient_credits, budget_below_minimum, repository_initializing, diff_base_required, diff_base_not_allowed, diff_base_invalid, diff_empty, rate_limited, internal]
             message: { type: string }
+            minimumCredits:
+              type: integer
+              description: >-
+                budget_below_minimum only: the least the launch could have
+                reserved, in credits. A diff scan's first scan of a repository
+                also builds its overview, so its minimum is higher.
 
     Severity:
       type: string
@@ -1945,7 +1951,8 @@ components:
             Other scan types use the last such scan's budget, or half again
             when that scan ran short of it, and a first scan starts at twice
             the minimum. Except for a diff, the recommendation never exceeds
-            twice the minimum.
+            twice the minimum. A budget below the minimum is refused with `400`
+            `budget_below_minimum`, whose `minimumCredits` names it.
         presetRef:
           type: string
           description: A preset ref from /scan-presets. Defaults to the first active preset.

@@ -303,6 +303,7 @@ Every non-2xx response throws `ZkaoApiError`.
 | `status` | HTTP status. |
 | `code` | Machine-readable error code from the response, such as `insufficient_credits`. |
 | `message` | Human-readable message. |
+| `minimumCredits` | Set with `budget_below_minimum`: the smallest budget the launch accepts, in credits. |
 
 Branch on `code`, not on the message.
 
