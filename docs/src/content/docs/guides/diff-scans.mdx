@@ -62,6 +62,9 @@ Confirm the preset ref with `zkao presets`.
 The budget works as for any scan.
 Leave it out to use the recommended budget.
 It is sized from the change, up to three times the preset's minimum.
+When no earlier scan of the repository built its overview, the diff scan builds one first.
+That scan takes longer, and its minimum and recommended budgets are higher.
+The launch response then sets `buildsOverview` to `true`.
 You can also give a diff scan per-scan guidance.
 
 ## Diff scan errors

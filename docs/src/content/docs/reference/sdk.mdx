@@ -126,7 +126,8 @@ await zkao.setRepositoryGuidance(repoId, `${current.content ?? ""}\nNew note.`, 
 | `auditAreaKeys` | Area keys to scope the scan to. Omit to scan the whole repository. |
 | `guidance` | Guidance for this scan only, replacing the repository's. |
 
-It resolves to `{ scanId, queued, creditBudget }`.
+It resolves to `{ scanId, queued, creditBudget, buildsOverview }`.
+`buildsOverview` is `true` when a diff scan also builds the repository's overview, which raises its budget.
 See [Scans](/guides/scans/) and [Diff scans](/guides/diff-scans/).
 
 ### Findings
