@@ -110,6 +110,9 @@ await zkao.setRepositoryGuidance(repoId, `${current.content ?? ""}\nNew note.`, 
 | `launchScan(body)` | `LaunchScanResult` | Launch a scan. Needs `scans:launch`. [API](/api/operations/launchscan/) |
 | `waitForScan(scanId, opts?)` | `ScanDetail` | Block until the scan is `COMPLETED`, `FAILED`, or `CANCELLED`. See [Polling helpers](#polling-helpers). |
 | `cancelScan(scanId)` | `CancelScanResult` | Cancel a running or queued scan and release its unspent credits. Needs `scans:launch`. [API](/api/operations/cancelscan/) |
+| `resumeTriage(scanId, body, opts)` | `ResumeTriageResult` | Resume budget-stopped triage. Needs `scans:launch`. [API](/api/operations/resumetriage/) |
+| `getTriageRun(scanId, runId)` | `TriageRun` | Read a resumed triage run. [API](/api/operations/gettriagerun/) |
+| `waitForTriageRun(scanId, runId, opts?)` | `TriageRun` | Wait for that run to reach a terminal status. Honors `Retry-After`. |
 | `publishScan(scanId, opts?)` | `PublishArtifactResult` | Publish a completed scan as a public page. `opts.withPassword` adds a generated password. Needs `publish`. [API](/api/operations/publishscan/) |
 
 `launchScan` takes a `LaunchScanRequest`:
@@ -129,6 +132,18 @@ await zkao.setRepositoryGuidance(repoId, `${current.content ?? ""}\nNew note.`, 
 It resolves to `{ scanId, queued, creditBudget, buildsOverview }`.
 `buildsOverview` is `true` when a diff scan also builds the repository's overview, which raises its budget.
 See [Scans](/guides/scans/) and [Diff scans](/guides/diff-scans/).
+
+`getScan` and `waitForScan` return a `triage` object.
+Check its `status`, `untriagedCount`, and `resume` before relying on results.
+Resumption takes `body: { creditBudget }` and `opts: { idempotencyKey }`.
+Reuse that key and budget when retrying the same request.
+The result is `{ run, replayed }`.
+
+`waitForTriageRun` accepts the same polling options as `waitForScan`.
+Its `onPoll` receives the triage run.
+The run reports `budgetExhausted` separately from `status`.
+The parent scan stays `COMPLETED` while resumed triage runs.
+Read the scan's `triage` again afterward to check remaining work.
 
 ### Findings
 

@@ -17,6 +17,11 @@ export type ScanPreset = Schemas["ScanPreset"];
 export type LaunchScanRequest = Schemas["LaunchScanRequest"];
 export type LaunchScanResult = Schemas["LaunchScanResult"];
 export type CancelScanResult = Schemas["CancelScanResult"];
+export type ScanTriage = Schemas["ScanTriage"];
+export type TriageRun = Schemas["TriageRun"];
+type ResumeTriageOperation = paths["/projects/{projectId}/scans/{scanId}/triage/resume"]["post"];
+export type ResumeTriageRequest = ResumeTriageOperation["requestBody"]["content"]["application/json"];
+export type ResumeTriageResult = ResumeTriageOperation["responses"][200]["content"]["application/json"];
 export type ChangeNote = Schemas["ChangeNote"];
 export type Severity = Schemas["Severity"];
 export type ResolutionStatus = Schemas["ResolutionStatus"];
@@ -161,6 +166,11 @@ export type WaitForScanOptions = {
   signal?: AbortSignal;
   /** Called with the latest detail on each non-terminal poll (for progress UI). */
   onPoll?: (scan: ScanDetail) => void;
+};
+
+export type WaitForTriageRunOptions = Omit<WaitForScanOptions, "onPoll"> & {
+  /** Called with the requested triage run on each non-terminal poll. */
+  onPoll?: (run: TriageRun) => void;
 };
 
 /** Thrown for any non-2xx response, carrying the API error envelope. */
@@ -585,6 +595,64 @@ export class ZkaoClient {
       body,
     });
     return unwrap(res);
+  }
+
+  /** Resume budget-stopped triage. Reuse the key and budget when retrying. */
+  async resumeTriage(
+    scanId: string,
+    body: ResumeTriageRequest,
+    opts: { idempotencyKey: string }
+  ): Promise<ResumeTriageResult> {
+    const res = await this.http.POST("/projects/{projectId}/scans/{scanId}/triage/resume", {
+      params: {
+        path: { ...this.path, scanId },
+        header: { "Idempotency-Key": opts.idempotencyKey },
+      },
+      body,
+    });
+    return unwrap(res);
+  }
+
+  async getTriageRun(scanId: string, runId: string): Promise<TriageRun> {
+    const res = await this.http.GET("/projects/{projectId}/scans/{scanId}/triage/runs/{runId}", {
+      params: { path: { ...this.path, scanId, runId } },
+    });
+    return unwrap(res).run;
+  }
+
+  /** Wait for one run. Read scan.triage afterward to check result completeness. */
+  async waitForTriageRun(
+    scanId: string,
+    runId: string,
+    opts: WaitForTriageRunOptions = {}
+  ): Promise<TriageRun> {
+    const intervalMs = opts.intervalMs ?? 5000;
+    const maxIntervalMs = opts.maxIntervalMs ?? 30_000;
+    const timeoutMs = opts.timeoutMs ?? 60 * 60 * 1000;
+    const deadline = Date.now() + timeoutMs;
+
+    for (let attempt = 0; ; attempt++) {
+      throwIfAborted(opts.signal);
+      const res = await this.http.GET("/projects/{projectId}/scans/{scanId}/triage/runs/{runId}", {
+        params: { path: { ...this.path, scanId, runId } },
+        signal: opts.signal,
+      });
+      const retryAfterMs = parseRetryAfterMs(res.response.headers.get("retry-after"));
+      if (res.response.status !== 429) {
+        const run = unwrap(res).run;
+        if (run.status === "COMPLETED" || run.status === "FAILED" || run.status === "CANCELLED") {
+          return run;
+        }
+        opts.onPoll?.(run);
+      }
+      const backoffMs = Math.min(maxIntervalMs, Math.round(intervalMs * 1.5 ** attempt));
+      const baseMs = retryAfterMs ?? backoffMs;
+      const delayMs = baseMs + Math.round(Math.random() * baseMs * 0.2);
+      if (Date.now() + delayMs > deadline) {
+        throw new Error(`Timed out waiting for triage run ${runId} to finish after ${timeoutMs}ms`);
+      }
+      await sleep(delayMs, opts.signal);
+    }
   }
 
   /**

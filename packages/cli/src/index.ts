@@ -41,6 +41,7 @@ program
   .version(version)
   .option("--token <token>", "project API token (or env ZKAO_API_TOKEN)")
   .option("--project <id>", "project id (or env ZKAO_PROJECT_ID)")
+  .option("--json-errors", "print API error status, code, and message as JSON on stderr")
   .option("--base-url <url>", "API base URL, used verbatim (env: ZKAO_URL sets the environment)");
 
 function out(data: unknown): void {
@@ -50,6 +51,21 @@ function out(data: unknown): void {
 function fail(message: string): never {
   console.error(message);
   process.exit(1);
+}
+
+function failApi(error: ZkaoApiError): never {
+  if (program.opts<{ jsonErrors?: boolean }>().jsonErrors) {
+    console.error(JSON.stringify({
+      error: {
+        status: error.status,
+        code: error.code,
+        message: error.message,
+        ...(error.minimumCredits === undefined ? {} : { minimumCredits: error.minimumCredits }),
+      },
+    }));
+    process.exit(1);
+  }
+  fail(`Error ${error.status} (${error.code}): ${error.message}`);
 }
 
 function globalConfig() {
@@ -77,7 +93,7 @@ async function run(fn: (c: ZkaoClient) => Promise<unknown>): Promise<void> {
     out(await fn(client()));
   } catch (err) {
     if (err instanceof ZkaoApiError) {
-      fail(`Error ${err.status} (${err.code}): ${err.message}`);
+      failApi(err);
     }
     throw err;
   }
@@ -101,6 +117,14 @@ const toInt = (value: string): number => {
   const n = Number.parseInt(value, 10);
   if (!Number.isInteger(n)) {
     fail(`Expected an integer, got "${value}"`);
+  }
+  return n;
+};
+
+const positiveInteger = (value: string): number => {
+  const n = Number(value);
+  if (!Number.isSafeInteger(n) || n < 1) {
+    throw new InvalidArgumentError("Expected a positive integer");
   }
   return n;
 };
@@ -173,7 +197,7 @@ program
       out(info);
     } catch (err) {
       if (err instanceof ZkaoApiError) {
-        fail(`Error ${err.status} (${err.code}): ${err.message}`);
+        failApi(err);
       }
       throw err;
     }
@@ -587,6 +611,34 @@ scans
   .command("cancel <scanId>")
   .description("Cancel a running or queued scan")
   .action((scanId: string) => run((c) => c.cancelScan(scanId)));
+scans
+  .command("resume-triage <scanId>")
+  .description("Resume budget-stopped triage with an explicitly authorized credit budget")
+  .requiredOption("--budget <credits>", "budget from the scan's triage.resume offer", positiveInteger)
+  .requiredOption("--idempotency-key <key>", "stable key to reuse with the same budget when retrying")
+  .action((scanId: string, opts: { budget: number; idempotencyKey: string }) =>
+    run((c) => c.resumeTriage(scanId, { creditBudget: opts.budget }, { idempotencyKey: opts.idempotencyKey }))
+  );
+scans
+  .command("triage-get <scanId> <runId>")
+  .description("Get the status of one resumed triage run")
+  .action((scanId: string, runId: string) => run((c) => c.getTriageRun(scanId, runId)));
+scans
+  .command("triage-wait <scanId> <runId>")
+  .description("Wait for one triage run; then check the scan's triage completeness")
+  .option("--timeout <seconds>", "give up after this long", positiveInteger)
+  .action((scanId: string, runId: string, opts: { timeout?: number }) => {
+    const controller = new AbortController();
+    const onSigint = () => controller.abort(new Error("Interrupted"));
+    process.once("SIGINT", onSigint);
+    return run((c) =>
+      c.waitForTriageRun(scanId, runId, {
+        timeoutMs: opts.timeout === undefined ? undefined : opts.timeout * 1000,
+        signal: controller.signal,
+        onPoll: (current) => console.error(`  triage ${current.id}: ${current.status}`),
+      }).finally(() => process.removeListener("SIGINT", onSigint))
+    );
+  });
 scans
   .command("publish <scanId>")
   .description("Publish a completed scan as a public artifact")

@@ -20,6 +20,10 @@ To run a single command without installing, use `npx @zksecurity/zkao-cli <args>
 - The exit code is `0` on success and `1` on any failure.
 - An API error prints `Error <status> (<code>): <message>` on stderr. The codes are listed in [API conventions](/reference/api-conventions/).
 
+Pass `--json-errors` for API errors as JSON on stderr.
+The envelope is `{ "error": { "status": 409, "code": "conflict", "message": "..." } }`.
+Set `ZKAO_NO_UPDATE_CHECK=1` when parsing stderr.
+
 ## Global options
 
 These options work with every command.
@@ -29,6 +33,7 @@ These options work with every command.
 | `--token <token>` | Project API token. Overrides `ZKAO_API_TOKEN` and saved credentials. |
 | `--project <id>` | Project id. Overrides `ZKAO_PROJECT_ID` and the active project. |
 | `--base-url <url>` | API base URL, used exactly as given. Prefer `ZKAO_URL` unless you need a non-standard base. |
+| `--json-errors` | Print API errors as JSON on stderr. |
 | `-V, --version` | Print the CLI version. |
 | `-h, --help` | Show help for the CLI or a command. |
 
@@ -195,6 +200,38 @@ The command exits `0` whichever final status the scan reaches. Read `status` in 
 
 Cancel a running or queued scan. Needs the `scans:launch` scope. The reserved credits not yet spent are released.
 A completed or failed scan cannot be cancelled.
+
+### `zkao scans resume-triage <scanId>`
+
+Resume triage after its budget cap left findings unreviewed.
+Needs the `scans:launch` scope.
+Read the scan's `triage.resume` offer before choosing a budget.
+
+| Option | Meaning |
+| --- | --- |
+| `--budget <credits>` | Explicit credit budget within the offer. Required. |
+| `--idempotency-key <key>` | Stable request key of up to 128 visible ASCII characters. Required. |
+
+The result contains `run` and `replayed`.
+Reuse the same key and budget when retrying the request.
+The same request returns its original run even after that run finishes.
+A different budget with that key fails with `409`.
+
+### `zkao scans triage-get <scanId> <runId>`
+
+Read one resumed triage run.
+It reports `status`, `findingCount`, and `budgetExhausted`.
+
+### `zkao scans triage-wait <scanId> <runId>`
+
+Wait for that triage run to finish.
+It honors `Retry-After` and prints progress on stderr.
+`--timeout <seconds>` defaults to one hour.
+Ctrl-C stops waiting.
+
+The parent scan stays `COMPLETED` during resumed triage.
+Read its `triage` again after the run finishes.
+A completed triage run can still leave findings unreviewed.
 
 ### `zkao scans publish <scanId>`
 

@@ -293,7 +293,7 @@ A scan moves through these statuses:
 | --- | --- |
 | `QUEUED` | Accepted and waiting to start. |
 | `PROCESSING` | Running. |
-| `COMPLETED` | Finished. Findings are ready. |
+| `COMPLETED` | Analysis finished. Check `triage` for unfinished review. |
 | `FAILED` | Stopped on an error. |
 | `CANCELLED` | Cancelled before it finished. |
 
@@ -347,6 +347,69 @@ The CLI and SDK do this for you.
 Prefer `zkao scans wait` or `waitForScan` over your own loop.
 They back off with jitter and treat `429` as a signal to slow down, not as an error.
 </Aside>
+
+## Resume unfinished triage
+
+A completed scan can have findings that triage did not review.
+Unreviewed findings are withheld from results.
+Read `triage` on the scan detail before treating it as a complete review.
+
+| Field | Meaning |
+| --- | --- |
+| `status` | `pending`, `running`, `complete`, `budget_exhausted`, or `blocked`. |
+| `untriagedCount` | Findings still awaiting review. |
+| `activeRunId` | Active triage run, or `null`. |
+| `resume` | Allowed credit budgets after a budget stop, or `null`. |
+
+Resumption is available after a budget stop on a completed scan whose billing has settled.
+Unfinished findings must remain and no triage run may be active.
+Choose a budget within the offer and your authorized spending limit.
+Resumed triage uses the scan's settings and only reviews the findings left over.
+It reserves a separate budget and returns unused credits.
+
+<Tabs syncKey="client">
+<TabItem label="CLI">
+```bash
+zkao scans get <scanId>
+zkao scans resume-triage <scanId> --budget <credits> --idempotency-key <key>
+zkao scans triage-wait <scanId> <runId>
+zkao scans get <scanId>
+```
+</TabItem>
+<TabItem label="TypeScript">
+```ts
+const { run } = await zkao.resumeTriage(
+  scanId,
+  { creditBudget: authorizedCredits },
+  { idempotencyKey: requestKey },
+);
+await zkao.waitForTriageRun(scanId, run.id);
+const scan = await zkao.getScan(scanId);
+console.log(scan.triage);
+```
+</TabItem>
+<TabItem label="curl">
+```bash
+curl -X POST -H "Authorization: Bearer $ZKAO_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: <key>" \
+  -d '{"creditBudget":250}' \
+  https://zkao.io/api/v1/projects/$ZKAO_PROJECT_ID/scans/<scanId>/triage/resume
+```
+</TabItem>
+</Tabs>
+
+Resumption needs `scans:launch` and respects the token's repository and spending limits.
+Keep the same key and budget when retrying the same request.
+That returns the original run without reserving another budget.
+A different budget with that key returns `409`.
+Use a new key only for another authorized run.
+
+The parent scan stays `COMPLETED` while resumed triage runs.
+Poll the returned run with `getTriageRun` or its CLI counterpart.
+Read the scan's `triage` again after the run finishes.
+A run can finish at its budget cap with findings still awaiting review.
+For a `blocked` triage status, contact support with a link to the scan.
 
 ## List scans
 

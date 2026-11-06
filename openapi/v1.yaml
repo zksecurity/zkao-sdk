@@ -523,6 +523,92 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         "429": { $ref: "#/components/responses/RateLimited" }
 
+  /projects/{projectId}/scans/{scanId}/triage/resume:
+    post:
+      tags: [Scans]
+      operationId: resumeTriage
+      summary: Resume triage after a budget stop
+      description: >-
+        Requires scope: `scans:launch`. The scan must be completed and settled,
+        with unfinished findings and a latest triage run that stopped on budget.
+        Uses the scan's settings and reserves the explicit budget in credits.
+        The token's repository restrictions and spend allowance apply.
+        Reusing the same idempotency key and budget returns the original run,
+        including after it finishes, without reserving or spending again.
+        A different budget with the same key returns 409. A new attempt requires
+        a new key. Poll getTriageRun because the parent scan remains COMPLETED.
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/ScanId"
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 128, pattern: '^[!-~]+$' }
+          description: Stable request key. Reuse it with the same budget when retrying.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [creditBudget]
+              properties:
+                creditBudget: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: The new or previously created triage run.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [run, replayed]
+                properties:
+                  run: { $ref: "#/components/schemas/TriageRun" }
+                  replayed: { type: boolean }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "402": { $ref: "#/components/responses/InsufficientCredits" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /projects/{projectId}/scans/{scanId}/triage/runs/{runId}:
+    get:
+      tags: [Scans]
+      operationId: getTriageRun
+      summary: Get one triage run
+      description: >-
+        Requires scope: `read`. Follows this run independently of the scan status.
+        A COMPLETED run can still leave findings unfinished. Check scan.triage
+        after it ends. Failed attempts awaiting retry remain QUEUED.
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/ScanId"
+        - name: runId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          headers:
+            Retry-After:
+              description: Advisory seconds before polling an active run again.
+              schema: { type: integer, minimum: 1 }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [run]
+                properties:
+                  run: { $ref: "#/components/schemas/TriageRun" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
   /projects/{projectId}/reports:
     get:
       tags: [Reports]
@@ -1592,11 +1678,49 @@ components:
             Weighted completion. Each phase counts for its share of the scan
             budget, so this does not simply equal phasesCompleted / phasesTotal.
 
+    TriageResumeBudget:
+      type: object
+      required: [minCredits, recommendedCredits, maxCredits]
+      properties:
+        minCredits: { type: integer }
+        recommendedCredits: { type: integer }
+        maxCredits: { type: integer }
+    ScanTriage:
+      type: object
+      description: Completeness of triage, independent of whether the scan succeeded.
+      required: [status, untriagedCount, activeRunId, resume]
+      properties:
+        status:
+          type: string
+          enum: [pending, running, complete, budget_exhausted, blocked]
+        untriagedCount: { type: integer, minimum: 0 }
+        activeRunId: { type: [string, "null"] }
+        resume:
+          anyOf:
+            - $ref: "#/components/schemas/TriageResumeBudget"
+            - type: "null"
+    TriageRun:
+      type: object
+      required: [id, scanId, status, findingCount, createdAt, completedAt, budgetExhausted]
+      properties:
+        id: { type: string }
+        scanId: { type: string }
+        status: { type: string, enum: [QUEUED, RUNNING, COMPLETED, FAILED, CANCELLED] }
+        findingCount:
+          type: integer
+          description: Number of findings selected when this run started.
+        createdAt: { type: string, format: date-time }
+        completedAt: { type: [string, "null"], format: date-time }
+        budgetExhausted:
+          type: boolean
+          description: Whether this run reached its budget cap. Check scan.triage for remaining work.
     ScanDetail:
       allOf:
         - $ref: "#/components/schemas/Scan"
         - type: object
+          required: [triage]
           properties:
+            triage: { $ref: "#/components/schemas/ScanTriage" }
             branch: { type: [string, "null"] }
             creditBudget:
               type: [integer, "null"]

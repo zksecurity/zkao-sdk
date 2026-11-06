@@ -255,6 +255,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{projectId}/scans/{scanId}/triage/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resume triage after a budget stop
+         * @description Requires scope: `scans:launch`. The scan must be completed and settled, with unfinished findings and a latest triage run that stopped on budget. Uses the scan's settings and reserves the explicit budget in credits. The token's repository restrictions and spend allowance apply. Reusing the same idempotency key and budget returns the original run, including after it finishes, without reserving or spending again. A different budget with the same key returns 409. A new attempt requires a new key. Poll getTriageRun because the parent scan remains COMPLETED.
+         */
+        post: operations["resumeTriage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/scans/{scanId}/triage/runs/{runId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get one triage run
+         * @description Requires scope: `read`. Follows this run independently of the scan status. A COMPLETED run can still leave findings unfinished. Check scan.triage after it ends. Failed attempts awaiting retry remain QUEUED.
+         */
+        get: operations["getTriageRun"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{projectId}/reports": {
         parameters: {
             query?: never;
@@ -826,7 +866,35 @@ export interface components {
             /** @description Weighted completion. Each phase counts for its share of the scan budget, so this does not simply equal phasesCompleted / phasesTotal. */
             percent: number;
         };
+        TriageResumeBudget: {
+            minCredits: number;
+            recommendedCredits: number;
+            maxCredits: number;
+        };
+        /** @description Completeness of triage, independent of whether the scan succeeded. */
+        ScanTriage: {
+            /** @enum {string} */
+            status: "pending" | "running" | "complete" | "budget_exhausted" | "blocked";
+            untriagedCount: number;
+            activeRunId: string | null;
+            resume: components["schemas"]["TriageResumeBudget"] | null;
+        };
+        TriageRun: {
+            id: string;
+            scanId: string;
+            /** @enum {string} */
+            status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
+            /** @description Number of findings selected when this run started. */
+            findingCount: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            completedAt: string | null;
+            /** @description Whether this run reached its budget cap. Check scan.triage for remaining work. */
+            budgetExhausted: boolean;
+        };
         ScanDetail: components["schemas"]["Scan"] & {
+            triage: components["schemas"]["ScanTriage"];
             branch?: string | null;
             /** @description Reserved budget for the scan, in credits. */
             creditBudget?: number | null;
@@ -1839,6 +1907,80 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    resumeTriage: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable request key. Reuse it with the same budget when retrying. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                scanId: components["parameters"]["ScanId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    creditBudget: number;
+                };
+            };
+        };
+        responses: {
+            /** @description The new or previously created triage run. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        run: components["schemas"]["TriageRun"];
+                        replayed: boolean;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            402: components["responses"]["InsufficientCredits"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getTriageRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                scanId: components["parameters"]["ScanId"];
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    /** @description Advisory seconds before polling an active run again. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        run: components["schemas"]["TriageRun"];
+                    };
+                };
+            };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];

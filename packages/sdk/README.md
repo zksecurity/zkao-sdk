@@ -28,6 +28,13 @@ Every method is fully typed from the OpenAPI spec. Non-2xx responses throw
 Cancel a running or queued scan with `zkao.cancelScan(scanId)`; you are charged
 only for analysis already done and the rest of the reserved budget is released.
 
+Check `scan.triage` before relying on the results of a completed scan.
+Its `resume` offer provides the allowed credit budgets when triage stopped on budget.
+Resume with `resumeTriage(scanId, { creditBudget }, { idempotencyKey })`.
+Reuse the same key and budget when retrying that request.
+Track the returned run with `getTriageRun` or `waitForTriageRun`.
+Read the scan's `triage` again afterward to check for unfinished findings.
+
 Full docs, the CLI (`@zksecurity/zkao-cli`), and the OpenAPI contract:
 **https://github.com/zksecurity/zkao-sdk**
 
