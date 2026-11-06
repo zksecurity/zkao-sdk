@@ -5,7 +5,9 @@ description: Give a coding agent the zkao skill so it can launch scans, triage f
 
 import { Tabs, TabItem, Aside, Steps } from "@astrojs/starlight/components";
 
-The zkao skill is a single `SKILL.md` file. It teaches an agent to drive a zkao project through the `zkao` CLI or plain HTTP. It covers login, scopes, launching and waiting for scans, triage, guidance, credits, and publishing.
+The zkao skill teaches an agent to drive a project through MCP, the CLI, or HTTP.
+It covers login, scopes, scans, triage, guidance, credits, and publishing.
+Claude Code and Codex plugins share the same skill and MCP connection.
 
 An agent with the skill can answer requests like "triage the findings from the last scan" or "run a diff scan of this change".
 
@@ -20,6 +22,16 @@ The repository is a Claude Code plugin marketplace. Add it, then install the plu
 /plugin install zkao@zkao
 ```
 </TabItem>
+<TabItem label="Codex">
+Add the repository as a plugin marketplace:
+
+```bash
+codex plugin marketplace add zksecurity/zkao-sdk
+```
+
+Install `zkao` from that marketplace in the desktop app's Plugins directory.
+The portable plugin uses the same skill as Claude Code.
+</TabItem>
 <TabItem label="Other agents">
 Save the skill into your agent's skills directory:
 
@@ -31,7 +43,35 @@ Agents without a skills system can read the same URL as context.
 </TabItem>
 </Tabs>
 
-The agent also needs the CLI. See the [Quickstart](/quickstart/).
+Shell-based agents can use the CLI from the [Quickstart](/quickstart/).
+
+## Connect with MCP
+
+Add `https://zkao.io/api/mcp` as a remote MCP server in your client.
+It uses Streamable HTTP and OAuth.
+Follow the client's sign-in flow to approve a project and its permissions.
+The plugin manifests configure this endpoint for Claude Code and Codex.
+You do not need to copy an API token into the plugin.
+
+The connection belongs to one project.
+Use its identity tool to check the project before acting.
+CLI login and MCP authorization are separate.
+For staging, configure `https://staging.zkao.io/api/mcp` instead.
+
+## Complete the review
+
+After analysis finishes, the agent reads the scan's `triage` completeness.
+A `COMPLETED` scan can still have unreviewed findings.
+Those findings are withheld from results.
+
+When triage stopped on budget, the scan offers allowed resumption budgets.
+The agent can resume within the spending limit you authorized.
+It reuses the same request key and budget when retrying.
+It tracks the returned triage run, then checks the scan's completeness again.
+See [Resume unfinished triage](/guides/scans/#resume-unfinished-triage).
+
+For fixes, the agent reads the finding's evidence and verifies the change with a scan or recheck.
+Further scans and triage require an authorized credit budget.
 
 ## Docs for agents
 

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "zkao": {
+      "type": "http",
+      "url": "https://zkao.io/api/mcp"
+    }
+  }
+}

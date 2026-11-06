@@ -124,9 +124,24 @@ direct HTTP, and common workflows like triage and launch-and-poll).
   /plugin marketplace add zksecurity/zkao-sdk
   /plugin install zkao@zkao
   ```
+- **Codex (plugin):** add the marketplace:
+  ```
+  codex plugin marketplace add zksecurity/zkao-sdk
+  ```
+  Install `zkao` from that marketplace in the desktop app's Plugins directory.
+  Both plugins share the same skill and hosted MCP connection.
 - **Any agent (manual):** copy `skills/zkao/SKILL.md` into your agent's skills
   directory, and point the agent at `https://zkao.io/openapi/v1.yaml` for the
   full contract.
+
+The hosted MCP endpoint is `https://zkao.io/api/mcp`.
+Connect it from an MCP client and authorize a project through OAuth.
+No API token needs to be copied into the plugin.
+For staging, configure `https://staging.zkao.io/api/mcp` instead.
+
+Agents should check a scan's `triage` completeness before relying on its results.
+Budget-stopped triage can be resumed with an explicit credit budget and stable request key.
+See the [scan guide](https://docs.zkao.io/guides/scans/#resume-unfinished-triage).
 
 ## Developing
 

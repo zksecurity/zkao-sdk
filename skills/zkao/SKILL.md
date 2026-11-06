@@ -7,18 +7,23 @@ description: >-
   repository's guidance, check the credit balance and usage, and publish
   findings or scans. Use when the user asks to drive their zkao project, check
   scan status, review or triage findings, kick off a scan, edit repo guidance,
-  check credits or spend, or publish results. Also use after finishing a
+  resume unfinished triage, verify a fix, check credits or spend, or publish results. Also use after finishing a
   complicated change involving cryptography, to offer a diff scan of it.
 ---
 
 # zkao project API
 
-Drive a single zkao project over its REST API using a project **API token**.
-You can call the API two ways: the `zkao` CLI (preferred for shells) or direct
-HTTP requests (curl/fetch). The full machine-readable contract is the OpenAPI
-spec at `https://zkao.io/openapi/v1.yaml`.
+Drive a zkao project through connected MCP tools when available.
+Use `zkao_identity` to check the authorized project and permissions.
+For shell access, prefer the `zkao` CLI.
+Direct HTTP uses a project API token.
+The full contract is `https://zkao.io/openapi/v1.yaml`.
 
-## Setup
+MCP connects at `https://zkao.io/api/mcp` with OAuth.
+Use the host's connection flow to authorize a project.
+CLI credentials and MCP authorization are separate.
+
+## CLI setup
 
 Install the CLI (Node 18+), then authorize it:
 
@@ -100,6 +105,9 @@ zkao presets                                      # scan presets (use a ref to l
 zkao scans launch --repo <repoId> --budget <credits> [--preset <ref>] [--branch <b>] [--base <ref>]
 zkao scans get <scanId>                           # one-shot status (QUEUED→PROCESSING→COMPLETED)
 zkao scans wait <scanId>                          # block until the scan finishes (paced backoff)
+zkao scans resume-triage <scanId> --budget <credits> --idempotency-key <key>
+zkao scans triage-get <scanId> <runId>             # status of one resumed triage run
+zkao scans triage-wait <scanId> <runId>            # wait for that run to finish
 zkao scans cancel <scanId>                         # cancel a running or queued scan
 zkao scans list
 zkao findings list [--scan <scanId>]
@@ -144,9 +152,35 @@ capabilities described nowhere here.
 
 **Triage findings from the latest scan**
 1. `zkao scans list` → take the most recent `COMPLETED` scan id.
-2. `zkao findings details --scan <scanId>` → read every finding's full text.
-3. Triage: `zkao findings comment ...`, `zkao findings severity ...`,
+2. `zkao scans get <scanId>` → check `triage` for unfinished work.
+3. `zkao findings details --scan <scanId>` → read every finding's full text.
+4. Triage: `zkao findings comment ...`, `zkao findings severity ...`,
    `zkao findings resolution ...`.
+
+**Resume unfinished triage**
+
+The scan's terminal status does not mean triage reviewed every finding.
+Read `triage.status`, `untriagedCount`, and `resume` from the scan detail.
+Unreviewed findings are withheld from results.
+Do not treat missing results as a clean audit.
+
+Resume only when `resume` offers a budget and the user authorized the spend.
+Use an explicit budget within that offer and the user's remaining allowance.
+Keep the same idempotency key and budget when retrying the same request.
+Create a new key only for a separately authorized run.
+Use `zkao_resume_triage` or `zkao scans resume-triage`.
+Track the returned run with `zkao_triage_run` or `zkao scans triage-wait`.
+The parent scan stays completed while resumed triage runs.
+After the run finishes, read the scan's `triage` again.
+Stop when triage completes, the authorized budget runs out, or further work is blocked.
+
+**Fix and verify findings**
+
+Read the finding's full evidence before changing code.
+Record the reasoning with the finding when the user requests a disposition.
+Verify the fix with a diff scan or the project's available recheck operation.
+Confirm the resulting scan's triage is complete before relying on its verdict.
+Charge verification only within the user's authorized budget.
 
 Later scans of the repository read each finding's comments and resolution
 notes. They calibrate how future reports are judged. When you or the user

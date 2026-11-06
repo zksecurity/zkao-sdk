@@ -1,0 +1,10 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "zkao",
+  "version": "0.4.0",
+  "description": "Run security scans, review findings, and verify fixes in a zkao project.",
+  "author": { "name": "zkSecurity" },
+  "homepage": "https://docs.zkao.io/guides/agents/",
+  "repository": "https://github.com/zksecurity/zkao-sdk",
+  "license": "MIT"
+}
