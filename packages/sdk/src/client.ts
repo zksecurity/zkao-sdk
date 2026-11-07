@@ -22,6 +22,12 @@ export type TriageRun = Schemas["TriageRun"];
 type ResumeTriageOperation = paths["/projects/{projectId}/scans/{scanId}/triage/resume"]["post"];
 export type ResumeTriageRequest = ResumeTriageOperation["requestBody"]["content"]["application/json"];
 export type ResumeTriageResult = ResumeTriageOperation["responses"][200]["content"]["application/json"];
+export type RegressionTestRun = Schemas["RegressionTestRun"];
+export type RegressionTestReadiness = Schemas["RegressionTestReadiness"];
+export type RegressionTestValidation = Schemas["RegressionTestValidation"];
+type CreateRegressionTestOperation = paths["/projects/{projectId}/findings/{findingId}/regression-tests"]["post"];
+export type CreateRegressionTestRequest = CreateRegressionTestOperation["requestBody"]["content"]["application/json"];
+export type CreateRegressionTestResult = CreateRegressionTestOperation["responses"][202]["content"]["application/json"];
 export type ChangeNote = Schemas["ChangeNote"];
 export type Severity = Schemas["Severity"];
 export type ResolutionStatus = Schemas["ResolutionStatus"];
@@ -611,6 +617,46 @@ export class ZkaoClient {
       body,
     });
     return unwrap(res);
+  }
+
+  async getRegressionTestReadiness(findingId: string): Promise<RegressionTestReadiness> {
+    return unwrap(await this.http.GET("/projects/{projectId}/findings/{findingId}/regression-tests/readiness", {
+      params: { path: { ...this.path, findingId } },
+    }));
+  }
+
+  async listRegressionTests(findingId: string): Promise<RegressionTestRun[]> {
+    return unwrap(await this.http.GET("/projects/{projectId}/findings/{findingId}/regression-tests", {
+      params: { path: { ...this.path, findingId } },
+    })).runs;
+  }
+
+  /** Request one paid attempt. Reuse the same key, budget and branch after an uncertain response. */
+  async createRegressionTest(
+    findingId: string,
+    body: CreateRegressionTestRequest,
+    opts: { idempotencyKey: string }
+  ): Promise<CreateRegressionTestResult> {
+    return unwrap(await this.http.POST("/projects/{projectId}/findings/{findingId}/regression-tests", {
+      params: {
+        path: { ...this.path, findingId },
+        header: { "Idempotency-Key": opts.idempotencyKey },
+      },
+      body,
+    }));
+  }
+
+  async getRegressionTest(findingId: string, runId: string): Promise<RegressionTestRun> {
+    return unwrap(await this.http.GET("/projects/{projectId}/findings/{findingId}/regression-tests/{runId}", {
+      params: { path: { ...this.path, findingId, runId } },
+    }));
+  }
+
+  /** Retry publication of the saved test without funding another generation attempt. */
+  async retryRegressionTestPublication(findingId: string, runId: string): Promise<RegressionTestRun> {
+    return unwrap(await this.http.POST("/projects/{projectId}/findings/{findingId}/regression-tests/{runId}/retry-publication", {
+      params: { path: { ...this.path, findingId, runId } },
+    }));
   }
 
   async getTriageRun(scanId: string, runId: string): Promise<TriageRun> {

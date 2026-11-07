@@ -152,7 +152,7 @@ Read the scan's `triage` again afterward to check remaining work.
 | Method | Returns | Meaning |
 | --- | --- | --- |
 | `listFindings(opts?)` | `Paginated<Finding>` | Findings across the project. `opts` takes `scanId`, `page`, and `limit`. [API](/api/operations/listfindings/) |
-| `getFinding(findingId)` | `FindingDetail` | Full detail, including the proof of concept and notes. [API](/api/operations/getfinding/) |
+| `getFinding(findingId)` | `FindingDetail` | Full finding text and notes. [API](/api/operations/getfinding/) |
 | `addFindingNote(findingId, content)` | `{ noteId, findingId }` | Add a comment. Needs `findings:write`. [API](/api/operations/addfindingnote/) |
 | `pinFindingNote(findingId, noteId, kind?)` | `{ findingId, noteId }` | Pin a note as the finding's resolution note. `kind` is `"resolution"`. Needs `findings:write`. [API](/api/operations/pinfindingnote/) |
 | `setFindingSeverity(findingId, severity)` | `{ findingId, userSeverity, effectiveSeverity }` | Override severity, or clear the override with `null`. Needs `findings:write`. [API](/api/operations/updatefindingseverity/) |
@@ -169,6 +169,20 @@ See [Triage findings](/guides/findings/) for the codes.
 ```ts
 await zkao.setFindingResolution(findingId, "WONT_FIX", { reason: "risk_accepted" });
 ```
+
+### Regression test pull requests
+
+| Method | Returns | Meaning |
+| --- | --- | --- |
+| `getRegressionTestReadiness(findingId)` | `RegressionTestReadiness` | Check GitHub installation, permissions, and requester access. [API](/api/operations/getregressiontestreadiness/) |
+| `createRegressionTest(findingId, body, opts)` | `CreateRegressionTestResult` | Request one paid attempt. `body` takes `creditBudget` and optional `targetBranch`. `opts` requires `idempotencyKey`. Needs `regression-tests:write`. [API](/api/operations/createregressiontest/) |
+| `listRegressionTests(findingId)` | `RegressionTestRun[]` | List the latest attempts. [API](/api/operations/listregressiontests/) |
+| `getRegressionTest(findingId, runId)` | `RegressionTestRun` | Follow one attempt and read its draft PR URL. [API](/api/operations/getregressiontest/) |
+| `retryRegressionTestPublication(findingId, runId)` | `RegressionTestRun` | Retry opening the saved test's PR without another generation budget. Needs `regression-tests:write`. [API](/api/operations/retryregressiontestpublication/) |
+
+Reuse the same request key, budget, and target branch after an uncertain launch response.
+The result's `replayed` flag identifies an existing attempt.
+See [Regression tests](/guides/findings/#regression-tests) for permissions and validation outcomes.
 
 ### Presets
 

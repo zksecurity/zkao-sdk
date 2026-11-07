@@ -19,6 +19,7 @@ info:
       - `findings:write` — comment, change severity, change resolution, pin a note
       - `guidance:write` — read and update a repository's guidance, and manage its audit areas
       - `scans:launch` — start a scan
+      - `regression-tests:write`: generate regression tests and create their pull requests
       - `publish` — publish a finding or a scan
       - `advisories:write` — record which versions an advisory affects
       - `contacts:read` — read the advisory contact list
@@ -346,10 +347,11 @@ paths:
       operationId: submitReport
       summary: File a vulnerability report against a repository
       description: >-
-        Requires scope: `reports:write`. Files a report into the programme that
-        takes reports for this repository, as prose. It arrives exactly as a
-        GitHub private vulnerability report does and is read and split into
-        claims by the same step, so nothing downstream distinguishes them.
+        Requires scope: `reports:write`. Files a report into this project's
+        security programme for an active repository belonging to the project.
+        GitHub private-report intake setup and repository admin access are not
+        required. The report arrives as prose and is read and split into claims
+        by the same step as an imported GitHub report.
 
 
         Returns with `intakeState: PENDING`. `investigateReport` refuses a
@@ -1067,6 +1069,162 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
 
+  /projects/{projectId}/findings/{findingId}/regression-tests:
+    get:
+      tags: [Findings]
+      operationId: listRegressionTests
+      summary: List regression test attempts for a finding
+      description: "Requires scope: `read`. Returns the latest 20 attempts."
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/FindingId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [runs]
+                properties:
+                  runs:
+                    type: array
+                    items: { $ref: "#/components/schemas/RegressionTestRun" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+    post:
+      tags: [Findings]
+      operationId: createRegressionTest
+      summary: Generate a regression test and create its draft pull request
+      description: >-
+        Requires scope: `regression-tests:write`. The finding must be confirmed.
+        The token creator must remain an approved project admin with verified
+        GitHub write access. The GitHub App must have Contents and Pull requests
+        write permissions for this repository. The explicit credit budget is
+        reserved and counts against project and token spending limits.
+        Reuse the idempotency key with the same budget and target branch to
+        retrieve the original attempt without another charge.
+        The generated test uses a fixed counterexample and the repository's
+        existing test framework. A draft pull request is opened after validation.
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/FindingId"
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 128, pattern: '^[!-~]+$' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [creditBudget]
+              properties:
+                creditBudget: { type: integer, minimum: 1, maximum: 100000 }
+                targetBranch:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+                  description: Defaults to the repository's default branch. Resolved to a commit at launch.
+      responses:
+        "202":
+          description: The new or previously created attempt.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [run, replayed]
+                properties:
+                  run: { $ref: "#/components/schemas/RegressionTestRun" }
+                  replayed: { type: boolean }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "402": { $ref: "#/components/responses/InsufficientCredits" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /projects/{projectId}/findings/{findingId}/regression-tests/readiness:
+    get:
+      tags: [Findings]
+      operationId: getRegressionTestReadiness
+      summary: Check GitHub readiness for a regression test pull request
+      description: >-
+        Requires scope: `read`. Reports missing installation, repository access,
+        pending write permissions, or requester authorization. Installation
+        settings links let repository owners enable the feature.
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/FindingId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RegressionTestReadiness" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /projects/{projectId}/findings/{findingId}/regression-tests/{runId}:
+    get:
+      tags: [Findings]
+      operationId: getRegressionTest
+      summary: Get a regression test attempt
+      description: "Requires scope: `read`. Poll this run independently of the original scan."
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/FindingId"
+        - name: runId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RegressionTestRun" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /projects/{projectId}/findings/{findingId}/regression-tests/{runId}/retry-publication:
+    post:
+      tags: [Findings]
+      operationId: retryRegressionTestPublication
+      summary: Retry opening a generated regression test pull request
+      description: >-
+        Requires scope: `regression-tests:write` and current GitHub write access.
+        Retries a failed publication using the saved test. Does not rerun the
+        agent or reserve another generation budget. Generation failures require
+        a new paid attempt.
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/FindingId"
+        - name: runId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "202":
+          description: Publication queued.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RegressionTestRun" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
   /projects/{projectId}/findings/{findingId}/notes/{noteId}/pin:
     post:
       tags: [Findings]
@@ -1685,6 +1843,45 @@ components:
         minCredits: { type: integer }
         recommendedCredits: { type: integer }
         maxCredits: { type: integer }
+    RegressionTestReadiness:
+      type: object
+      required: [status, settingsUrl, message, defaultBranch]
+      properties:
+        status: { type: string, enum: [ready, missing, unselected, pending, forbidden, unavailable] }
+        settingsUrl: { type: [string, "null"], format: uri }
+        message: { type: string }
+        defaultBranch: { type: string }
+    RegressionTestValidation:
+      type: object
+      required: [commit, outcome, command, summary]
+      properties:
+        commit: { type: string, pattern: '^[a-f0-9]{40}$' }
+        outcome: { type: string, enum: [assertion_failed, passed, blocked, not_run] }
+        command: { type: string }
+        summary: { type: string }
+    RegressionTestRun:
+      type: object
+      required: [id, findingId, status, creditBudget, targetBranch, targetCommit, auditedCommit, summary, pullRequestUrl, audited, target, createdAt, completedAt]
+      properties:
+        id: { type: string }
+        findingId: { type: string }
+        status: { type: string, enum: [QUEUED, RUNNING, BLOCKED, READY, PUBLISHED, PUBLICATION_FAILED, FAILED, CANCELLED] }
+        creditBudget: { type: integer, minimum: 1 }
+        targetBranch: { type: string }
+        targetCommit: { type: string }
+        auditedCommit: { type: string }
+        summary: { type: [string, "null"] }
+        pullRequestUrl: { type: [string, "null"], format: uri }
+        audited:
+          anyOf:
+            - $ref: "#/components/schemas/RegressionTestValidation"
+            - type: "null"
+        target:
+          anyOf:
+            - $ref: "#/components/schemas/RegressionTestValidation"
+            - type: "null"
+        createdAt: { type: string, format: date-time }
+        completedAt: { type: [string, "null"], format: date-time }
     ScanTriage:
       type: object
       description: Completeness of triage, independent of whether the scan succeeded.
@@ -1828,7 +2025,7 @@ components:
         title: { type: string }
         source:
           type: string
-          description: How it arrived. Today always GitHub private vulnerability reporting.
+          description: How it arrived, including GitHub private reports, API submissions, and file imports.
         claimedSeverity:
           oneOf:
             - $ref: "#/components/schemas/Severity"

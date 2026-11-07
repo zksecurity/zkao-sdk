@@ -35,6 +35,12 @@ Reuse the same key and budget when retrying that request.
 Track the returned run with `getTriageRun` or `waitForTriageRun`.
 Read the scan's `triage` again afterward to check for unfinished findings.
 
+Request a paid regression test and its draft pull request with `createRegressionTest(findingId, { creditBudget, targetBranch }, { idempotencyKey })`.
+This needs `regression-tests:write` and verified GitHub write access.
+Reuse the key, budget, and branch after an uncertain response.
+Follow the returned attempt with `getRegressionTest(findingId, runId)`.
+Retry a failed PR publication with `retryRegressionTestPublication(findingId, runId)` without another generation budget.
+
 Full docs, the CLI (`@zksecurity/zkao-cli`), and the OpenAPI contract:
 **https://github.com/zksecurity/zkao-sdk**
 

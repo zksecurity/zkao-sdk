@@ -10,7 +10,9 @@ A finding is one issue a scan reported. Each finding carries two separate status
 - `triageStatus` is zkao's own verdict on the finding. You read it. You cannot set it.
 - `resolutionStatus` is your team's decision about it. You set it.
 
-Reading findings needs the `read` scope. Every change on this page needs `findings:write`.
+Reading findings needs the `read` scope.
+Review decisions need `findings:write`.
+Regression test requests need `regression-tests:write`.
 
 ## List findings
 
@@ -51,7 +53,7 @@ See [List findings](/api/operations/listfindings/) for the full schema.
 
 ## Read one finding
 
-The detail view adds the description, the proof of concept report, the recommended fix, the commit, the repository, and every comment.
+The detail view adds the description, impact, recommendation, commit, repository, and comments.
 
 <Tabs syncKey="client">
 <TabItem label="CLI">
@@ -62,7 +64,7 @@ zkao findings get <findingId>
 <TabItem label="TypeScript">
 ```ts
 const finding = await zkao.getFinding(findingId);
-console.log(finding.description, finding.pocReport, finding.notes);
+console.log(finding.description, finding.recommendation, finding.notes);
 ```
 </TabItem>
 <TabItem label="curl">
@@ -78,6 +80,65 @@ curl -H "Authorization: Bearer $ZKAO_API_TOKEN" \
 A finding page on zkao shows a short label such as `ZK-3f9a2c1b`. It is the last eight characters of the finding id. Every finding endpoint accepts it in place of the full id, with or without the `ZK-` prefix.
 
 A label is unique within a project in practice, but not by construction. A label that matches two findings returns `409`. Use the full id then.
+
+## Regression tests
+
+Request a minimal regression test for a confirmed finding.
+The test replays a fixed counterexample using the repository's own test framework.
+It asserts the intended secure behavior, so it fails against vulnerable code.
+If the target revision still has the bug, the test-only pull request needs a fix before it can pass.
+
+The token needs `read` for readiness and status calls.
+It needs `regression-tests:write` to request a test or retry publication.
+Its creator must remain a project admin with verified GitHub write access.
+The GitHub App must have Contents and Pull requests write permissions for the repository.
+The readiness response names missing setup and provides an installation settings link when available.
+
+```ts
+const readiness = await zkao.getRegressionTestReadiness(findingId);
+if (readiness.status !== "ready") throw new Error(readiness.message);
+
+const { run } = await zkao.createRegressionTest(
+  findingId,
+  { creditBudget: 100, targetBranch: "main" },
+  { idempotencyKey: "one-regression-test-request" },
+);
+const current = await zkao.getRegressionTest(findingId, run.id);
+console.log(current.status, current.pullRequestUrl);
+```
+
+The equivalent HTTP request is:
+
+```bash
+curl -X POST -H "Authorization: Bearer $ZKAO_API_TOKEN" \
+  -H "Content-Type: application/json" -H "Idempotency-Key: one-regression-test-request" \
+  -d '{"creditBudget":100,"targetBranch":"main"}' \
+  "https://zkao.io/api/v1/projects/$ZKAO_PROJECT_ID/findings/$FINDING_ID/regression-tests"
+```
+
+Launch returns `202` with `run` and `replayed`.
+Omit `targetBranch` to use the repository's default branch.
+The request pins that branch's commit and reserves its own credit budget.
+Project and token spending limits include this budget.
+Reuse the same key, budget, and branch after an uncertain response.
+The API returns the original attempt without another reservation.
+
+Follow the run with `getRegressionTest`, separately from its source scan.
+`listRegressionTests(findingId)` returns the latest attempts.
+`PUBLISHED` includes the draft pull request URL.
+`BLOCKED` means a suitable test could not be verified.
+`FAILED` means generation failed.
+`PUBLICATION_FAILED` means the generated test was retained but opening its pull request failed.
+
+Retry that publication without another generation budget:
+
+```ts
+await zkao.retryRegressionTestPublication(findingId, run.id);
+```
+
+The HTTP endpoint is `POST /projects/{projectId}/findings/{findingId}/regression-tests/{runId}/retry-publication`.
+It takes no body and returns `202` with the run.
+Generation failures require a new paid attempt.
 
 ## Comment
 

@@ -151,7 +151,7 @@ export interface paths {
         put?: never;
         /**
          * File a vulnerability report against a repository
-         * @description Requires scope: `reports:write`. Files a report into the programme that takes reports for this repository, as prose. It arrives exactly as a GitHub private vulnerability report does and is read and split into claims by the same step, so nothing downstream distinguishes them.
+         * @description Requires scope: `reports:write`. Files a report into this project's security programme for an active repository belonging to the project. GitHub private-report intake setup and repository admin access are not required. The report arrives as prose and is read and split into claims by the same step as an imported GitHub report.
          *
          *     Returns with `intakeState: PENDING`. `investigateReport` refuses a report until that reaches `COMPLETE`, so poll `/projects/{projectId}/reports` before asking for an investigation.
          *
@@ -523,6 +523,90 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{projectId}/findings/{findingId}/regression-tests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List regression test attempts for a finding
+         * @description Requires scope: `read`. Returns the latest 20 attempts.
+         */
+        get: operations["listRegressionTests"];
+        put?: never;
+        /**
+         * Generate a regression test and create its draft pull request
+         * @description Requires scope: `regression-tests:write`. The finding must be confirmed. The token creator must remain an approved project admin with verified GitHub write access. The GitHub App must have Contents and Pull requests write permissions for this repository. The explicit credit budget is reserved and counts against project and token spending limits. Reuse the idempotency key with the same budget and target branch to retrieve the original attempt without another charge. The generated test uses a fixed counterexample and the repository's existing test framework. A draft pull request is opened after validation.
+         */
+        post: operations["createRegressionTest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/findings/{findingId}/regression-tests/readiness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Check GitHub readiness for a regression test pull request
+         * @description Requires scope: `read`. Reports missing installation, repository access, pending write permissions, or requester authorization. Installation settings links let repository owners enable the feature.
+         */
+        get: operations["getRegressionTestReadiness"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/findings/{findingId}/regression-tests/{runId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a regression test attempt
+         * @description Requires scope: `read`. Poll this run independently of the original scan.
+         */
+        get: operations["getRegressionTest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/findings/{findingId}/regression-tests/{runId}/retry-publication": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry opening a generated regression test pull request
+         * @description Requires scope: `regression-tests:write` and current GitHub write access. Retries a failed publication using the saved test. Does not rerun the agent or reserve another generation budget. Generation failures require a new paid attempt.
+         */
+        post: operations["retryRegressionTestPublication"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{projectId}/findings/{findingId}/notes/{noteId}/pin": {
         parameters: {
             query?: never;
@@ -871,6 +955,40 @@ export interface components {
             recommendedCredits: number;
             maxCredits: number;
         };
+        RegressionTestReadiness: {
+            /** @enum {string} */
+            status: "ready" | "missing" | "unselected" | "pending" | "forbidden" | "unavailable";
+            /** Format: uri */
+            settingsUrl: string | null;
+            message: string;
+            defaultBranch: string;
+        };
+        RegressionTestValidation: {
+            commit: string;
+            /** @enum {string} */
+            outcome: "assertion_failed" | "passed" | "blocked" | "not_run";
+            command: string;
+            summary: string;
+        };
+        RegressionTestRun: {
+            id: string;
+            findingId: string;
+            /** @enum {string} */
+            status: "QUEUED" | "RUNNING" | "BLOCKED" | "READY" | "PUBLISHED" | "PUBLICATION_FAILED" | "FAILED" | "CANCELLED";
+            creditBudget: number;
+            targetBranch: string;
+            targetCommit: string;
+            auditedCommit: string;
+            summary: string | null;
+            /** Format: uri */
+            pullRequestUrl: string | null;
+            audited: components["schemas"]["RegressionTestValidation"] | null;
+            target: components["schemas"]["RegressionTestValidation"] | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            completedAt: string | null;
+        };
         /** @description Completeness of triage, independent of whether the scan succeeded. */
         ScanTriage: {
             /** @enum {string} */
@@ -970,7 +1088,7 @@ export interface components {
             /** @description The identifier `investigateReport` takes. */
             publicId: string;
             title: string;
-            /** @description How it arrived. Today always GitHub private vulnerability reporting. */
+            /** @description How it arrived, including GitHub private reports, API submissions, and file imports. */
             source: string;
             /** @description What the reporter claimed, which is not an assessment. */
             claimedSeverity?: components["schemas"]["Severity"] | null;
@@ -2370,6 +2488,167 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    listRegressionTests: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                /** @description The finding id, or the `ZK-` label shown on the finding page (the id's last eight characters, prefix optional). A label that matches more than one finding in the project is refused with `409 conflict`; use the full id. */
+                findingId: components["parameters"]["FindingId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        runs: components["schemas"]["RegressionTestRun"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    createRegressionTest: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                /** @description The finding id, or the `ZK-` label shown on the finding page (the id's last eight characters, prefix optional). A label that matches more than one finding in the project is refused with `409 conflict`; use the full id. */
+                findingId: components["parameters"]["FindingId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    creditBudget: number;
+                    /** @description Defaults to the repository's default branch. Resolved to a commit at launch. */
+                    targetBranch?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The new or previously created attempt. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        run: components["schemas"]["RegressionTestRun"];
+                        replayed: boolean;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            402: components["responses"]["InsufficientCredits"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getRegressionTestReadiness: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                /** @description The finding id, or the `ZK-` label shown on the finding page (the id's last eight characters, prefix optional). A label that matches more than one finding in the project is refused with `409 conflict`; use the full id. */
+                findingId: components["parameters"]["FindingId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegressionTestReadiness"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getRegressionTest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                /** @description The finding id, or the `ZK-` label shown on the finding page (the id's last eight characters, prefix optional). A label that matches more than one finding in the project is refused with `409 conflict`; use the full id. */
+                findingId: components["parameters"]["FindingId"];
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegressionTestRun"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    retryRegressionTestPublication: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                /** @description The finding id, or the `ZK-` label shown on the finding page (the id's last eight characters, prefix optional). A label that matches more than one finding in the project is refused with `409 conflict`; use the full id. */
+                findingId: components["parameters"]["FindingId"];
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Publication queued. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegressionTestRun"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
         };
     };
     pinFindingNote: {

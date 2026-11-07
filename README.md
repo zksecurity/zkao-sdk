@@ -25,7 +25,7 @@ to.
 
 Or create one yourself in zkao under **Project Settings → Integrations**: it is
 scoped to one project, carries a chosen set of permissions (`read`,
-`findings:write`, `guidance:write`, `scans:launch`, `publish`,
+`findings:write`, `guidance:write`, `scans:launch`, `regression-tests:write`, `publish`,
 `automations:write`), and can be
 limited to specific repositories. The token (`zkao_proj_…`) is shown once,
 together with the project id.
@@ -113,6 +113,12 @@ const scan = await zkao.waitForScan(scanId, {
 Every method is fully typed from the OpenAPI spec. Non-2xx responses throw
 `ZkaoApiError` (with `.status` and `.code`). The base URL is taken from the
 `baseUrl` option, else `ZKAO_URL`, else production.
+
+The SDK can also request a paid regression test and its draft pull request.
+`createRegressionTest(findingId, { creditBudget, targetBranch }, { idempotencyKey })` needs `regression-tests:write` and GitHub write access.
+Reuse that key, budget, and branch after an uncertain response.
+Follow the returned attempt with `getRegressionTest(findingId, runId)`.
+See the [regression test guide](https://docs.zkao.io/guides/findings/#regression-tests).
 
 ## Agent skill
 
