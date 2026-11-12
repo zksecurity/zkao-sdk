@@ -1339,10 +1339,10 @@ export interface components {
             /** @description False when there is no schedule or it is paused. */
             enabled: boolean;
             /**
-             * @description Why an enabled schedule is not running: `budget_reached` when the schedule's or project's monthly automation cap is reached, `error` after repeated failures. Null with no schedule.
+             * @description Why an enabled schedule is not running: `budget_reached` when the schedule's or project's monthly automation cap is reached, `needs_credits` when the organization's credits cannot fund the next run (it resumes on its own once they can), `error` after repeated failures. Null with no schedule.
              * @enum {string|null}
              */
-            state: "active" | "converged" | "budget_reached" | "error" | null;
+            state: "active" | "converged" | "budget_reached" | "needs_credits" | "error" | null;
             branch: string;
             /** @description The configured monthly spending cap. Legacy schedules derive the budget from their cadence and per-run budget. */
             monthlyBudgetCredits: number | null;
