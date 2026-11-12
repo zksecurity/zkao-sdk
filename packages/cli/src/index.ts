@@ -415,7 +415,7 @@ const continuous = program
 continuous
   .command("get <repoId>")
   .description(
-    "Show the schedule, this month's spend, and the recommended, minimum and maximum monthly budgets"
+    "Show the schedule, this month's spend, and the default, minimum and maximum monthly budgets"
   )
   .option("--branch <branch>", "the scheduled branch (default: the repository's default branch)")
   .action((repoId: string, opts: { branch?: string }) =>
@@ -428,7 +428,7 @@ continuous
 for (const [name, description, enabled] of [
   [
     "on",
-    "Turn it on or resume it. A new schedule starts at the recommended budget unless --budget is given",
+    "Turn it on or resume it. A new schedule starts at the default monthly budget unless --budget is given",
     true,
   ],
   [

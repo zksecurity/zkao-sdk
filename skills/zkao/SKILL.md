@@ -124,7 +124,7 @@ zkao guidance clear <repoId>                      # remove a repo's guidance
 zkao areas list <repoId> [--branch <branch>]      # subsystems a scan can be scoped to
 zkao areas add <repoId> "<name>" [--description <text>]
 zkao areas rm <repoId> <areaKey>                  # delete a custom area
-zkao continuous get <repoId> [--branch <branch>]  # Continuous Testing schedule, spend this month, recommended and minimum budgets
+zkao continuous get <repoId> [--branch <branch>]  # Continuous Testing schedule, spend this month, default and minimum budgets
 zkao continuous on <repoId> [--budget <credits>] [--area <key>...]  # turn it on or resume it
 zkao continuous set <repoId> [--budget <credits>] [--area <key>... | --whole-repo]
 zkao continuous off <repoId>                      # pause it, keeping its settings

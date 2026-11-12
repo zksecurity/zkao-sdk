@@ -126,7 +126,7 @@ export interface paths {
         get: operations["getContinuousTesting"];
         /**
          * Turn Continuous Security on, change it, or pause it
-         * @description Requires scope: `automations:write`. Every field is optional. With no schedule on the branch, the request creates one at the recommended monthly budget unless `monthlyBudgetCredits` is given; `enabled: false` then changes nothing. The budget sets the interval smoothly from once a week to twice a day. The recommended budget funds a run about every three days. A budget outside the returned minimum and maximum is refused with `400`. Administrators can raise the maximum monthly budget. `areaKeys` replaces the audit areas runs rotate through, one per run. `enabled: false` pauses the schedule and keeps it. A change re-arms a schedule that had stopped. Each run still needs spendable credits when it launches.
+         * @description Requires scope: `automations:write`. Every field is optional. With no schedule on the branch, the request creates one at the returned `defaultMonthlyCredits` unless `monthlyBudgetCredits` is given; `enabled: false` then changes nothing. The default is a low limit that funds at least one analysis step. When a month's budget is used, automatic analysis waits until the budget is raised or the month resets. The budget sets the interval smoothly from once a month to twice a day. A budget outside the returned minimum and maximum is refused with `400`. Administrators can raise the maximum monthly budget. `areaKeys` replaces the audit areas runs rotate through, one per run. `enabled: false` pauses the schedule and keeps it. A change re-arms a schedule that had stopped. Each run still needs spendable credits when it launches.
          */
         put: operations["setContinuousTesting"];
         post?: never;
@@ -1367,7 +1367,12 @@ export interface components {
              * @description When the next run becomes due. A past time means within the hour. Null when paused or stopped.
              */
             nextRunAt: string | null;
-            /** @description A suggested allocation for ongoing work, based on the repository's estimated analysis budget. */
+            /** @description The monthly budget a new schedule gets when the request names none. It funds at least one analysis step. */
+            defaultMonthlyCredits: number | null;
+            /**
+             * @deprecated
+             * @description Deprecated. The same value as `defaultMonthlyCredits`.
+             */
             recommendedMonthlyCredits: number | null;
             /** @description The smallest month that funds one analysis step. Less is refused. */
             minimumMonthlyCredits: number | null;
