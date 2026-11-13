@@ -1932,9 +1932,21 @@ components:
                   type: object
                   additionalProperties: { type: integer }
 
+    FindingSource:
+      type: object
+      description: Where the finding was found.
+      required: [kind, branch]
+      properties:
+        kind:
+          type: string
+          description: The kind of scan that found it. One of continuous-security, pr-review, flash, max, flash-diff, max-diff, supply-chain, flash-retriage, max-retriage, flash-regression-check, max-regression-check, manual-audit, report-investigation or other. New kinds may be added, so treat an unknown kind like other.
+        branch:
+          type: [string, "null"]
+          description: The branch the scan ran on. Null when the scan recorded none, such as a scan of a pinned commit.
+
     Finding:
       type: object
-      required: [id, displayId, title, location, severity, category, triageStatus, resolutionStatus, notesCount, dismissalReason, triageOverriddenFrom, triageOverriddenAt, triageOverriddenByName]
+      required: [id, displayId, title, location, severity, category, triageStatus, resolutionStatus, notesCount, source, dismissalReason, triageOverriddenFrom, triageOverriddenAt, triageOverriddenByName]
       properties:
         id: { type: string }
         displayId: { type: integer }
@@ -1951,6 +1963,7 @@ components:
           description: What backs a CONFIRMED verdict. POC means a proof of concept ran and demonstrated the issue. ANALYSIS means it was confirmed by code analysis alone. Null for other statuses or when not recorded.
         resolutionStatus: { $ref: "#/components/schemas/ResolutionStatus" }
         notesCount: { type: integer }
+        source: { $ref: "#/components/schemas/FindingSource" }
         dismissalReason:
           type: [string, "null"]
           description: Why triage dismissed the finding as a false positive. Null when triage did not dismiss it or gave no reason.

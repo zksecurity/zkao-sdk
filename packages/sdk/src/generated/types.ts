@@ -1023,6 +1023,13 @@ export interface components {
                 };
             } | null;
         };
+        /** @description Where the finding was found. */
+        FindingSource: {
+            /** @description The kind of scan that found it. One of continuous-security, pr-review, flash, max, flash-diff, max-diff, supply-chain, flash-retriage, max-retriage, flash-regression-check, max-regression-check, manual-audit, report-investigation or other. New kinds may be added, so treat an unknown kind like other. */
+            kind: string;
+            /** @description The branch the scan ran on. Null when the scan recorded none, such as a scan of a pinned commit. */
+            branch: string | null;
+        };
         Finding: {
             id: string;
             displayId: number;
@@ -1039,6 +1046,7 @@ export interface components {
             confirmationEvidence?: "POC" | "ANALYSIS" | null;
             resolutionStatus: components["schemas"]["ResolutionStatus"];
             notesCount: number;
+            source: components["schemas"]["FindingSource"];
             /** @description Why triage dismissed the finding as a false positive. Null when triage did not dismiss it or gave no reason. */
             dismissalReason: string | null;
             /** @description The triage verdict a member replaced, kept from the first override. Null when nobody overrode triage. */
