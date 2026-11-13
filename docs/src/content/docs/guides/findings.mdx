@@ -48,6 +48,7 @@ The list paginates with `page` and `limit`. The default limit is 50 and the maxi
 | `confirmationEvidence` | For a `CONFIRMED` finding, `POC` when a proof of concept ran, or `ANALYSIS` when code analysis alone confirmed it. |
 | `resolutionStatus` | Your team's decision. New findings start at `NOT_STARTED`. |
 | `notesCount` | How many comments the finding has. |
+| `source` | Where the finding was found: `kind` names the kind of scan, such as `continuous-security`, `pr-review` or `max`, and `branch` is the branch it scanned. Treat an unknown `kind` like `other`. |
 
 See [List findings](/api/operations/listfindings/) for the full schema.
 
