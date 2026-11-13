@@ -1027,6 +1027,12 @@ export interface components {
             id: string;
             displayId: number;
             title: string;
+            /** @description One plain sentence on who can trigger the issue, under what conditions, and what they gain. Null when the finding has no summary. */
+            summaryImpact: string | null;
+            /** @description One plain sentence on what is broken, in the system's own terms. Null when the finding has no summary. */
+            summaryCause: string | null;
+            /** @description One plain sentence on the direction of the fix. Null when the finding has no summary. */
+            summaryFix: string | null;
             location: string;
             /** @description Effective severity (user override if set, else AI severity). */
             severity: components["schemas"]["Severity"];

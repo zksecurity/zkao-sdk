@@ -1934,11 +1934,20 @@ components:
 
     Finding:
       type: object
-      required: [id, displayId, title, location, severity, category, triageStatus, resolutionStatus, notesCount, dismissalReason, triageOverriddenFrom, triageOverriddenAt, triageOverriddenByName]
+      required: [id, displayId, title, location, severity, category, triageStatus, resolutionStatus, notesCount, summaryImpact, summaryCause, summaryFix, dismissalReason, triageOverriddenFrom, triageOverriddenAt, triageOverriddenByName]
       properties:
         id: { type: string }
         displayId: { type: integer }
         title: { type: string }
+        summaryImpact:
+          type: [string, "null"]
+          description: One plain sentence on who can trigger the issue, under what conditions, and what they gain. Null when the finding has no summary.
+        summaryCause:
+          type: [string, "null"]
+          description: One plain sentence on what is broken, in the system's own terms. Null when the finding has no summary.
+        summaryFix:
+          type: [string, "null"]
+          description: One plain sentence on the direction of the fix. Null when the finding has no summary.
         location: { type: string }
         severity:
           $ref: "#/components/schemas/Severity"
