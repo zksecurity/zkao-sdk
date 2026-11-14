@@ -1364,7 +1364,7 @@ export interface components {
             perRunBudgetCredits: number | null;
             /** @description Audit areas the runs rotate through, one per run, least recently scanned first. Empty means every run scans the whole repository. */
             areaKeys: string[];
-            /** @description Net credits the schedule's runs spent since the UTC month began. */
+            /** @description Credits the branch was charged for Continuous Security since the UTC month began, net of refunds. Counts its analysis steps, change assessments, public-key reviews, agent questions and the planning included in steps. */
             spentThisMonthCredits: number;
             /** @description Runs the schedule launched since the UTC month began. */
             runsThisMonth: number;
