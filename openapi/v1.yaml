@@ -1453,8 +1453,8 @@ paths:
         Requires scope: `guidance:write`. Answers with one of the question's
         options, a note, or both. The answer reaches the analysis's next
         session. It is recorded as the answer of the member who created the
-        token, whose GitHub account must be able to read the repository.
-        Responds `409` when the question was already answered or dismissed.
+        token, who needs a project role of their own. Responds `409` when the
+        question was already answered or dismissed.
       parameters:
         - $ref: "#/components/parameters/ProjectId"
         - name: questionId

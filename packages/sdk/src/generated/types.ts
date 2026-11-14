@@ -742,7 +742,7 @@ export interface paths {
         put?: never;
         /**
          * Answer a Continuous Security analysis's question
-         * @description Requires scope: `guidance:write`. Answers with one of the question's options, a note, or both. The answer reaches the analysis's next session. It is recorded as the answer of the member who created the token, whose GitHub account must be able to read the repository. Responds `409` when the question was already answered or dismissed.
+         * @description Requires scope: `guidance:write`. Answers with one of the question's options, a note, or both. The answer reaches the analysis's next session. It is recorded as the answer of the member who created the token, who needs a project role of their own. Responds `409` when the question was already answered or dismissed.
          */
         post: operations["answerAgentQuestion"];
         delete?: never;

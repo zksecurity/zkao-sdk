@@ -208,8 +208,8 @@ overrides it. Setting the AI's own verdict again clears the override.
 
 A Continuous Security analysis can ask the project's members a question.
 `zkao questions list` shows the open ones with their `options`. The answer
-counts as that of the member who created the token, whose GitHub account must
-be able to read the repository. Put the question to the user, then send their
+counts as that of the member who created the token, who needs a project role
+of their own. Put the question to the user, then send their
 answer with `zkao questions answer <questionId> --option <label> --note "<text>"`.
 The analysis reads it in its next session. A `409` means it was already
 answered or dismissed.
