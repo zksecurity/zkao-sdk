@@ -97,15 +97,15 @@ A token carries a subset of these scopes:
 | Scope | Allows |
 | --- | --- |
 | `read` | List and read repositories, scans, findings, presets, and billing. |
-| `findings:write` | Comment on findings, change severity and resolution, pin a note. |
-| `guidance:write` | Update a repository's guidance and manage its audit areas. |
+| `findings:write` | Comment on findings, change severity and resolution, override the triage verdict, pin a note. |
+| `guidance:write` | Update a repository's guidance, manage its audit areas, and answer questions from Continuous Security analyses. |
 | `scans:launch` | Launch and cancel scans. |
 | `regression-tests:write` | Generate regression tests and create or retry their pull requests. |
 | `publish` | Publish a finding or a scan as a public page. |
 | `advisories:write` | Record which versions a security advisory affects. |
 | `contacts:read` | Read the advisory contact list. |
 | `contacts:write` | Add an advisory contact. |
-| `automations:write` | Configure Continuous Testing schedules and budgets. |
+| `automations:write` | Configure Continuous Security schedules and budgets, and prepare a branch's next analysis. |
 
 A call that needs a scope the token lacks returns `403 forbidden`.
 

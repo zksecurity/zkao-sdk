@@ -1,13 +1,13 @@
 ---
 title: Triage findings
-description: List a project's findings, read one in full, and record your verdict with comments, severity overrides, and resolution statuses.
+description: List a project's findings, read one in full, and record your verdict with comments, severity and triage overrides, and resolution statuses.
 ---
 
 import { Tabs, TabItem, Aside, Steps } from "@astrojs/starlight/components";
 
 A finding is one issue a scan reported. Each finding carries two separate statuses.
 
-- `triageStatus` is zkao's own verdict on the finding. You read it. You cannot set it.
+- `triageStatus` is zkao's own verdict on the finding. You can [override it](#override-the-triage-verdict) when you disagree.
 - `resolutionStatus` is your team's decision about it. You set it.
 
 Reading findings needs the `read` scope.
@@ -192,6 +192,36 @@ curl -X PATCH -H "Authorization: Bearer $ZKAO_API_TOKEN" -H "Content-Type: appli
 ```
 </TabItem>
 </Tabs>
+
+## Override the triage verdict
+
+Replace zkao's verdict with `CONFIRMED` or `FALSE_POSITIVE`. Setting the AI's own verdict again clears the override. A note is added to the finding as a comment.
+
+<Tabs syncKey="client">
+<TabItem label="CLI">
+```bash
+zkao findings triage <findingId> false-positive \
+  --note "The caller checks the length before this point."
+```
+</TabItem>
+<TabItem label="TypeScript">
+```ts
+await zkao.overrideFindingTriage(findingId, "FALSE_POSITIVE", {
+  note: "The caller checks the length before this point.",
+});
+```
+</TabItem>
+<TabItem label="curl">
+```bash
+curl -X PATCH -H "Authorization: Bearer $ZKAO_API_TOKEN" -H "Content-Type: application/json" \
+  -d '{"triageStatus":"FALSE_POSITIVE","note":"The caller checks the length before this point."}' \
+  https://zkao.io/api/v1/projects/$ZKAO_PROJECT_ID/findings/<findingId>/triage
+```
+</TabItem>
+</Tabs>
+
+The response returns `triageStatus`, `previousTriageStatus`, and the comment's `noteId`.
+The triage verdict is separate from the resolution status. Set the resolution to record what your team does about the finding.
 
 ## Set a resolution
 

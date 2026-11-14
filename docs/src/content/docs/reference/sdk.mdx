@@ -101,6 +101,37 @@ await zkao.setRepositoryGuidance(repoId, `${current.content ?? ""}\nNew note.`, 
 | `createAuditArea(repositoryId, name, description?)` | `AuditArea` | Add a custom area. The key is derived from the name. Needs `guidance:write`. [API](/api/operations/createauditarea/) |
 | `deleteAuditArea(repositoryId, areaKey)` | `DeleteAuditAreaResult` | Delete a custom area. An area a scan's map named is refused with `409`. Needs `guidance:write`. [API](/api/operations/deleteauditarea/) |
 
+### Continuous Security
+
+A branch defaults to the repository's default branch.
+
+| Method | Returns | Meaning |
+| --- | --- | --- |
+| `getContinuousTesting(repositoryId, opts?)` | `ContinuousTesting` | A branch's schedule, this month's spend, and the default, minimum, and maximum monthly budgets. `opts.branch` picks the branch. [API](/api/operations/getcontinuoustesting/) |
+| `setContinuousTesting(repositoryId, body)` | `ContinuousTesting` | Turn automatic analysis on or off, or change its monthly budget or audit areas. Needs `automations:write`. [API](/api/operations/setcontinuoustesting/) |
+| `removeContinuousTesting(repositoryId, opts?)` | `RemoveContinuousTestingResult` | Remove a branch's schedule. Scans it already ran are kept. Needs `automations:write`. [API](/api/operations/removecontinuoustesting/) |
+| `prepareContinuousTesting(repositoryId, branch)` | `{ preparing: true }` | Plan the branch's next analysis without running it, as **Prepare next analysis** does in the app. Spends no credits. Needs `automations:write`. [API](/api/operations/preparecontinuoustesting/) |
+| `listAgentQuestions()` | `{ questions: AgentQuestion[] }` | The open questions Continuous Security analyses asked the project's members, oldest first. [API](/api/operations/listagentquestions/) |
+| `answerAgentQuestion(questionId, answer)` | `{ questionId, status }` | Answer with `selectedOption`, a `note`, or both. Needs `guidance:write`. [API](/api/operations/answeragentquestion/) |
+
+`setContinuousTesting` takes `enabled`, `monthlyBudgetCredits`, `areaKeys`, and `branch`, all optional.
+An empty `areaKeys` scans the whole repository every run.
+
+`selectedOption` is the label of one of the question's `options`.
+The analysis reads the answer in its next session.
+The answer counts as that of the member who created the token. Their GitHub account must be able to read the repository.
+A question that was already answered or dismissed fails with `409`.
+
+```ts
+const { questions } = await zkao.listAgentQuestions();
+for (const q of questions) console.log(q.id, q.text, q.options.map((o) => o.label));
+
+await zkao.answerAgentQuestion(questionId, {
+  selectedOption: "<one of the labels>",
+  note: "Only the operator can call this.",
+});
+```
+
 ### Scans
 
 | Method | Returns | Meaning |
@@ -157,6 +188,7 @@ Read the scan's `triage` again afterward to check remaining work.
 | `pinFindingNote(findingId, noteId, kind?)` | `{ findingId, noteId }` | Pin a note as the finding's resolution note. `kind` is `"resolution"`. Needs `findings:write`. [API](/api/operations/pinfindingnote/) |
 | `setFindingSeverity(findingId, severity)` | `{ findingId, userSeverity, effectiveSeverity }` | Override severity, or clear the override with `null`. Needs `findings:write`. [API](/api/operations/updatefindingseverity/) |
 | `setFindingResolution(findingId, status, opts?)` | `{ findingId, resolutionStatus }` | Change the resolution status. Needs `findings:write`. [API](/api/operations/updatefindingresolution/) |
+| `overrideFindingTriage(findingId, triageStatus, opts?)` | `FindingTriageResult` | Replace the AI triage verdict with `CONFIRMED` or `FALSE_POSITIVE`. Setting the AI's own verdict again clears the override. `opts.note` is added as a comment. Needs `findings:write`. [API](/api/operations/overridefindingtriage/) |
 | `listFindingDetails(opts?)` | `FindingDetailsPage` | Full text of many findings in one call. `opts` takes `scanId`, `ids`, `page`, and `limit`. [API](/api/operations/listfindingdetails/) |
 | `publishFinding(findingId, opts?)` | `PublishArtifactResult` | Publish a finding as a public page. `opts` takes `noteId` and `withPassword`. Needs `publish`. [API](/api/operations/publishfinding/) |
 
@@ -364,7 +396,8 @@ The package exports a named type for each API object.
 | `Repository`, `RepositoryGuidance`, `SetGuidanceResult` | Repositories and their guidance. |
 | `Scan`, `ScanDetail`, `ScanStatus`, `ScanPreset` | Scans, their status, and presets. |
 | `LaunchScanRequest`, `LaunchScanResult`, `CancelScanResult` | Launch and cancel bodies and results. |
-| `Finding`, `FindingDetail`, `FindingNote`, `ChangeNote` | Findings and their notes. |
+| `Finding`, `FindingDetail`, `FindingNote`, `ChangeNote`, `FindingTriageResult` | Findings, their notes, and a triage override's result. |
+| `ContinuousTesting`, `SetContinuousTestingRequest`, `RemoveContinuousTestingResult`, `AgentQuestion` | Continuous Security schedules and the questions its analyses ask. |
 | `Severity`, `ResolutionStatus`, `ResolutionReason`, `TriageStatus` | Finding enums. |
 | `PublishArtifactResult` | Result of publishing a scan or finding. |
 | `TokenInfo` | The calling token and its project. |

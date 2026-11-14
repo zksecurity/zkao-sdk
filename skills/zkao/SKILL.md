@@ -3,8 +3,9 @@ name: zkao
 description: >-
   Control a zkao security-audit project programmatically: list repositories,
   list/launch/poll scans, list and read findings, triage findings (comment,
-  change severity, change resolution status, pin a note), read and update a
-  repository's guidance, check the credit balance and usage, and publish
+  change severity, change resolution status, override the triage verdict, pin
+  a note), read and update a repository's guidance, answer questions from
+  Continuous Security analyses, check the credit balance and usage, and publish
   findings or scans. Use when the user asks to drive their zkao project, check
   scan status, review or triage findings, kick off a scan, edit repo guidance,
   resume unfinished triage, verify a fix, check credits or spend, or publish results. Also use after finishing a
@@ -116,6 +117,7 @@ zkao findings details [--scan <scanId>] [--ids <id,...>]  # full detail of many 
 zkao findings comment <findingId> "<text>"
 zkao findings severity <findingId> <CRITICAL|HIGH|MEDIUM|LOW|INFO|none>
 zkao findings resolution <findingId> <RESOLVED|WONT_FIX|FALSE_POSITIVE|...> [--note "<text>"] [--reason <code>]
+zkao findings triage <findingId> <confirmed|false-positive> [--note "<text>"]  # override the AI triage verdict
 zkao findings publish <findingId> [--note <noteId>] [--password]
 zkao scans publish <scanId> [--password]
 zkao guidance get <repoId>                        # show a repo's configured guidance
@@ -128,7 +130,10 @@ zkao continuous get <repoId> [--branch <branch>]  # Continuous Testing schedule,
 zkao continuous on <repoId> [--budget <credits>] [--area <key>...]  # turn it on or resume it
 zkao continuous set <repoId> [--budget <credits>] [--area <key>... | --whole-repo]
 zkao continuous off <repoId>                      # pause it, keeping its settings
+zkao continuous prepare <repoId> [--branch <branch>]  # plan the next analysis without running it; spends no credits
 zkao continuous rm <repoId>                       # remove the schedule
+zkao questions list                               # open questions from Continuous Security analyses
+zkao questions answer <questionId> [--option <label>] [--note "<text>"]
 zkao billing balance                              # credits available for new scans
 zkao billing usage [--from <d>] [--to <d>]        # credit ledger, last 30 days by default
 zkao billing summary [--months <n>]               # credits spent/purchased per month
@@ -194,6 +199,20 @@ The codes offered depend on the status, and a code from another status is
 rejected with the valid list in the error. See the `ResolutionReason` enum in
 the OpenAPI spec for the full set. Prefer `--note` when the reasoning has any
 detail worth keeping; a code alone loses it.
+
+`triageStatus` is zkao's own verdict, separate from the resolution status.
+When the user disagrees with it, `zkao findings triage <id> <confirmed|false-positive> --note "<why>"`
+overrides it. Setting the AI's own verdict again clears the override.
+
+**Answer questions from Continuous Security**
+
+A Continuous Security analysis can ask the project's members a question.
+`zkao questions list` shows the open ones with their `options`. The answer
+counts as that of the member who created the token, whose GitHub account must
+be able to read the repository. Put the question to the user, then send their
+answer with `zkao questions answer <questionId> --option <label> --note "<text>"`.
+The analysis reads it in its next session. A `409` means it was already
+answered or dismissed.
 
 **Route durable repo knowledge into guidance**
 

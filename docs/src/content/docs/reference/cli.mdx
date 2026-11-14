@@ -299,6 +299,17 @@ Set a finding's resolution status: `NOT_STARTED`, `IN_PROGRESS`, `RESOLVED`, `WO
 `--note` wins when both are given. Both are ignored for `NOT_STARTED` and `IN_PROGRESS`.
 See [Triage findings](/guides/findings/) for the reason codes.
 
+### `zkao findings triage <findingId> <verdict>`
+
+Override zkao's triage verdict with `confirmed` or `false-positive`. Needs the `findings:write` scope.
+Setting the AI's own verdict again clears the override.
+
+| Option | Meaning |
+| --- | --- |
+| `--note <text>` | Record the reason as a comment in the same call. |
+
+The result has `triageStatus`, `previousTriageStatus`, and the comment's `noteId`, or `null` without a note.
+
 ### `zkao findings publish <findingId>`
 
 Publish a finding as a public page. Needs the `publish` scope.
@@ -356,6 +367,66 @@ Add a custom area. Its key is derived from the name. Needs the `guidance:write` 
 ### `zkao areas rm <repoId> <areaKey>`
 
 Delete a custom area. An area that a scan's map named is refused. Needs the `guidance:write` scope.
+
+## Continuous Security
+
+Continuous Security analyzes a branch on its own, paid from a monthly budget.
+`get` needs the `read` scope. The other commands need `automations:write`.
+Each command takes `--branch <branch>`. It defaults to the repository's default branch.
+
+### `zkao continuous get <repoId>`
+
+Print the branch's schedule, what it spent this month, and the default, minimum, and maximum monthly budgets.
+
+### `zkao continuous on <repoId>`
+
+Turn automatic analysis on, or resume it. A new schedule starts at the default monthly budget unless `--budget` is given.
+
+| Option | Meaning |
+| --- | --- |
+| `--budget <credits>` | Monthly budget in credits, within the minimum and maximum that `get` reports. |
+| `--area <key>` | Audit area to rotate through, one per run. Repeat it for several. See `zkao areas list`. |
+| `--whole-repo` | Scan the whole repository every run. It cannot be combined with `--area`. |
+
+### `zkao continuous set <repoId>`
+
+Change the monthly budget or the audit areas without turning automatic analysis on or off. It takes the same options as `on`.
+
+### `zkao continuous off <repoId>`
+
+Pause automatic analysis. The schedule and its settings are kept.
+
+### `zkao continuous prepare <repoId>`
+
+Plan the branch's next analysis without running it, as **Prepare next analysis** does in the app. Preparing spends no credits.
+It works whether automatic analysis is on or off. A preparation already in progress on the branch is reused.
+It fails with `400` when the branch has no active Continuous Security, and with `409` while the repository is still being prepared.
+
+### `zkao continuous rm <repoId>`
+
+Remove the schedule. Scans it already ran are kept.
+
+## Questions
+
+A Continuous Security analysis can ask the project's members a question.
+
+### `zkao questions list`
+
+List the open questions, oldest first. Each has an `id`, its `repositoryId` and `branch`, the question `text`, the `options` it offers, and the analysis that asked it.
+
+### `zkao questions answer <questionId>`
+
+Answer a question with one of its options, a note, or both. Needs the `guidance:write` scope.
+The analysis reads the answer in its next session.
+The answer counts as that of the member who created the token. Their GitHub account must be able to read the repository.
+A question that was already answered or dismissed fails with `409`.
+
+| Option | Meaning |
+| --- | --- |
+| `--option <label>` | The label of one of the question's options. |
+| `--note <text>` | Your answer in your own words, or what qualifies the option. |
+
+Pass at least one of them.
 
 ## Billing
 

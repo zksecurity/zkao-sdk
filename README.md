@@ -53,6 +53,7 @@ zkao whoami                                      # which project the token belon
 zkao repos
 zkao findings list
 zkao findings resolution <findingId> WONT_FIX --reason risk_accepted
+zkao findings triage <findingId> false-positive  # override the AI triage verdict (findings:write scope)
 zkao scans launch --repo <repoId> --budget 500 --preset <ref>
 zkao scans launch --repo <repoId> --preset "builtin:Flash Diff" --base main --commit <sha>  # audit only a change
 zkao scans wait <scanId>                         # block until the scan finishes
@@ -65,6 +66,9 @@ zkao continuous get <repoId>                     # Continuous Testing: schedule,
 zkao continuous on <repoId> [--budget <credits>] # turn it on (automations:write scope)
 zkao continuous set <repoId> --area <key>        # change the budget or the areas it rotates through
 zkao continuous off <repoId>                     # pause it
+zkao continuous prepare <repoId>                 # plan the next analysis without running it; spends no credits
+zkao questions list                              # open questions from Continuous Security analyses
+zkao questions answer <questionId> --option <label>  # answer one (guidance:write scope)
 zkao billing balance                             # credits available for new scans
 zkao billing usage                               # credit ledger, last 30 days
 zkao billing summary                             # credits spent/purchased per month
