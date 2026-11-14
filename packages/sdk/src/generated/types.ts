@@ -151,7 +151,7 @@ export interface paths {
         put?: never;
         /**
          * Prepare a branch's next Continuous Security analysis
-         * @description Requires scope: `automations:write`. Plans the branch's next analysis without running it, as "Prepare next analysis" does in the app. It works whether automatic analysis is on or off. Preparing spends no credits. A preparation already in progress on the branch is reused. Responds `400` when the branch does not exist or has no active Continuous Security, and `409` while the repository is still being prepared.
+         * @description Requires scope: `automations:write`. Plans the branch's next analysis without running it, as "Prepare next analysis" does in the app. It works whether automatic analysis is on or off. Preparing spends no credits. A preparation already in progress on the branch is reused. When nothing has changed since the plan was last prepared, the branch's planner conversation says so and the plan stays as it is. Responds `400` when the branch does not exist or has no active Continuous Security, and `409` while the repository is still being prepared.
          */
         post: operations["prepareContinuousTesting"];
         delete?: never;
