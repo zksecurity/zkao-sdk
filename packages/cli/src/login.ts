@@ -119,7 +119,15 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   if (!res.ok) {
     let detail = res.statusText;
     try {
-      const data = (await res.json()) as { error?: { message?: string } };
+      const data = (await res.json()) as {
+        error?: { message?: string };
+        status?: string;
+      };
+      // The poll endpoint answers a coarse rate limit with HTTP 429 and a
+      // `slow_down` body (RFC 8628): that is a pacing signal, not a failure.
+      if (data.status === "slow_down") {
+        return data as T;
+      }
       detail = data.error?.message ?? detail;
     } catch {
       // keep statusText
@@ -302,7 +310,8 @@ async function pollUntilDone(
         case "pending":
           break;
         case "slow_down":
-          intervalMs += 2000;
+          // RFC 8628 section 3.5: increase the interval by at least 5s.
+          intervalMs += 5000;
           break;
         case "denied":
           resolved.push(pending.deviceCode);
