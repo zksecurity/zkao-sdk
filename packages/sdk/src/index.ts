@@ -46,6 +46,8 @@ export {
   type ContinuousTesting,
   type SetContinuousTestingRequest,
   type RemoveContinuousTestingResult,
+  type FindingTriageResult,
+  type AgentQuestion,
   type Paginated,
   type TokenInfo,
   type BillingBalance,

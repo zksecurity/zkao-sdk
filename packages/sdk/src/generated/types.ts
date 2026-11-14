@@ -140,6 +140,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{projectId}/repositories/{repositoryId}/continuous-testing/prepare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Prepare a branch's next Continuous Security analysis
+         * @description Requires scope: `automations:write`. Plans the branch's next analysis without running it, as "Prepare next analysis" does in the app. It works whether automatic analysis is on or off. Preparing spends no credits. A preparation already in progress on the branch is reused. Responds `400` when the branch does not exist or has no active Continuous Security, and `409` while the repository is still being prepared.
+         */
+        post: operations["prepareContinuousTesting"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{projectId}/repositories/{repositoryId}/reports": {
         parameters: {
             query?: never;
@@ -667,6 +687,68 @@ export interface paths {
          *     On a finding triage dismissed (`triageStatus` `FALSE_POSITIVE`), any status other than `FALSE_POSITIVE` or `DUPLICATE` reopens it: its `triageStatus` becomes `CONFIRMED` and the override fields record who did it. `NOT_STARTED` reopens it even when that is already its resolution. Setting `FALSE_POSITIVE` on a reopened finding undoes the reopen: the triage verdict comes back, the override is cleared, and the resolution returns to `NOT_STARTED`. The response carries the stored statuses.
          */
         patch: operations["updateFindingResolution"];
+        trace?: never;
+    };
+    "/projects/{projectId}/findings/{findingId}/triage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Override a finding's triage verdict
+         * @description Requires scope: `findings:write`.
+         *
+         *     Replaces the AI triage verdict with `CONFIRMED` or `FALSE_POSITIVE`. The override keeps the first AI verdict it replaced. Setting that verdict again clears the override. A `note` is added to the finding as a comment from the member who created the token.
+         */
+        patch: operations["overrideFindingTriage"];
+        trace?: never;
+    };
+    "/projects/{projectId}/agent-questions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the open questions Continuous Security analyses asked
+         * @description Requires scope: `read`. The open questions the project's continuous analyses asked its members, oldest first, at most 200.
+         */
+        get: operations["listAgentQuestions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/agent-questions/{questionId}/answer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Answer a Continuous Security analysis's question
+         * @description Requires scope: `guidance:write`. Answers with one of the question's options, a note, or both. The answer reaches the analysis's next session. It is recorded as the answer of the member who created the token, whose GitHub account must be able to read the repository. Responds `409` when the question was already answered or dismissed.
+         */
+        post: operations["answerAgentQuestion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/projects/{projectId}/findings/{findingId}/publish": {
@@ -1465,6 +1547,28 @@ export interface components {
             /** @description The triage status after the change. It moves when the change reopens a finding triage dismissed, or undoes that reopen. */
             triageStatus: components["schemas"]["TriageStatus"];
         };
+        FindingTriageResult: {
+            findingId: string;
+            triageStatus: components["schemas"]["TriageStatus"];
+            previousTriageStatus: components["schemas"]["TriageStatus"];
+            /** @description The comment the override added, or null without a note. */
+            noteId: string | null;
+        };
+        AgentQuestion: {
+            id: string;
+            repositoryId: string;
+            /** @description The branch the analysis runs on. Null is the repository's default branch. */
+            branch: string | null;
+            text: string;
+            options: {
+                label: string;
+                description: string | null;
+            }[];
+            /** Format: date-time */
+            askedAt: string;
+            /** @description The analysis that asked. */
+            asker: string;
+        };
         /**
          * @description Short code for why a finding is being closed, chosen from the set offered for the `resolutionStatus` it is sent with; a code belonging to a different status is rejected with 400. Ignored for the open statuses (`NOT_STARTED`, `IN_PROGRESS`) and when `note` is also given. It is not stored as a field: it is recorded as a comment on the finding stating what was chosen, which is returned by the notes endpoints.
          *
@@ -1879,6 +1983,43 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    prepareContinuousTesting: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                repositoryId: components["parameters"]["RepositoryId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    branch: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        preparing: true;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     submitReport: {
@@ -2765,6 +2906,109 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FindingResolutionResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    overrideFindingTriage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                /** @description The finding id, or the `ZK-` label shown on the finding page (the id's last eight characters, prefix optional). A label that matches more than one finding in the project is refused with `409 conflict`; use the full id. */
+                findingId: components["parameters"]["FindingId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    triageStatus: "CONFIRMED" | "FALSE_POSITIVE";
+                    note?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FindingTriageResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listAgentQuestions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        questions: components["schemas"]["AgentQuestion"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    answerAgentQuestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                questionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description The label of one of the question's options. */
+                    selectedOption?: string | null;
+                    note?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        questionId: string;
+                        /** @enum {string} */
+                        status: "ANSWERED";
+                    };
                 };
             };
             400: components["responses"]["BadRequest"];

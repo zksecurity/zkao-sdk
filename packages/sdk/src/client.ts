@@ -43,6 +43,8 @@ export type ContinuousTesting = Schemas["ContinuousTesting"];
 export type SetContinuousTestingRequest = Schemas["SetContinuousTestingRequest"];
 export type RemoveContinuousTestingResult =
   Schemas["RemoveContinuousTestingResult"];
+export type FindingTriageResult = Schemas["FindingTriageResult"];
+export type AgentQuestion = Schemas["AgentQuestion"];
 export type SetGuidanceResult = Schemas["SetGuidanceResult"];
 export type TokenInfo = Schemas["TokenInfo"];
 export type BillingBalance = Schemas["BillingBalance"];
@@ -522,6 +524,46 @@ export class ZkaoClient {
           query: opts.branch === undefined ? {} : { branch: opts.branch },
         },
       }
+    );
+    return unwrap(res);
+  }
+
+  /**
+   * Plan a branch's next Continuous Security analysis without running it, as
+   * "Prepare next analysis" does in the app (requires the `automations:write`
+   * scope). Preparing spends no credits.
+   */
+  async prepareContinuousTesting(
+    repositoryId: string,
+    branch: string
+  ): Promise<{ preparing: true }> {
+    const res = await this.http.POST(
+      "/projects/{projectId}/repositories/{repositoryId}/continuous-testing/prepare",
+      { params: { path: { ...this.path, repositoryId } }, body: { branch } }
+    );
+    return unwrap(res);
+  }
+
+  /** The open questions the project's continuous analyses asked its members. */
+  async listAgentQuestions(): Promise<{ questions: AgentQuestion[] }> {
+    const res = await this.http.GET("/projects/{projectId}/agent-questions", {
+      params: { path: this.path },
+    });
+    return unwrap(res);
+  }
+
+  /**
+   * Answer an analysis's question with one of its options, a note, or both
+   * (requires the `guidance:write` scope). The answer reaches the analysis's
+   * next session.
+   */
+  async answerAgentQuestion(
+    questionId: string,
+    answer: { selectedOption?: string; note?: string }
+  ): Promise<{ questionId: string; status: "ANSWERED" }> {
+    const res = await this.http.POST(
+      "/projects/{projectId}/agent-questions/{questionId}/answer",
+      { params: { path: { ...this.path, questionId } }, body: answer }
     );
     return unwrap(res);
   }
@@ -1015,6 +1057,23 @@ export class ZkaoClient {
     const res = await this.http.PATCH("/projects/{projectId}/findings/{findingId}/resolution", {
       params: { path: { ...this.path, findingId } },
       body: { resolutionStatus, note: opts.note, reason: opts.reason },
+    });
+    return unwrap(res);
+  }
+
+  /**
+   * Replace a finding's AI triage verdict (requires the `findings:write`
+   * scope). Setting the AI's own verdict again clears the override. A note is
+   * added as a comment.
+   */
+  async overrideFindingTriage(
+    findingId: string,
+    triageStatus: "CONFIRMED" | "FALSE_POSITIVE",
+    opts: { note?: string } = {}
+  ): Promise<FindingTriageResult> {
+    const res = await this.http.PATCH("/projects/{projectId}/findings/{findingId}/triage", {
+      params: { path: { ...this.path, findingId } },
+      body: { triageStatus, ...(opts.note === undefined ? {} : { note: opts.note }) },
     });
     return unwrap(res);
   }

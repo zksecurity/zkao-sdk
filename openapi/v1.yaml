@@ -343,6 +343,47 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /projects/{projectId}/repositories/{repositoryId}/continuous-testing/prepare:
+    post:
+      tags: [Repositories]
+      operationId: prepareContinuousTesting
+      summary: Prepare a branch's next Continuous Security analysis
+      description: >-
+        Requires scope: `automations:write`. Plans the branch's next analysis
+        without running it, as "Prepare next analysis" does in the app. It
+        works whether automatic analysis is on or off. Preparing spends no
+        credits. A preparation already in progress on the branch is reused.
+        Responds `400` when the branch does not exist or has no active
+        Continuous Security, and `409` while the repository is still being
+        prepared.
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/RepositoryId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [branch]
+              properties:
+                branch: { type: string, maxLength: 255 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [preparing]
+                properties:
+                  preparing: { type: boolean, enum: [true] }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
   /projects/{projectId}/repositories/{repositoryId}/reports:
     post:
       tags: [Reports]
@@ -1334,6 +1375,114 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/FindingResolutionResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /projects/{projectId}/findings/{findingId}/triage:
+    patch:
+      tags: [Findings]
+      operationId: overrideFindingTriage
+      summary: Override a finding's triage verdict
+      description: >
+        Requires scope: `findings:write`.
+
+
+        Replaces the AI triage verdict with `CONFIRMED` or `FALSE_POSITIVE`.
+        The override keeps the first AI verdict it replaced. Setting that
+        verdict again clears the override. A `note` is added to the finding as
+        a comment from the member who created the token.
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/FindingId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [triageStatus]
+              properties:
+                triageStatus: { type: string, enum: [CONFIRMED, FALSE_POSITIVE] }
+                note: { type: string, minLength: 1 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FindingTriageResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /projects/{projectId}/agent-questions:
+    get:
+      tags: [Findings]
+      operationId: listAgentQuestions
+      summary: List the open questions Continuous Security analyses asked
+      description: >-
+        Requires scope: `read`. The open questions the project's continuous
+        analyses asked its members, oldest first, at most 200.
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [questions]
+                properties:
+                  questions:
+                    type: array
+                    items: { $ref: "#/components/schemas/AgentQuestion" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /projects/{projectId}/agent-questions/{questionId}/answer:
+    post:
+      tags: [Findings]
+      operationId: answerAgentQuestion
+      summary: Answer a Continuous Security analysis's question
+      description: >-
+        Requires scope: `guidance:write`. Answers with one of the question's
+        options, a note, or both. The answer reaches the analysis's next
+        session. It is recorded as the answer of the member who created the
+        token, whose GitHub account must be able to read the repository.
+        Responds `409` when the question was already answered or dismissed.
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - name: questionId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                selectedOption:
+                  type: [string, "null"]
+                  description: The label of one of the question's options.
+                note: { type: [string, "null"] }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [questionId, status]
+                properties:
+                  questionId: { type: string }
+                  status: { type: string, enum: [ANSWERED] }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
@@ -2720,6 +2869,40 @@ components:
         triageStatus:
           $ref: "#/components/schemas/TriageStatus"
           description: The triage status after the change. It moves when the change reopens a finding triage dismissed, or undoes that reopen.
+
+    FindingTriageResult:
+      type: object
+      required: [findingId, triageStatus, previousTriageStatus, noteId]
+      properties:
+        findingId: { type: string }
+        triageStatus: { $ref: "#/components/schemas/TriageStatus" }
+        previousTriageStatus: { $ref: "#/components/schemas/TriageStatus" }
+        noteId:
+          type: [string, "null"]
+          description: The comment the override added, or null without a note.
+
+    AgentQuestion:
+      type: object
+      required: [id, repositoryId, branch, text, options, askedAt, asker]
+      properties:
+        id: { type: string }
+        repositoryId: { type: string }
+        branch:
+          type: [string, "null"]
+          description: The branch the analysis runs on. Null is the repository's default branch.
+        text: { type: string }
+        options:
+          type: array
+          items:
+            type: object
+            required: [label, description]
+            properties:
+              label: { type: string }
+              description: { type: [string, "null"] }
+        askedAt: { type: string, format: date-time }
+        asker:
+          type: string
+          description: The analysis that asked.
 
     ResolutionReason:
       type: string

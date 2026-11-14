@@ -475,6 +475,20 @@ continuous
     )
   );
 continuous
+  .command("prepare <repoId>")
+  .description(
+    "Plan the next analysis without running it, as \"Prepare next analysis\" does. Spends no credits"
+  )
+  .option("--branch <branch>", "the branch (default: the scheduled branch)")
+  .action((repoId: string, opts: { branch?: string }) =>
+    run(async (c) =>
+      c.prepareContinuousTesting(
+        repoId,
+        opts.branch ?? (await c.getContinuousTesting(repoId)).branch
+      )
+    )
+  );
+continuous
   .command("rm <repoId>")
   .description("Remove the schedule. Scans it already ran are kept")
   .option("--branch <branch>", "the scheduled branch")
@@ -721,6 +735,19 @@ findings
     )
   );
 findings
+  .command("triage <findingId> <verdict>")
+  .description(
+    "Override the AI triage verdict (confirmed|false-positive). Setting the AI's own verdict clears the override"
+  )
+  .option("--note <text>", "add the why as a comment in the same call")
+  .action((findingId: string, verdict: string, opts: { note?: string }) => {
+    const status = verdict.toUpperCase().replace(/-/g, "_");
+    if (status !== "CONFIRMED" && status !== "FALSE_POSITIVE") {
+      fail("The verdict must be confirmed or false-positive.");
+    }
+    return run((c) => c.overrideFindingTriage(findingId, status, { note: opts.note }));
+  });
+findings
   .command("publish <findingId>")
   .description("Publish a finding as a public artifact")
   .option("--note <noteId>", "note to pin as the published note")
@@ -728,6 +755,32 @@ findings
   .action((findingId: string, opts: { note?: string; password?: boolean }) =>
     run((c) => c.publishFinding(findingId, { noteId: opts.note, withPassword: opts.password }))
   );
+
+// --- questions ------------------------------------------------------------
+
+const questions = program
+  .command("questions")
+  .description("Read and answer the questions Continuous Security analyses ask");
+questions
+  .command("list")
+  .description("List the open questions")
+  .action(() => run((c) => c.listAgentQuestions()));
+questions
+  .command("answer <questionId>")
+  .description("Answer with one of the question's options, a note, or both")
+  .option("--option <label>", "the label of one of the question's options")
+  .option("--note <text>", "your answer in your own words, or what qualifies the option")
+  .action((questionId: string, opts: { option?: string; note?: string }) => {
+    if (opts.option === undefined && opts.note === undefined) {
+      fail("Pass --option, --note, or both.");
+    }
+    return run((c) =>
+      c.answerAgentQuestion(questionId, {
+        ...(opts.option === undefined ? {} : { selectedOption: opts.option }),
+        ...(opts.note === undefined ? {} : { note: opts.note }),
+      })
+    );
+  });
 
 // --- billing --------------------------------------------------------------
 
