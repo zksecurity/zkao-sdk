@@ -1899,6 +1899,15 @@ components:
           description: A diff scan's base, as the merge base SHA its change is measured from. Null for other scans.
         commitMessage: { type: [string, "null"] }
         presetName: { type: [string, "null"] }
+        effort:
+          type: [string, "null"]
+          enum: [medium, high, extra-high, null]
+          readOnly: true
+          description: >-
+            The scan's budget measured against the budget recommended for its
+            scope at launch. `medium` is below the recommendation, `high` is at
+            it, and `extra-high` is at least twice it. Null for a Flash scan,
+            and for a scan with no recorded effort.
         createdAt: { type: string, format: date-time }
         startedAt: { type: [string, "null"], format: date-time }
         completedAt: { type: [string, "null"], format: date-time }

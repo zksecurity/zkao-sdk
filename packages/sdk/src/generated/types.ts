@@ -988,6 +988,11 @@ export interface components {
             baseCommit?: string | null;
             commitMessage?: string | null;
             presetName?: string | null;
+            /**
+             * @description The scan's budget measured against the budget recommended for its scope at launch. `medium` is below the recommendation, `high` is at it, and `extra-high` is at least twice it. Null for a Flash scan, and for a scan with no recorded effort.
+             * @enum {string|null}
+             */
+            readonly effort?: "medium" | "high" | "extra-high" | null;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
