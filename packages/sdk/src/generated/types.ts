@@ -218,8 +218,9 @@ export interface paths {
          *     `diff_base_required`, `diff_base_not_allowed`, or `diff_base_invalid`.
          *     A diff scan also needs a change to audit (otherwise `422`).
          *
-         *     The builtin presets come in two tiers. Flash runs fewer techniques on
-         *     a flash model. Max runs every technique on flagship models. Each tier
+         *     The builtin presets come in two tiers. Flash runs one focused
+         *     analysis, led by a flagship model when it audits the code or a change.
+         *     Max runs every technique on flagship models. Each tier
          *     has a preset for the code (`builtin:Flash`, `builtin:Max`), a change
          *     (`builtin:Flash Diff`, `builtin:Max Diff`), open findings
          *     (`builtin:Flash Retriage`, `builtin:Max Retriage`) and resolved

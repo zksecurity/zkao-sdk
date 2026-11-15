@@ -49,7 +49,7 @@ This launches a Flash scan of the change in each push and moves on. The results 
 
 ## Gate pull requests on a diff scan
 
-`scan: flash` audits only the change a pull request makes, with fewer techniques on a flash model. It is cheap and fast. `scan: max` runs every technique on the change, on flagship models. In `gate` mode, the job fails when open findings reach `fail-on`.
+`scan: flash` audits only the change a pull request makes, with one focused analysis led by a flagship model. It is cheap and fast. `scan: max` runs every technique on the change, on flagship models. In `gate` mode, the job fails when open findings reach `fail-on`.
 
 ```yaml
 name: zkao
@@ -168,7 +168,7 @@ Change the handle with the `mention` input.
 
 | `scan` | Runs |
 | --- | --- |
-| `flash` (default) | Only the change since `base`, with fewer techniques on a flash model. |
+| `flash` (default) | Only the change since `base`, with one focused analysis led by a flagship model. |
 | `max` | Only the change since `base`, with every technique on flagship models. |
 | a preset ref | That preset, such as `builtin:Max` for the whole repository, or a custom one. List refs with `zkao presets`. |
 
