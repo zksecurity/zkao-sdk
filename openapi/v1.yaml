@@ -2730,8 +2730,7 @@ components:
           description: The monthly budget a new schedule gets when the request names none. It funds at least one analysis step.
         recommendedMonthlyCredits:
           type: [integer, "null"]
-          deprecated: true
-          description: Deprecated. The same value as `defaultMonthlyCredits`.
+          description: A monthly budget that funds about four analysis steps, within the minimum and maximum. A suggestion to pass as `monthlyBudgetCredits`. It is never applied when the request names no budget.
         minimumMonthlyCredits:
           type: [integer, "null"]
           description: The smallest month that funds one analysis step. Less is refused.

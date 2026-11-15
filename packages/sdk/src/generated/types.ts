@@ -1464,10 +1464,7 @@ export interface components {
             nextRunAt: string | null;
             /** @description The monthly budget a new schedule gets when the request names none. It funds at least one analysis step. */
             defaultMonthlyCredits: number | null;
-            /**
-             * @deprecated
-             * @description Deprecated. The same value as `defaultMonthlyCredits`.
-             */
+            /** @description A monthly budget that funds about four analysis steps, within the minimum and maximum. A suggestion to pass as `monthlyBudgetCredits`. It is never applied when the request names no budget. */
             recommendedMonthlyCredits: number | null;
             /** @description The smallest month that funds one analysis step. Less is refused. */
             minimumMonthlyCredits: number | null;
