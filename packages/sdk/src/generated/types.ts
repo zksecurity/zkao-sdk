@@ -990,10 +990,10 @@ export interface components {
             commitMessage?: string | null;
             presetName?: string | null;
             /**
-             * @description The scan's budget measured against the budget recommended for its scope at launch. `medium` is below the recommendation, `high` is at it, and `extra-high` is at least twice it. Null for a Flash scan, and for a scan with no recorded effort.
+             * @description The scan's budget measured against the levels sized for its scope at launch. `high` starts at the recommended baseline, `extra-high` at the next level, and `deep` at the highest level. The server accounts for the scan limit and any fixed setup cost when sizing these levels. `medium` records a custom budget below High or a historical scan at that level. Null for a Flash scan and for a scan with no recorded effort.
              * @enum {string|null}
              */
-            readonly effort?: "medium" | "high" | "extra-high" | null;
+            readonly effort?: "medium" | "high" | "extra-high" | "deep" | null;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
