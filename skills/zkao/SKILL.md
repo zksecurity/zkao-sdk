@@ -53,14 +53,16 @@ token.
   1. Run `zkao login --no-wait --no-browser`. Add `--project <id>` when you
      know the project, so the approval page preselects it. It prints a URL and
      a code and returns immediately.
-  2. Give the user the URL and code, and ask them to open it, pick the project,
-     and approve. Name the project by its name and organization when you know
-     them.
+  2. Give the user the URL, the code, and the expiry time the command printed,
+     and ask them to open it, pick the project, and approve. Name the project
+     by its name and organization when you know them.
   3. After they confirm, run `zkao login --resume`. Repeat it on your own cadence
      until it prints `Authorized` (each call returns at once; `Still waiting
      for approval` means keep waiting). The token is then saved for that
      project in `~/.zkao/config.json`. Tokens for other projects stay saved. The user can approve several
-     projects in one login, and each gets its own saved token.
+     projects in one login, and each gets its own saved token. If it reports
+     the login expired, the old URL and code are dead: start again from step 1
+     and send the new ones.
 - **Pre-made token:** the user creates one under **Project Settings →
   Integrations** (scoped to one project, chosen permissions, optionally
   specific repos), shown once as `zkao_proj_<keyId>_<secret>` together with
