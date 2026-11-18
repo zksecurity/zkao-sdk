@@ -322,8 +322,8 @@ paths:
                 summary: Add formal verification to an existing schedule
                 value: { branch: main, enableFeatures: [formal-verification] }
               formalVerificationOnly:
-                summary: Start or resume with formal verification as the only analysis
-                value: { branch: main, enabled: true, enabledFeatures: [formal-verification] }
+                summary: Start or resume formal verification alone with an approved monthly budget
+                value: { branch: main, enabled: true, monthlyBudgetCredits: 50000, enabledFeatures: [formal-verification] }
       responses:
         "200":
           description: OK
@@ -2775,7 +2775,9 @@ components:
     SetContinuousTestingRequest:
       type: object
       additionalProperties: false
-      not: { required: [enableFeatures, enabledFeatures] }
+      not:
+        properties: { enableFeatures: {}, enabledFeatures: {} }
+        required: [enableFeatures, enabledFeatures]
       properties:
         enabled:
           type: boolean
