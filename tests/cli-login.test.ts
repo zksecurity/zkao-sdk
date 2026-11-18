@@ -9,6 +9,7 @@ const cliPath = join(
   "../packages/cli/dist/index.js"
 );
 let polls = 0;
+let expiresIn = 900;
 let server: ReturnType<typeof Bun.serve>;
 let home: string;
 
@@ -24,7 +25,7 @@ beforeAll(() => {
           userCode: "ABCD-EFGH",
           verificationUri: `${server.url}device`,
           verificationUriComplete: `${server.url}device?code=ABCD-EFGH`,
-          expiresIn: 900,
+          expiresIn,
           interval: 5,
         });
       }
@@ -82,6 +83,9 @@ test("device login survives a 429 slow_down poll and finishes on resume", async 
   const started = await cli("login", "--no-wait", "--no-browser");
   expect(started.status).toBe(0);
   expect(started.stdout).toContain("ABCD-EFGH");
+  expect(started.stdout).toMatch(
+    /The URL and code expire in 15 minutes, at \d\d:\d\d UTC\./
+  );
   expect(
     existsSync(join(home, ".zkao", "pending-login.json"))
   ).toBe(true);
@@ -89,6 +93,9 @@ test("device login survives a 429 slow_down poll and finishes on resume", async 
   const throttled = await cli("login", "--resume");
   expect(throttled.status).toBe(0);
   expect(throttled.stdout).toContain("Still waiting for approval");
+  expect(throttled.stdout).toMatch(
+    /The request expires in 14 minutes, at \d\d:\d\d UTC\./
+  );
 
   const finished = await cli("login", "--resume");
   expect(finished.status).toBe(0);
@@ -100,4 +107,20 @@ test("device login survives a 429 slow_down poll and finishes on resume", async 
   expect(config.token).toBe("zkao_proj_test_token");
   expect(config.projectId).toBe("project-1");
   expect(existsSync(join(home, ".zkao", "pending-login.json"))).toBe(false);
+});
+
+test("an expired device login says its URL and code are dead", async () => {
+  expiresIn = 1;
+  const started = await cli("login", "--no-wait", "--no-browser");
+  expect(started.status).toBe(0);
+  expect(started.stdout).toContain("expire in under a minute");
+
+  await Bun.sleep(1100);
+  const pollsBefore = polls;
+  const expired = await cli("login", "--resume");
+  expect(expired.status).toBe(1);
+  expect(expired.stderr).toContain(
+    "The login request expired: its URL and code no longer work."
+  );
+  expect(polls).toBe(pollsBefore);
 });

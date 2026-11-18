@@ -61,7 +61,9 @@ Repeat `zkao login --resume` until it prints `Authorized`.
 `--resume --timeout <seconds>` waits up to that long instead of polling once.
 
 Several logins can be pending at once. `--resume` finishes whichever is approved first and keeps the rest.
-A pending login expires after a while. Start a new one when `--resume` reports that it expired.
+A pending login expires 15 minutes after it starts. Both commands print the time it expires.
+Tell the person approving, since an expired URL and code stop working.
+Start a new login when `--resume` reports that it expired.
 
 ## Tokens created by hand
 

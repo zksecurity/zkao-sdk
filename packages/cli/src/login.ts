@@ -137,7 +137,24 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   return (await res.json()) as T;
 }
 
-function printInstructions(start: StartResponse): void {
+const EXPIRED_MESSAGE =
+  "The login request expired: its URL and code no longer work. Run `zkao login` again for new ones.";
+
+/**
+ * "in 15 minutes, at 12:17 UTC". An agent relays this line to the person who
+ * approves, often in a chat they read later, so it carries a wall-clock time.
+ */
+export function describeExpiry(expiresAtMs: number, nowMs = Date.now()): string {
+  const minutes = Math.floor((expiresAtMs - nowMs) / 60_000);
+  const remaining =
+    minutes < 1
+      ? "under a minute"
+      : `${minutes} minute${minutes === 1 ? "" : "s"}`;
+  const at = new Date(expiresAtMs).toISOString().slice(11, 16);
+  return `in ${remaining}, at ${at} UTC`;
+}
+
+function printInstructions(start: StartResponse, expiry: string): void {
   // Print the pre-filled URL (code in the query) so the user can open it
   // directly. Still show the code on its own so they can confirm the page shows
   // the same one before approving.
@@ -145,7 +162,8 @@ function printInstructions(start: StartResponse): void {
   console.log(`  ${start.verificationUriComplete}`);
   console.log(
     `\nConfirm the page shows this code:  ${start.userCode}\n` +
-      "Approve only if you started this login.\n"
+      "Approve only if you started this login.\n" +
+      `The URL and code expire ${expiry}.\n`
   );
 }
 
@@ -211,7 +229,9 @@ export async function login(flags: LoginFlags): Promise<void> {
     ...(project ? { project } : {}),
   });
 
-  printInstructions(start);
+  const startedAtMs = Date.now();
+  const expiresAtMs = startedAtMs + start.expiresIn * 1000;
+  printInstructions(start, describeExpiry(expiresAtMs, startedAtMs));
   if (!flags.noBrowser) {
     openBrowser(start.verificationUriComplete);
   }
@@ -223,7 +243,7 @@ export async function login(flags: LoginFlags): Promise<void> {
     userCode: start.userCode,
     origin,
     interval: Math.max(1, start.interval),
-    expiresAtMs: Date.now() + start.expiresIn * 1000,
+    expiresAtMs,
     baseUrl: cfg.baseUrl,
   };
   addPendingLogin(pending);
@@ -250,7 +270,7 @@ export async function resumeLogin(flags: {
   if (live.length === 0) {
     throw new Error(
       all.length > 0
-        ? "The login request expired. Run `zkao login` again."
+        ? EXPIRED_MESSAGE
         : "No pending login. Run `zkao login --no-wait` to start one first."
     );
   }
@@ -279,7 +299,7 @@ async function pollUntilDone(
 ): Promise<void> {
   let open = [...logins];
   let intervalMs = Math.min(...open.map((l) => Math.max(1, l.interval))) * 1000;
-  let lastFailure = "The login request expired. Run `zkao login` again.";
+  let lastFailure = EXPIRED_MESSAGE;
   let polled = false;
 
   while (open.length > 0) {
@@ -299,7 +319,7 @@ async function pollUntilDone(
       if (Date.now() >= pending.expiresAtMs) {
         resolved.push(pending.deviceCode);
         dropped.push(`${label(pending)} expired`);
-        lastFailure = "The login request expired. Run `zkao login` again.";
+        lastFailure = EXPIRED_MESSAGE;
         continue;
       }
       const poll = await postJson<PollResponse>(
@@ -321,7 +341,7 @@ async function pollUntilDone(
         case "expired":
           resolved.push(pending.deviceCode);
           dropped.push(`${label(pending)} expired`);
-          lastFailure = "The login request expired. Run `zkao login` again.";
+          lastFailure = EXPIRED_MESSAGE;
           break;
         case "approved": {
           removePendingLogins([...resolved, pending.deviceCode]);
@@ -359,10 +379,10 @@ async function pollUntilDone(
   if (reportStillPending) {
     console.log(
       open.length > 1
-        ? `Still waiting for approval of ${open.length} logins (${open.map(label).join(", ")}). Approve in the browser, then run \`zkao login --resume\` again.`
-        : "Still waiting for approval. Approve in the browser, then run `zkao login --resume` again."
+        ? `Still waiting for approval of ${open.length} logins (${open.map((l) => `${label(l)} expires ${describeExpiry(l.expiresAtMs)}`).join("; ")}). Approve in the browser, then run \`zkao login --resume\` again.`
+        : `Still waiting for approval. The request expires ${describeExpiry(open[0].expiresAtMs)}. Approve in the browser, then run \`zkao login --resume\` again.`
     );
     return;
   }
-  throw new Error("The login request expired. Run `zkao login` again.");
+  throw new Error(EXPIRED_MESSAGE);
 }
