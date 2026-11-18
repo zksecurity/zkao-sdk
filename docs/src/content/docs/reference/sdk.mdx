@@ -107,15 +107,26 @@ A branch defaults to the repository's default branch.
 
 | Method | Returns | Meaning |
 | --- | --- | --- |
-| `getContinuousTesting(repositoryId, opts?)` | `ContinuousTesting` | A branch's schedule, this month's spend, and the default, minimum, and maximum monthly budgets. `opts.branch` picks the branch. [API](/api/operations/getcontinuoustesting/) |
-| `setContinuousTesting(repositoryId, body)` | `ContinuousTesting` | Turn automatic analysis on or off, or change its monthly budget or audit areas. Needs `automations:write`. [API](/api/operations/setcontinuoustesting/) |
+| `getContinuousTesting(repositoryId, opts?)` | `ContinuousTesting` | A branch's available and enabled analyses, schedule, spend and monthly budget bounds. `opts.branch` picks the branch. [API](/api/operations/getcontinuoustesting/) |
+| `setContinuousTesting(repositoryId, body)` | `ContinuousTesting` | Turn automatic analysis on or off, select analyses, or change the monthly budget or audit areas. Needs `automations:write`. [API](/api/operations/setcontinuoustesting/) |
 | `removeContinuousTesting(repositoryId, opts?)` | `RemoveContinuousTestingResult` | Remove a branch's schedule. Scans it already ran are kept. Needs `automations:write`. [API](/api/operations/removecontinuoustesting/) |
 | `prepareContinuousTesting(repositoryId, branch)` | `{ preparing: true }` | Plan the branch's next analysis without running it, as **Prepare next analysis** does in the app. Spends no credits. Needs `automations:write`. [API](/api/operations/preparecontinuoustesting/) |
 | `listAgentQuestions()` | `{ questions: AgentQuestion[] }` | The open questions Continuous Security analyses asked the project's members, oldest first. [API](/api/operations/listagentquestions/) |
 | `answerAgentQuestion(questionId, answer)` | `{ questionId, status }` | Answer with `selectedOption`, a `note`, or both. Needs `guidance:write`. [API](/api/operations/answeragentquestion/) |
 
-`setContinuousTesting` takes `enabled`, `monthlyBudgetCredits`, `areaKeys`, and `branch`, all optional.
-An empty `areaKeys` scans the whole repository every run.
+`availableFeatures` lists the branch's analysis IDs. Use `enableFeatures` to add analyses or `enabledFeatures` to replace the selection. Omitting both keeps the current selection. This example enables formal verification (FV) alongside the branch's other analyses.
+
+```ts
+const schedule = await zkao.setContinuousTesting(repositoryId, {
+  branch: "main",
+  enabled: true,
+  monthlyBudgetCredits,
+  enableFeatures: ["formal-verification"],
+});
+console.log(schedule.enabled, schedule.enabledFeatures);
+```
+
+For FV alone, pass `enabledFeatures: ["formal-verification"]`. An existing schedule accepts a feature change at its current budget. `areaKeys` selects the audit areas that analyses rotate through. An empty `areaKeys` scans the whole repository every run.
 
 `selectedOption` is the label of one of the question's `options`.
 The analysis reads the answer in its next session.
@@ -397,7 +408,7 @@ The package exports a named type for each API object.
 | `Scan`, `ScanDetail`, `ScanStatus`, `ScanPreset` | Scans, their status, and presets. |
 | `LaunchScanRequest`, `LaunchScanResult`, `CancelScanResult` | Launch and cancel bodies and results. |
 | `Finding`, `FindingDetail`, `FindingNote`, `ChangeNote`, `FindingTriageResult` | Findings, their notes, and a triage override's result. |
-| `ContinuousTesting`, `SetContinuousTestingRequest`, `RemoveContinuousTestingResult`, `AgentQuestion` | Continuous Security schedules and the questions its analyses ask. |
+| `ContinuousFeatureId`, `ContinuousTesting`, `SetContinuousTestingRequest`, `RemoveContinuousTestingResult`, `AgentQuestion` | Continuous Security analyses, schedules and questions. |
 | `Severity`, `ResolutionStatus`, `ResolutionReason`, `TriageStatus` | Finding enums. |
 | `PublishArtifactResult` | Result of publishing a scan or finding. |
 | `TokenInfo` | The calling token and its project. |

@@ -62,8 +62,9 @@ zkao guidance get <repoId>                       # read a repo's guidance
 zkao guidance set <repoId> <file|->              # update it (guidance:write scope)
 zkao areas list <repoId>                         # subsystems a scan can be scoped to
 zkao areas add <repoId> "<name>"                 # add a custom area (guidance:write scope)
-zkao continuous get <repoId>                     # Continuous Testing: schedule, this month's spend
-zkao continuous on <repoId> [--budget <credits>] # turn it on (automations:write scope)
+zkao continuous get <repoId>                     # available and enabled analyses, schedule and spend
+zkao continuous on <repoId> --branch main --budget <credits> --enable-analysis formal-verification
+zkao continuous set <repoId> --only-analysis formal-verification  # run FV alone on the default branch
 zkao continuous set <repoId> --area <key>        # change the budget or the areas it rotates through
 zkao continuous off <repoId>                     # pause it
 zkao continuous prepare <repoId>                 # plan the next analysis without running it; spends no credits

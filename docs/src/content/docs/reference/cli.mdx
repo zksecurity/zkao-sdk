@@ -376,7 +376,7 @@ Each command takes `--branch <branch>`. It defaults to the repository's default 
 
 ### `zkao continuous get <repoId>`
 
-Print the branch's schedule, what it spent this month, and the default, minimum, and maximum monthly budgets.
+Print the branch's schedule, what it spent this month, and its monthly budget bounds. `availableFeatures` lists the analysis IDs the branch offers. `enabledFeatures` lists the selected IDs. The schedule runs when `enabled` is true.
 
 ### `zkao continuous on <repoId>`
 
@@ -387,10 +387,18 @@ Turn automatic analysis on, or resume it. A new schedule starts at the default m
 | `--budget <credits>` | Monthly budget in credits, within the minimum and maximum that `get` reports. |
 | `--area <key>` | Audit area to rotate through, one per run. Repeat it for several. See `zkao areas list`. |
 | `--whole-repo` | Scan the whole repository every run. It cannot be combined with `--area`. |
+| `--enable-analysis <id>` | Add an analysis to the branch's selection. Repeat to add several. |
+| `--only-analysis <id>` | Replace the whole selection. Repeat for each analysis to keep. |
+
+This command enables formal verification (FV) alongside the other analyses on `main`.
+
+```bash
+zkao continuous on <repoId> --branch main --budget <monthly-credits> --enable-analysis formal-verification
+```
 
 ### `zkao continuous set <repoId>`
 
-Change the monthly budget or the audit areas without turning automatic analysis on or off. It takes the same options as `on`.
+Change the selected analyses, monthly budget or audit areas. It takes the same options as `on`. To switch an existing schedule to FV alone at its current budget, run `zkao continuous set <repoId> --branch main --only-analysis formal-verification`. If the branch has no schedule, use `on` to create one.
 
 ### `zkao continuous off <repoId>`
 

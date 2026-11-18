@@ -121,12 +121,12 @@ export interface paths {
         };
         /**
          * Get a repository's Continuous Security schedule
-         * @description Requires scope: `read`. Continuous Security scans one branch on a schedule paid from a monthly budget. With no schedule on the branch, `enabled` is false and the schedule fields are null. The recommended monthly budget supports ongoing analysis. The minimum funds one useful analysis step. Scheduling adapts to the available allocation.
+         * @description Requires scope: `read`. Continuous Security scans one branch on a schedule paid from a monthly budget. With no schedule on the branch, `enabled` is false and the schedule fields are null. The recommended monthly budget supports ongoing analysis. The minimum funds one useful analysis step. `availableFeatures` lists the analyses this branch offers. `enabledFeatures` lists the branch's selected analyses, including while paused.
          */
         get: operations["getContinuousTesting"];
         /**
          * Turn Continuous Security on, change it, or pause it
-         * @description Requires scope: `automations:write`. Every field is optional. With no schedule on the branch, the request creates one at the returned `defaultMonthlyCredits` unless `monthlyBudgetCredits` is given; `enabled: false` then changes nothing. The default is a low limit that funds at least one analysis step. When a month's budget is used, automatic analysis waits until the budget is raised or the month resets. The budget sets the interval smoothly from once a month to twice a day. A budget outside the returned minimum and maximum is refused with `400`. Administrators can raise the maximum monthly budget. `areaKeys` replaces the audit areas runs rotate through, one per run. `enabled: false` pauses the schedule and keeps it. A change re-arms a schedule that had stopped. Each run still needs spendable credits when it launches.
+         * @description Requires scope: `automations:write`. Every field is optional. To start a schedule, send `enabled: true` with the branch and its authorized monthly budget. A new schedule uses `defaultMonthlyCredits` when no budget is given. The default is a low limit that funds at least one analysis step. When a month's budget is used, automatic analysis waits until the budget is raised or the month resets. The budget sets the interval smoothly from once a month to twice a day. A budget outside the returned minimum and maximum is refused with `400`. Administrators can raise the maximum monthly budget. `areaKeys` replaces the audit areas runs rotate through, one per run. Use `enableFeatures` to add analyses or `enabledFeatures` to replace the selection. Omit both to keep it. A selection sent without `enabled` or `monthlyBudgetCredits` requires an existing schedule and returns `409` if none exists. The resulting selection must include at least one analysis that can run on its own. `enabled: false` pauses the schedule and keeps it. A change re-arms a schedule that had stopped. Each run still needs spendable credits when it launches.
          */
         put: operations["setContinuousTesting"];
         post?: never;
@@ -1428,6 +1428,8 @@ export interface components {
             key: string;
             deleted: boolean;
         };
+        /** @enum {string} */
+        ContinuousFeatureId: "bug-hunting" | "formal-verification" | "dependency-analysis" | "weak-key-analysis" | "security-invariants";
         ContinuousTesting: {
             repositoryId: string;
             /** @description False when Continuous Security is not offered. */
@@ -1452,6 +1454,10 @@ export interface components {
             perRunBudgetCredits: number | null;
             /** @description Audit areas the runs rotate through, one per run, least recently scanned first. Empty means every run scans the whole repository. */
             areaKeys: string[];
+            /** @description Analyses offered on this branch. Empty when Continuous Security is unavailable. */
+            availableFeatures: components["schemas"]["ContinuousFeatureId"][];
+            /** @description Selected analyses. A branch with no saved selection defaults to bug hunting when Continuous Security is available. A paused schedule keeps its selection. */
+            enabledFeatures: components["schemas"]["ContinuousFeatureId"][];
             /** @description Credits the branch was charged for Continuous Security since the UTC month began, net of refunds. Counts its analysis steps, change assessments, public-key reviews, agent questions and the planning included in steps. */
             spentThisMonthCredits: number;
             /** @description Runs the schedule launched since the UTC month began. */
@@ -1479,6 +1485,10 @@ export interface components {
             monthlyBudgetCredits?: number;
             /** @description Replaces the rotation set. An empty array scans the whole repository every run. */
             areaKeys?: string[];
+            /** @description Adds the listed analyses to the current selection. Mutually exclusive with enabledFeatures. */
+            enableFeatures?: components["schemas"]["ContinuousFeatureId"][];
+            /** @description Replaces the selection with exactly these analyses. Mutually exclusive with enableFeatures. */
+            enabledFeatures?: components["schemas"]["ContinuousFeatureId"][];
             /** @description The scheduled branch. Defaults to the repository's default branch. */
             branch?: string;
         };
@@ -1956,6 +1966,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     removeContinuousTesting: {

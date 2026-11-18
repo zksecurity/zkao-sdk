@@ -43,6 +43,7 @@ export {
   type PublishArtifactResult,
   type RepositoryGuidance,
   type SetGuidanceResult,
+  type ContinuousFeatureId,
   type ContinuousTesting,
   type SetContinuousTestingRequest,
   type RemoveContinuousTestingResult,

@@ -39,6 +39,7 @@ export type RepositoryGuidance = Schemas["RepositoryGuidance"];
 export type AuditArea = Schemas["AuditArea"];
 export type AuditAreaList = Schemas["AuditAreaList"];
 export type DeleteAuditAreaResult = Schemas["DeleteAuditAreaResult"];
+export type ContinuousFeatureId = Schemas["ContinuousFeatureId"];
 export type ContinuousTesting = Schemas["ContinuousTesting"];
 export type SetContinuousTestingRequest = Schemas["SetContinuousTestingRequest"];
 export type RemoveContinuousTestingResult =
@@ -468,10 +469,9 @@ export class ZkaoClient {
   // --- Continuous Testing -------------------------------------------------
 
   /**
-   * Read a repository's Continuous Testing schedule for one branch (requires
-   * the `read` scope). Defaults to the repository's default branch. With no
-   * schedule, `enabled` is false and the budget fields are null; the
-   * recommended and minimum monthly budgets are still returned.
+   * Read a branch's Continuous Security schedule, available and enabled
+   * analyses, and monthly budget bounds. Requires `read`.
+   * Defaults to the repository's default branch.
    */
   async getContinuousTesting(
     repositoryId: string,
@@ -490,12 +490,10 @@ export class ZkaoClient {
   }
 
   /**
-   * Turn Continuous Testing on or off, set its monthly budget, or choose the
-   * audit areas it rotates through (requires the `automations:write` scope).
-   * Every field is optional. Turning it on with no schedule creates one at
-   * the recommended monthly budget, funding a run about every three days. The
-   * budget sets the interval from weekly to twice daily. A budget outside the
-   * returned minimum and maximum is refused with a `400`.
+   * Configure Continuous Security on a branch. Requires `automations:write`.
+   * Use `enableFeatures` to add analyses, or `enabledFeatures` to replace
+   * the selection. A new schedule uses the default monthly credits when
+   * enabled without an explicit budget.
    */
   async setContinuousTesting(
     repositoryId: string,

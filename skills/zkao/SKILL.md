@@ -4,7 +4,8 @@ description: >-
   Control a zkao security-audit project programmatically: list repositories,
   list/launch/poll scans, list and read findings, triage findings (comment,
   change severity, change resolution status, override the triage verdict, pin
-  a note), read and update a repository's guidance, answer questions from
+  a note), read and update a repository's guidance, enable formal verification
+  and other Continuous Security analyses on a branch, answer questions from
   Continuous Security analyses, check the credit balance and usage, and publish
   findings or scans. Use when the user asks to drive their zkao project, check
   scan status, review or triage findings, kick off a scan, edit repo guidance,
@@ -126,9 +127,9 @@ zkao guidance clear <repoId>                      # remove a repo's guidance
 zkao areas list <repoId> [--branch <branch>]      # subsystems a scan can be scoped to
 zkao areas add <repoId> "<name>" [--description <text>]
 zkao areas rm <repoId> <areaKey>                  # delete a custom area
-zkao continuous get <repoId> [--branch <branch>]  # Continuous Testing schedule, spend this month, default and minimum budgets
-zkao continuous on <repoId> [--budget <credits>] [--area <key>...]  # turn it on or resume it
-zkao continuous set <repoId> [--budget <credits>] [--area <key>... | --whole-repo]
+zkao continuous get <repoId> [--branch <branch>]  # available and enabled analyses, schedule, spend and budget limits
+zkao continuous on <repoId> [--branch <branch>] [--budget <credits>] [--enable-analysis <id> | --only-analysis <id>] [--area <key>...]
+zkao continuous set <repoId> [--branch <branch>] [--enable-analysis <id> | --only-analysis <id>] [--budget <credits>] [--area <key>... | --whole-repo]
 zkao continuous off <repoId>                      # pause it, keeping its settings
 zkao continuous prepare <repoId> [--branch <branch>]  # plan the next analysis without running it; spends no credits
 zkao continuous rm <repoId>                       # remove the schedule
@@ -203,6 +204,21 @@ detail worth keeping; a code alone loses it.
 `triageStatus` is zkao's own verdict, separate from the resolution status.
 When the user disagrees with it, `zkao findings triage <id> <confirmed|false-positive> --note "<why>"`
 overrides it. Setting the AI's own verdict again clears the override.
+
+**Enable formal verification (FV) on a branch**
+
+Read the branch with `zkao_continuous` or `zkao continuous get <repoId> --branch <branch>`.
+Check that `availableFeatures` includes `formal-verification`. Read `enabled`,
+`enabledFeatures` and the monthly budget before changing the schedule.
+
+- To start Continuous Security with FV, use `zkao continuous on <repoId> --branch <branch> --budget <authorized-monthly-credits> --enable-analysis formal-verification`.
+- To add FV to a running schedule at its current budget, use `zkao continuous set <repoId> --branch <branch> --enable-analysis formal-verification`.
+- To start an FV-only schedule when the user asks for one, use `zkao continuous on <repoId> --branch <branch> --budget <authorized-monthly-credits> --only-analysis formal-verification`. On an existing schedule, `--only-analysis` replaces the selection.
+
+With MCP, pass `enableFeatures: ["formal-verification"]` to `zkao_set_continuous` to add FV, or `enabledFeatures: ["formal-verification"]` for FV alone.
+To start a schedule, also pass `enabled: true` and the authorized `monthlyBudgetCredits`.
+Omitting both feature fields preserves the selection. Writes need `automations:write`.
+Confirm that the response has `enabled: true` and lists `formal-verification` in `enabledFeatures` before reporting it active.
 
 **Answer questions from Continuous Security**
 

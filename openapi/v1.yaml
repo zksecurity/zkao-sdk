@@ -24,7 +24,7 @@ info:
       - `advisories:write` — record which versions an advisory affects
       - `contacts:read` — read the advisory contact list
       - `contacts:write` — add an advisory contact
-      - `automations:write` — turn scheduled scans on or off and set their budgets
+      - `automations:write` controls Continuous Security schedules, analyses, and budgets
       - `reports:write` — submit a vulnerability report to the programme
 
     `GET /token` tells a token which project, and which organization, it
@@ -270,7 +270,8 @@ paths:
         schedule paid from a monthly budget. With no schedule on the branch,
         `enabled` is false and the schedule fields are null. The recommended
         monthly budget supports ongoing analysis. The minimum funds one useful analysis
-        step. Scheduling adapts to the available allocation.
+        step. `availableFeatures` lists the analyses this branch offers.
+        `enabledFeatures` lists the branch's selected analyses, including while paused.
       parameters:
         - $ref: "#/components/parameters/ProjectId"
         - $ref: "#/components/parameters/RepositoryId"
@@ -290,16 +291,21 @@ paths:
       operationId: setContinuousTesting
       summary: Turn Continuous Security on, change it, or pause it
       description: >-
-        Requires scope: `automations:write`. Every field is optional. With no
-        schedule on the branch, the request creates one at the returned
-        `defaultMonthlyCredits` unless `monthlyBudgetCredits` is given;
-        `enabled: false` then changes nothing. The default is a low limit that
+        Requires scope: `automations:write`. Every field is optional. To start
+        a schedule, send `enabled: true` with the branch and its authorized
+        monthly budget. A new schedule uses `defaultMonthlyCredits` when no
+        budget is given. The default is a low limit that
         funds at least one analysis step. When a month's budget is used,
         automatic analysis waits until the budget is raised or the month resets.
         The budget sets the interval smoothly from once a month to twice a day.
         A budget outside the returned minimum and maximum is refused with
         `400`. Administrators can raise the maximum monthly budget.
         `areaKeys` replaces the audit areas runs rotate through, one per run.
+        Use `enableFeatures` to add analyses or `enabledFeatures` to replace
+        the selection. Omit both to keep it. A selection sent without
+        `enabled` or `monthlyBudgetCredits` requires an existing schedule
+        and returns `409` if none exists. The resulting selection must include
+        at least one analysis that can run on its own.
         `enabled: false` pauses the schedule and keeps it. A change re-arms a
         schedule that had stopped. Each run still needs spendable credits when
         it launches.
@@ -311,6 +317,13 @@ paths:
         content:
           application/json:
             schema: { $ref: "#/components/schemas/SetContinuousTestingRequest" }
+            examples:
+              addFormalVerification:
+                summary: Add formal verification to an existing schedule
+                value: { branch: main, enableFeatures: [formal-verification] }
+              formalVerificationOnly:
+                summary: Start or resume with formal verification as the only analysis
+                value: { branch: main, enabled: true, enabledFeatures: [formal-verification] }
       responses:
         "200":
           description: OK
@@ -321,6 +334,7 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
     delete:
       tags: [Repositories]
       operationId: removeContinuousTesting
@@ -2656,6 +2670,10 @@ components:
         key: { type: string }
         deleted: { type: boolean }
 
+    ContinuousFeatureId:
+      type: string
+      enum: [bug-hunting, formal-verification, dependency-analysis, weak-key-analysis, security-invariants]
+
     ContinuousTesting:
       type: object
       required:
@@ -2670,6 +2688,8 @@ components:
           intervalHours,
           perRunBudgetCredits,
           areaKeys,
+          availableFeatures,
+          enabledFeatures,
           spentThisMonthCredits,
           runsThisMonth,
           lastRunAt,
@@ -2716,6 +2736,16 @@ components:
           description: >-
             Audit areas the runs rotate through, one per run, least recently
             scanned first. Empty means every run scans the whole repository.
+        availableFeatures:
+          type: array
+          uniqueItems: true
+          items: { $ref: "#/components/schemas/ContinuousFeatureId" }
+          description: Analyses offered on this branch. Empty when Continuous Security is unavailable.
+        enabledFeatures:
+          type: array
+          uniqueItems: true
+          items: { $ref: "#/components/schemas/ContinuousFeatureId" }
+          description: Selected analyses. A branch with no saved selection defaults to bug hunting when Continuous Security is available. A paused schedule keeps its selection.
         spentThisMonthCredits:
           type: integer
           description: Credits the branch was charged for Continuous Security since the UTC month began, net of refunds. Counts its analysis steps, change assessments, public-key reviews, agent questions and the planning included in steps.
@@ -2745,6 +2775,7 @@ components:
     SetContinuousTestingRequest:
       type: object
       additionalProperties: false
+      not: { required: [enableFeatures, enabledFeatures] }
       properties:
         enabled:
           type: boolean
@@ -2758,6 +2789,18 @@ components:
           maxItems: 20
           items: { type: string }
           description: Replaces the rotation set. An empty array scans the whole repository every run.
+        enableFeatures:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { $ref: "#/components/schemas/ContinuousFeatureId" }
+          description: Adds the listed analyses to the current selection. Mutually exclusive with enabledFeatures.
+        enabledFeatures:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { $ref: "#/components/schemas/ContinuousFeatureId" }
+          description: Replaces the selection with exactly these analyses. Mutually exclusive with enableFeatures.
         branch:
           type: string
           description: The scheduled branch. Defaults to the repository's default branch.

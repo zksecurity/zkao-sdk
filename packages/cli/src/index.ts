@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { Command, InvalidArgumentError } from "commander";
 import {
+  type ContinuousFeatureId,
   type LaunchScanRequest,
   type ResolutionReason,
   type ResolutionStatus,
@@ -390,6 +391,8 @@ type ContinuousOptions = {
   budget?: number;
   area: string[];
   wholeRepo?: boolean;
+  enableAnalysis: ContinuousFeatureId[];
+  onlyAnalysis: ContinuousFeatureId[];
 };
 
 /** The schedule fields a command line sets, leaving the rest as they are. */
@@ -399,23 +402,28 @@ function continuousChanges(
   if (opts.wholeRepo && opts.area.length > 0) {
     fail("Pass --area or --whole-repo, not both.");
   }
+  if (opts.enableAnalysis.length && opts.onlyAnalysis.length) {
+    fail("Choose either --enable-analysis or --only-analysis.");
+  }
   return {
     ...(opts.branch === undefined ? {} : { branch: opts.branch }),
     ...(opts.budget === undefined ? {} : { monthlyBudgetCredits: opts.budget }),
     ...(opts.wholeRepo ? { areaKeys: [] } : {}),
     ...(opts.area.length > 0 ? { areaKeys: opts.area } : {}),
+    ...(opts.enableAnalysis.length > 0 ? { enableFeatures: opts.enableAnalysis } : {}),
+    ...(opts.onlyAnalysis.length > 0 ? { enabledFeatures: opts.onlyAnalysis } : {}),
   };
 }
 
 const continuous = program
   .command("continuous")
   .description(
-    "Turn Continuous Testing on or off for a repository and set its monthly budget"
+    "Manage a branch's Continuous Security analyses, schedule and monthly budget"
   );
 continuous
   .command("get <repoId>")
   .description(
-    "Show the schedule, this month's spend, and the default, minimum and maximum monthly budgets"
+    "Show available and enabled analyses, the schedule, this month's spend and budget limits"
   )
   .option("--branch <branch>", "the scheduled branch (default: the repository's default branch)")
   .action((repoId: string, opts: { branch?: string }) =>
@@ -433,7 +441,7 @@ for (const [name, description, enabled] of [
   ],
   [
     "set",
-    "Change the monthly budget or the audit areas without turning it on or off",
+    "Update the analyses, monthly budget or audit areas of a branch's schedule",
     undefined,
   ],
 ] as const) {
@@ -453,6 +461,18 @@ for (const [name, description, enabled] of [
       []
     )
     .option("--whole-repo", "scan the whole repository every run")
+    .option(
+      "--enable-analysis <id>",
+      "add an analysis to the current selection (repeatable). See availableFeatures in continuous get",
+      collect,
+      []
+    )
+    .option(
+      "--only-analysis <id>",
+      "replace the selection with the analyses named by this option (repeatable)",
+      collect,
+      []
+    )
     .action((repoId: string, opts: ContinuousOptions) =>
       run((c) =>
         c.setContinuousTesting(repoId, {

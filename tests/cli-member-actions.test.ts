@@ -113,3 +113,26 @@ test("prepare plans the given branch, or the scheduled branch when none is given
     },
   ]);
 });
+
+test("continuous adds analyses, replaces the selection, or leaves it alone", async () => {
+  const add = await cli("continuous", "on", "repo", "--branch", "release", "--budget", "500",
+    "--enable-analysis", "formal-verification", "--enable-analysis", "dependency-analysis");
+  expect(add.status).toBe(0);
+  const only = await cli("continuous", "set", "repo", "--branch", "release", "--only-analysis", "formal-verification");
+  expect(only.status).toBe(0);
+  const budget = await cli("continuous", "set", "repo", "--budget", "600");
+  expect(budget.status).toBe(0);
+  const conflict = await cli("continuous", "set", "repo", "--only-analysis", "bug-hunting",
+    "--enable-analysis", "formal-verification");
+  expect(conflict.status).toBe(1);
+  expect(conflict.stderr).toContain("Choose either --enable-analysis or --only-analysis.");
+  const path = "/api/v1/projects/project/repositories/repo/continuous-testing";
+  expect(requests).toEqual([
+    { method: "PUT", path, body: {
+      enabled: true, branch: "release", monthlyBudgetCredits: 500,
+      enableFeatures: ["formal-verification", "dependency-analysis"],
+    } },
+    { method: "PUT", path, body: { branch: "release", enabledFeatures: ["formal-verification"] } },
+    { method: "PUT", path, body: { monthlyBudgetCredits: 600 } },
+  ]);
+});
