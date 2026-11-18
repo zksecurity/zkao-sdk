@@ -373,14 +373,15 @@ async function pollUntilDone(
     }
   }
 
-  if (open.length === 0) {
+  const [first] = open;
+  if (!first) {
     throw new Error(lastFailure);
   }
   if (reportStillPending) {
     console.log(
       open.length > 1
         ? `Still waiting for approval of ${open.length} logins (${open.map((l) => `${label(l)} expires ${describeExpiry(l.expiresAtMs)}`).join("; ")}). Approve in the browser, then run \`zkao login --resume\` again.`
-        : `Still waiting for approval. The request expires ${describeExpiry(open[0].expiresAtMs)}. Approve in the browser, then run \`zkao login --resume\` again.`
+        : `Still waiting for approval. The request expires ${describeExpiry(first.expiresAtMs)}. Approve in the browser, then run \`zkao login --resume\` again.`
     );
     return;
   }
