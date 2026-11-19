@@ -7,7 +7,9 @@ import {
   readPendingLogins,
   removePendingLogins,
   resolveConfig,
+  saveOrganizationCredentials,
   saveProjectCredentials,
+  savedProjects,
 } from "./config";
 
 /**
@@ -16,7 +18,9 @@ import {
  * The CLI has no credentials yet, so it cannot use the bearer-token API. It
  * calls the unauthenticated device endpoints on the app origin (`/api/auth/...`,
  * NOT `/api/v1`), shows the user a code + URL to approve in their browser, then
- * polls until a project API token is minted and handed back exactly once.
+ * polls until a token is minted and handed back exactly once. The approver
+ * picks projects, each of which gets a project API token, or a whole
+ * organization, which gets one organization token.
  *
  * Two shapes:
  *   - Interactive (`zkao login`): start, then block-poll until approved.
@@ -41,11 +45,24 @@ type PollResponse =
   | { status: "slow_down" }
   | { status: "denied" }
   | { status: "expired" }
-  | ({
-      status: "approved";
-      /** Every approved project, primary first. Absent from older servers. */
-      tokens?: IssuedToken[];
-    } & IssuedToken);
+  | ApprovedProjects
+  | ApprovedOrganization;
+
+type ApprovedProjects = {
+  status: "approved";
+  /** Absent from servers that predate organization tokens. */
+  kind?: "project";
+  /** Every approved project, primary first. Absent from older servers. */
+  tokens?: IssuedToken[];
+} & IssuedToken;
+
+/** The approver chose a whole organization: one token, and no project. */
+type ApprovedOrganization = {
+  status: "approved";
+  kind: "organization";
+  token: string;
+  organization: { id: string; slug: string; name: string };
+};
 
 type IssuedToken = {
   token: string;
@@ -64,6 +81,11 @@ export type LoginFlags = {
   wait?: boolean;
   /** Scopes to request; the approval page pre-ticks them. */
   scopes?: string[];
+  /**
+   * Ask for an organization token (`--org`): `true`, or the slug or id of the
+   * organization to preselect on the approval page.
+   */
+  organization?: true | string;
 };
 
 /** What launching, triaging, and editing guidance need. The approver can change it. */
@@ -73,6 +95,15 @@ export const DEFAULT_LOGIN_SCOPES = [
   "findings:write",
   "guidance:write",
 ];
+
+/** Added to the default request by `--org`. Only an organization token can carry them. */
+export const ORGANIZATION_LOGIN_SCOPES = ["projects:write", "repositories:write"];
+
+/**
+ * Sent with every login: what this CLI can receive. Without it the approval
+ * page never offers an organization token.
+ */
+const SUPPORTS = ["organization-token"];
 
 /**
  * The app base the device endpoints live on: the API base URL minus its
@@ -178,10 +209,37 @@ export function describeProject(
   return `"${names.name}"${org} (${projectId})`;
 }
 
-function persistCredentials(
-  poll: Extract<PollResponse, { status: "approved" }>,
+function persistOrganizationCredentials(
+  poll: ApprovedOrganization,
   baseUrl?: string
 ): void {
+  const { id, slug, name } = poll.organization;
+  const { activeProjectId } = saveOrganizationCredentials(id, {
+    token: poll.token,
+    baseUrl,
+    name,
+    slug,
+  });
+  console.log(`Authorized for every project of organization "${name}" (${id}).`);
+  if (activeProjectId) {
+    const saved = savedProjects().projects[activeProjectId];
+    console.log(
+      `Active project: ${describeProject(activeProjectId, saved ?? {})}.${saved ? " It keeps its own token." : ""}`
+    );
+  }
+  console.log(
+    "Pick a project: `zkao projects list` shows them, and `zkao config use <projectId>` switches. Or pass `--project <projectId>` to a command."
+  );
+}
+
+function persistCredentials(
+  poll: ApprovedProjects | ApprovedOrganization,
+  baseUrl?: string
+): void {
+  if (poll.kind === "organization") {
+    persistOrganizationCredentials(poll, baseUrl);
+    return;
+  }
   const tokens = poll.tokens?.length ? poll.tokens : [poll];
   // Saving activates, so the primary (first) goes last and ends up active.
   for (const issued of [...tokens].reverse()) {
@@ -225,8 +283,16 @@ export async function login(flags: LoginFlags): Promise<void> {
   const project = flags.project ?? process.env.ZKAO_PROJECT_ID;
   const start = await postJson<StartResponse>(`${origin}/api/auth/device`, {
     label: hostname(),
-    scopes: flags.scopes ?? DEFAULT_LOGIN_SCOPES,
+    scopes:
+      flags.scopes ??
+      (flags.organization === undefined
+        ? DEFAULT_LOGIN_SCOPES
+        : [...DEFAULT_LOGIN_SCOPES, ...ORGANIZATION_LOGIN_SCOPES]),
+    supports: SUPPORTS,
     ...(project ? { project } : {}),
+    ...(flags.organization === undefined
+      ? {}
+      : { organization: flags.organization }),
   });
 
   const startedAtMs = Date.now();

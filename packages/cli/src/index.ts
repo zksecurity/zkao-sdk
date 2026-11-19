@@ -10,18 +10,24 @@ import {
   type Severity,
   ZkaoApiError,
   ZkaoClient,
+  ZkaoOrganizationClient,
   getTokenInfo,
 } from "@zksecurity/zkao-sdk";
 import {
   configPath,
   resolveConfig,
+  resolveOrganizationConfig,
+  saveOrganizationCredentials,
   saveProjectCredentials,
+  savedOrganizations,
   savedProjects,
+  useOrganization,
   useProject,
   writeConfig,
 } from "./config";
 import {
   DEFAULT_LOGIN_SCOPES,
+  ORGANIZATION_LOGIN_SCOPES,
   describeProject,
   login,
   resumeLogin,
@@ -40,7 +46,7 @@ program
   .name("zkao")
   .description("Control a zkao project from the command line.")
   .version(version)
-  .option("--token <token>", "project API token (or env ZKAO_API_TOKEN)")
+  .option("--token <token>", "project or organization API token (or env ZKAO_API_TOKEN)")
   .option("--project <id>", "project id (or env ZKAO_PROJECT_ID)")
   .option("--json-errors", "print API error status, code, and message as JSON on stderr")
   .option("--base-url <url>", "API base URL, used verbatim (env: ZKAO_URL sets the environment)");
@@ -84,7 +90,11 @@ function client(): ZkaoClient {
     );
   }
   if (!cfg.projectId) {
-    fail("No project id. Pass --project, set ZKAO_PROJECT_ID, or run `zkao config set --project <id>`.");
+    fail(
+      cfg.organizationId
+        ? "No project chosen. `zkao projects list` shows the organization's projects. Pass --project <id>, or run `zkao config use <projectId>`."
+        : "No project id. Pass --project, set ZKAO_PROJECT_ID, or run `zkao config set --project <id>`."
+    );
   }
   return new ZkaoClient({ token: cfg.token, projectId: cfg.projectId, baseUrl: cfg.baseUrl });
 }
@@ -92,6 +102,50 @@ function client(): ZkaoClient {
 async function run(fn: (c: ZkaoClient) => Promise<unknown>): Promise<void> {
   try {
     out(await fn(client()));
+  } catch (err) {
+    if (err instanceof ZkaoApiError) {
+      failApi(err);
+    }
+    throw err;
+  }
+}
+
+const NEEDS_ORGANIZATION_TOKEN =
+  "This command needs an organization token. Run `zkao login --org` and approve the whole organization.";
+
+/**
+ * A client for the `/organizations/...` routes. The organization id comes from
+ * the saved organization credential, or from the API when the token came from
+ * a flag or the environment.
+ */
+async function organizationClient(): Promise<ZkaoOrganizationClient> {
+  const g = program.opts<{ token?: string; project?: string; baseUrl?: string }>();
+  const cfg = resolveOrganizationConfig({ token: g.token, projectId: g.project, baseUrl: g.baseUrl });
+  if (!cfg.token) {
+    fail(
+      globalConfig().token
+        ? `${NEEDS_ORGANIZATION_TOKEN} The saved token reaches one project only.`
+        : "No organization token. Run `zkao login --org`, pass --token, or set ZKAO_API_TOKEN."
+    );
+  }
+  let organizationId = cfg.organizationId;
+  if (organizationId === undefined) {
+    const info = await getTokenInfo({ token: cfg.token, baseUrl: cfg.baseUrl });
+    if (info.kind !== "organization") {
+      fail(
+        `${NEEDS_ORGANIZATION_TOKEN} This token reaches one project only${info.project ? ` (${info.project.id})` : ""}.`
+      );
+    }
+    organizationId = info.organization.id;
+  }
+  return new ZkaoOrganizationClient({ token: cfg.token, organizationId, baseUrl: cfg.baseUrl });
+}
+
+async function runOrganization(
+  fn: (c: ZkaoOrganizationClient) => Promise<unknown>
+): Promise<void> {
+  try {
+    out(await fn(await organizationClient()));
   } catch (err) {
     if (err instanceof ZkaoApiError) {
       failApi(err);
@@ -145,7 +199,11 @@ program
   .option("--resume", "poll a login previously started with --no-wait")
   .option(
     "--scope <scopes...>",
-    `scopes to request; the approver can change them (default: ${DEFAULT_LOGIN_SCOPES.join(" ")})`
+    `scopes to request; the approver can change them (default: ${DEFAULT_LOGIN_SCOPES.join(" ")}; --org adds ${ORGANIZATION_LOGIN_SCOPES.join(" ")})`
+  )
+  .option(
+    "--org [slugOrId]",
+    "ask for one token that reaches every project of an organization; a slug or id preselects it"
   )
   .option(
     "--timeout <seconds>",
@@ -159,6 +217,7 @@ program
       resume?: boolean;
       timeout?: number;
       scope?: string[];
+      org?: true | string;
     }) => {
       if (opts.resume) {
         await resumeLogin({ timeout: opts.timeout });
@@ -175,6 +234,7 @@ program
         baseUrl: g.baseUrl,
         noBrowser: opts.browser === false,
         scopes: opts.scope,
+        organization: opts.org,
         wait: opts.wait !== false,
       });
     }
@@ -182,7 +242,7 @@ program
 
 program
   .command("whoami")
-  .description("Show which project and organization the current token belongs to")
+  .description("Show which project or organization the current token belongs to")
   .action(async () => {
     const cfg = globalConfig();
     if (!cfg.token) {
@@ -190,7 +250,8 @@ program
     }
     try {
       const info = await getTokenInfo({ token: cfg.token, baseUrl: cfg.baseUrl });
-      if (cfg.projectId && cfg.projectId !== info.project.id) {
+      // An organization token has no project of its own: nothing to compare.
+      if (info.project && cfg.projectId && cfg.projectId !== info.project.id) {
         console.error(
           `zkao: this token belongs to project ${info.project.id}, not the configured ${cfg.projectId}.`
         );
@@ -210,7 +271,7 @@ const config = program.command("config").description("Manage stored credentials"
 config
   .command("set")
   .description(`Persist settings to ${configPath()}`)
-  .option("--token <token>", "project API token")
+  .option("--token <token>", "project or organization API token")
   .option("--project <id>", "project id")
   .option("--base-url <url>", "API base URL")
   .action(async (opts: { token?: string; project?: string; baseUrl?: string }) => {
@@ -225,23 +286,38 @@ config
     if (update.token === undefined && update.projectId === undefined && update.baseUrl === undefined) {
       fail("Nothing to save. Pass --token, --project, or --base-url.");
     }
-    if (update.token !== undefined && update.projectId === undefined) {
-      // A token belongs to one project: ask the API which, and save it there.
+    const isOrganizationToken = update.token?.startsWith("zkao_org_") ?? false;
+    if (update.token !== undefined && (update.projectId === undefined || isOrganizationToken)) {
+      // Ask the API what the token belongs to, and save it there: a project
+      // token under its project, an organization token under its organization.
       const baseUrl = resolveConfig({ baseUrl: update.baseUrl }).baseUrl;
       try {
         const info = await getTokenInfo({ token: update.token, baseUrl });
-        const names = {
-          name: info.project.name,
-          organization: info.project.organization.name,
-        };
-        saveProjectCredentials(info.project.id, { token: update.token, baseUrl, ...names });
-        console.log(
-          `Saved to ${configPath()}. Active project: ${describeProject(info.project.id, names)}`
-        );
-        return;
+        if (info.kind === "organization") {
+          const { id, slug, name } = info.organization;
+          saveOrganizationCredentials(id, { token: update.token, baseUrl, name, slug });
+          if (update.projectId !== undefined) {
+            useProject(update.projectId);
+          }
+          console.log(
+            `Saved to ${configPath()}. Active organization: "${name}" (${id})${update.projectId === undefined ? "" : `. Active project: ${update.projectId}`}`
+          );
+          return;
+        }
+        if (info.project && update.projectId === undefined) {
+          const names = {
+            name: info.project.name,
+            organization: info.project.organization.name,
+          };
+          saveProjectCredentials(info.project.id, { token: update.token, baseUrl, ...names });
+          console.log(
+            `Saved to ${configPath()}. Active project: ${describeProject(info.project.id, names)}`
+          );
+          return;
+        }
       } catch (err) {
         console.error(
-          `zkao: could not look up the token's project (${err instanceof Error ? err.message : String(err)}); saving it without one.`
+          `zkao: could not look up what the token belongs to (${err instanceof Error ? err.message : String(err)}); saving it as given.`
         );
       }
     }
@@ -254,6 +330,7 @@ config
   .action(() => {
     const cfg = resolveConfig({});
     const { activeProjectId, projects } = savedProjects();
+    const { activeOrganizationId, organizations } = savedOrganizations();
     out({
       token: cfg.token ? `${cfg.token.slice(0, 14)}…` : null,
       projectId: cfg.projectId ?? null,
@@ -265,26 +342,110 @@ config
         baseUrl: saved.baseUrl ?? "https://zkao.io/api/v1 (default)",
         active: id === activeProjectId,
       })),
+      savedOrganizations: Object.entries(organizations).map(([id, saved]) => ({
+        organizationId: id,
+        name: saved.name ?? null,
+        slug: saved.slug ?? null,
+        baseUrl: saved.baseUrl ?? "https://zkao.io/api/v1 (default)",
+        active: id === activeOrganizationId,
+      })),
     });
   });
 config
   .command("use <projectId>")
-  .description("Switch the active project to one with saved credentials")
+  .description(
+    "Switch the active project: to its saved token, or to any project of the active organization"
+  )
   .action((projectId: string) => {
     try {
-      const saved = useProject(projectId);
-      console.log(`Active project: ${describeProject(projectId, saved)}`);
+      const used = useProject(projectId);
+      console.log(
+        "project" in used
+          ? `Active project: ${describeProject(projectId, used.project)}`
+          : `Active project: ${projectId}, reached with the organization token${used.organization.name ? ` of "${used.organization.name}"` : ""}`
+      );
+    } catch (err) {
+      fail(err instanceof Error ? err.message : String(err));
+    }
+  });
+config
+  .command("use-org <organization>")
+  .description("Switch the active organization to a saved one, by id or slug")
+  .action((organization: string) => {
+    try {
+      const { organizationId, saved } = useOrganization(organization);
+      console.log(
+        `Active organization: ${saved.name ? `"${saved.name}" (${organizationId})` : organizationId}`
+      );
     } catch (err) {
       fail(err instanceof Error ? err.message : String(err));
     }
   });
 
+// --- projects -------------------------------------------------------------
+
+const projects = program
+  .command("projects")
+  .description("List, create, and rename the organization's projects (organization token)");
+projects
+  .command("list")
+  .description("List the organization's projects")
+  .option("--page <n>", "page number", toInt)
+  .option("--limit <n>", "page size (max 100)", toInt)
+  .action((opts: { page?: number; limit?: number }) =>
+    runOrganization((c) => c.listProjects({ page: opts.page, limit: opts.limit }))
+  );
+projects
+  .command("create <name>")
+  .description("Create a project (projects:write scope)")
+  .option("--description <text>", "what the project is for")
+  .action((name: string, opts: { description?: string }) =>
+    runOrganization((c) => c.createProject(name, opts.description))
+  );
+projects
+  .command("rename <projectId> <name>")
+  .description("Rename a project (projects:write scope)")
+  .option("--description <text>", "also replace the description")
+  .action((projectId: string, name: string, opts: { description?: string }) =>
+    runOrganization((c) =>
+      c.updateProject(projectId, {
+        name,
+        ...(opts.description === undefined ? {} : { description: opts.description }),
+      })
+    )
+  );
+
 // --- repos ----------------------------------------------------------------
 
-program
+const repos = program
   .command("repos")
   .description("List repositories in the project")
   .action(() => run((c) => c.listRepositories()));
+repos
+  .command("add <owner/name>")
+  .description(
+    "Connect a GitHub repository to the project (organization token, repositories:write scope)"
+  )
+  .action((slug: string) => {
+    const [owner, name, ...rest] = slug.split("/");
+    if (!owner || !name || rest.length > 0) {
+      fail(`Expected <owner>/<name>, got "${slug}".`);
+    }
+    const projectId = globalConfig().projectId;
+    if (!projectId) {
+      fail("No project id. Pass --project <id>, or run `zkao config use <projectId>`.");
+    }
+    return runOrganization((c) => c.connectRepository(projectId, { owner, name }));
+  });
+repos
+  .command("move <repositoryId>")
+  .description(
+    "Move a repository to another project of the organization (organization token, repositories:write scope)"
+  )
+  .requiredOption("--to <projectId>", "the project the repository joins")
+  .action((repositoryId: string, opts: { to: string }) =>
+    runOrganization((c) => c.moveRepository(repositoryId, opts.to))
+  );
 
 program
   .command("repos:wait <repositoryId>")
