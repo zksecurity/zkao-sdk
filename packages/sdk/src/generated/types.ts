@@ -12,12 +12,96 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * The calling token and its project
-         * @description Any valid token may call this, whatever its scopes. Use it to learn which project (and organization) a token belongs to.
+         * The calling token and what it reaches
+         * @description Any valid token may call this, whatever its scopes. Use it to learn which project and organization a token belongs to. For an organization token, `kind` is `organization` and `project` is null.
          */
         get: operations["getTokenInfo"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organizations/{organizationId}/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the organization's projects
+         * @description Requires an organization token with scope `read`.
+         */
+        get: operations["listProjects"];
+        put?: never;
+        /**
+         * Create a project
+         * @description Requires an organization token with scope `projects:write`. The project is created by the member who created the token. The token reaches the new project at once.
+         */
+        post: operations["createProject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organizations/{organizationId}/projects/{projectId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Rename a project or change its description
+         * @description Requires an organization token with scope `projects:write`. Pass `name`, `description`, or both. The project's `slug` does not change.
+         */
+        patch: operations["updateProject"];
+        trace?: never;
+    };
+    "/organizations/{organizationId}/projects/{projectId}/repositories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Connect a GitHub repository to a project
+         * @description Requires an organization token with scope `repositories:write`. The same checks as the dashboard apply. A private repository needs the zkao GitHub App installed for it, and the member who created the token must have access to it on GitHub with a verified GitHub account. A new repository is `analyzing` until its first pass finishes.
+         */
+        post: operations["connectRepository"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organizations/{organizationId}/repositories/{repositoryId}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move a repository to another project
+         * @description Requires an organization token with scope `repositories:write`. The repository moves with its scans and findings to another project of the same organization. Responds `409` while the repository has running scans, credits still to settle, or is still being analyzed; the message says which. The repository's `slug` can change if the target project already uses it.
+         */
+        post: operations["moveRepository"];
         delete?: never;
         options?: never;
         head?: never;
@@ -883,22 +967,45 @@ export interface components {
             slug: string;
             name: string;
         };
+        Project: {
+            id: string;
+            /** @description URL segment of the project inside its organization. */
+            slug: string;
+            name: string;
+            description: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            repositoryCount: number;
+        };
+        PaginatedProjects: {
+            items: components["schemas"]["Project"][];
+            page: number;
+            limit: number;
+            total: number;
+        };
         TokenInfo: {
             id: string;
+            /**
+             * @description `organization`: the token reaches every project of `organization`, and `project` is null.
+             * @enum {string}
+             */
+            kind: "project" | "organization";
             name: string;
             scopes: string[];
-            /** @description Repositories the token is restricted to. Empty means every repository of the project. */
+            /** @description Repositories the token is restricted to. Empty means every repository it reaches. */
             repositoryIds: string[];
             /** Format: date-time */
             expiresAt: string | null;
             /** @description Credits this token may spend. Null means no limit. */
             spendLimitCredits: number | null;
+            organization: components["schemas"]["Organization"];
+            /** @description Null for an organization token. */
             project: {
                 id: string;
                 slug: string;
                 name: string;
                 organization: components["schemas"]["Organization"];
-            };
+            } | null;
         };
         BillingBalance: {
             /** @description The organization whose shared balance this is. */
@@ -1663,6 +1770,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description The token is a project token, or lacks the required scope */
+        OrganizationTokenRequired: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description Resource not in this token's project or repo allowlist */
         NotFound: {
             headers: {
@@ -1694,6 +1810,8 @@ export interface components {
         };
     };
     parameters: {
+        /** @description The organization's id, as `GET /token` reports it. */
+        OrganizationId: string;
         ProjectId: string;
         ScanId: string;
         /** @description The finding id, or the `ZK-` label shown on the finding page (the id's last eight characters, prefix optional). A label that matches more than one finding in the project is refused with `409 conflict`; use the full id. */
@@ -1729,6 +1847,228 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    listProjects: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Page"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                /** @description The organization's id, as `GET /token` reports it. */
+                organizationId: components["parameters"]["OrganizationId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedProjects"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["OrganizationTokenRequired"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    createProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The organization's id, as `GET /token` reports it. */
+                organizationId: components["parameters"]["OrganizationId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Letters, numbers, dashes, and underscores. Unique in the organization. */
+                    name: string;
+                    description?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        project: components["schemas"]["Project"];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["OrganizationTokenRequired"];
+            404: components["responses"]["NotFound"];
+            /** @description A project with this name already exists (code `conflict`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    updateProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The organization's id, as `GET /token` reports it. */
+                organizationId: components["parameters"]["OrganizationId"];
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name?: string;
+                    description?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        project: components["schemas"]["Project"];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["OrganizationTokenRequired"];
+            404: components["responses"]["NotFound"];
+            /** @description A project with this name already exists (code `conflict`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    connectRepository: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The organization's id, as `GET /token` reports it. */
+                organizationId: components["parameters"]["OrganizationId"];
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description GitHub user or organization. */
+                    owner: string;
+                    /** @description Repository name. */
+                    name: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        repository: components["schemas"]["Repository"];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["OrganizationTokenRequired"];
+            404: components["responses"]["NotFound"];
+            /** @description The repository is already in the project (code `conflict`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    moveRepository: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The organization's id, as `GET /token` reports it. */
+                organizationId: components["parameters"]["OrganizationId"];
+                repositoryId: components["parameters"]["RepositoryId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description The project the repository joins. */
+                    projectId: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        repository: components["schemas"]["Repository"];
+                        /** @description The project the repository is now in. */
+                        projectId: string;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["OrganizationTokenRequired"];
+            404: components["responses"]["NotFound"];
+            /** @description The repository cannot move right now (code `conflict`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
         };
     };
     listRepositories: {
