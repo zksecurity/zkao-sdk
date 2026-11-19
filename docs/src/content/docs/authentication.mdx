@@ -162,7 +162,7 @@ An organization token looks like this:
 zkao_org_<keyId>_<secret>
 ```
 
-An owner or admin of the organization creates one in the organization's settings, or approves one with `zkao login --org`.
+An owner or admin of the organization approves one with `zkao login --org`.
 
 - It works on every `/projects/{projectId}/...` route, for every project of its organization. Send it the same way as a project token.
 - It reaches projects created after the token was.
