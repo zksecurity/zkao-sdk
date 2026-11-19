@@ -48,6 +48,12 @@ export type FindingTriageResult = Schemas["FindingTriageResult"];
 export type AgentQuestion = Schemas["AgentQuestion"];
 export type SetGuidanceResult = Schemas["SetGuidanceResult"];
 export type TokenInfo = Schemas["TokenInfo"];
+export type Organization = Schemas["Organization"];
+export type Project = Schemas["Project"];
+type MoveRepositoryOperation =
+  paths["/organizations/{organizationId}/repositories/{repositoryId}/move"]["post"];
+export type MoveRepositoryResult =
+  MoveRepositoryOperation["responses"][200]["content"]["application/json"];
 export type BillingBalance = Schemas["BillingBalance"];
 export type BillingUsage = Schemas["BillingUsage"];
 export type UsageEvent = Schemas["UsageEvent"];
@@ -128,9 +134,12 @@ export type ManualAuditResult = {
 };
 
 export type ZkaoClientOptions = {
-  /** A project API token: `zkao_proj_<keyId>_<secret>`. */
+  /**
+   * A project API token (`zkao_proj_<keyId>_<secret>`), or an organization
+   * token (`zkao_org_<keyId>_<secret>`) of the project's organization.
+   */
   token: string;
-  /** The id of the project the token belongs to. */
+  /** The id of the project to work on. A project token reaches only its own. */
   projectId: string;
   /**
    * API base URL, used verbatim. When omitted, resolved from `ZKAO_URL`
@@ -140,6 +149,13 @@ export type ZkaoClientOptions = {
   baseUrl?: string;
   /** Optional custom fetch (e.g. for tests or proxies). */
   fetch?: typeof fetch;
+};
+
+export type ZkaoOrganizationClientOptions = Omit<ZkaoClientOptions, "token" | "projectId"> & {
+  /** An organization token: `zkao_org_<keyId>_<secret>`. */
+  token: string;
+  /** The organization's id, as `getTokenInfo` reports it. */
+  organizationId: string;
 };
 
 /** Terminal scan statuses: polling can stop once a scan reaches one of these. */
@@ -227,13 +243,10 @@ function unwrap<T>(result: FetchResult<T>): T {
 }
 
 /**
- * Typed client for one zkao project. Every call is scoped to the project the
- * token belongs to; see https://zkao.io/openapi/v1.yaml for the full contract.
- */
-/**
- * Which project (and organization) a token belongs to, plus its scopes and
+ * Which project and organization a token belongs to, plus its scopes and
  * limits. Needs no project id, so it works with a token whose project is
- * unknown. Any valid token may call it.
+ * unknown. Any valid token may call it. For an organization token, `kind` is
+ * `"organization"` and `project` is `null`.
  */
 export async function getTokenInfo(
   options: Omit<ZkaoClientOptions, "projectId">
@@ -246,6 +259,120 @@ export async function getTokenInfo(
   return unwrap(await http.GET("/token"));
 }
 
+/**
+ * Typed client for one organization, for an organization token. It lists,
+ * creates, and renames the organization's projects, and connects and moves
+ * their repositories. Everything inside one project goes through
+ * {@link ZkaoOrganizationClient.project}.
+ *
+ * No token can manage members, create tokens, archive or delete a project, or
+ * buy credits.
+ */
+export class ZkaoOrganizationClient {
+  private readonly http: Client<paths>;
+  private readonly organizationId: string;
+  private readonly options: ZkaoOrganizationClientOptions;
+
+  constructor(options: ZkaoOrganizationClientOptions) {
+    this.organizationId = options.organizationId;
+    this.options = options;
+    this.http = createClient<paths>({
+      baseUrl: options.baseUrl ?? resolveBaseUrlFromEnv() ?? DEFAULT_BASE_URL,
+      headers: { Authorization: `Bearer ${options.token}` },
+      ...(options.fetch ? { fetch: options.fetch } : {}),
+    });
+  }
+
+  private get path() {
+    return { organizationId: this.organizationId };
+  }
+
+  /** A client for one project of the organization, with the same token. */
+  project(projectId: string): ZkaoClient {
+    return new ZkaoClient({
+      token: this.options.token,
+      projectId,
+      ...(this.options.baseUrl === undefined ? {} : { baseUrl: this.options.baseUrl }),
+      ...(this.options.fetch ? { fetch: this.options.fetch } : {}),
+    });
+  }
+
+  /** The organization's projects (requires the `read` scope). */
+  async listProjects(
+    opts: { page?: number; limit?: number } = {}
+  ): Promise<Paginated<Project>> {
+    const res = await this.http.GET("/organizations/{organizationId}/projects", {
+      params: { path: this.path, query: { page: opts.page, limit: opts.limit } },
+    });
+    return unwrap(res);
+  }
+
+  /**
+   * Create a project (requires the `projects:write` scope). The token reaches
+   * it at once. A name already used in the organization is a `409`.
+   */
+  async createProject(name: string, description?: string | null): Promise<Project> {
+    const res = await this.http.POST("/organizations/{organizationId}/projects", {
+      params: { path: this.path },
+      body: { name, ...(description === undefined ? {} : { description }) },
+    });
+    return unwrap(res).project;
+  }
+
+  /**
+   * Rename a project or change its description (requires the `projects:write`
+   * scope). Pass `name`, `description`, or both. The project's `slug` stays.
+   */
+  async updateProject(
+    projectId: string,
+    changes: { name?: string; description?: string | null }
+  ): Promise<Project> {
+    const res = await this.http.PATCH(
+      "/organizations/{organizationId}/projects/{projectId}",
+      { params: { path: { ...this.path, projectId } }, body: changes }
+    );
+    return unwrap(res).project;
+  }
+
+  /**
+   * Connect a GitHub repository to a project (requires the
+   * `repositories:write` scope). The dashboard's checks apply: a private
+   * repository needs the zkao GitHub App, and the token's creator needs access
+   * to it on GitHub. The new repository is `analyzing` at first, so wait with
+   * `project(projectId).waitForRepositoryReady(repository.id)` before scanning.
+   */
+  async connectRepository(
+    projectId: string,
+    repository: { owner: string; name: string }
+  ): Promise<Repository> {
+    const res = await this.http.POST(
+      "/organizations/{organizationId}/projects/{projectId}/repositories",
+      { params: { path: { ...this.path, projectId } }, body: repository }
+    );
+    return unwrap(res).repository;
+  }
+
+  /**
+   * Move a repository, with its scans and findings, to another project of the
+   * organization (requires the `repositories:write` scope). A `409` means it
+   * cannot move right now, and the message says why.
+   */
+  async moveRepository(
+    repositoryId: string,
+    projectId: string
+  ): Promise<MoveRepositoryResult> {
+    const res = await this.http.POST(
+      "/organizations/{organizationId}/repositories/{repositoryId}/move",
+      { params: { path: { ...this.path, repositoryId } }, body: { projectId } }
+    );
+    return unwrap(res);
+  }
+}
+
+/**
+ * Typed client for one zkao project. Every call is scoped to that project; see
+ * https://zkao.io/openapi/v1.yaml for the full contract.
+ */
 export class ZkaoClient {
   private readonly http: Client<paths>;
   private readonly projectId: string;

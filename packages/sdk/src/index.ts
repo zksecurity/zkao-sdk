@@ -4,6 +4,7 @@ export {
 } from "./base-url";
 export {
   ZkaoClient,
+  ZkaoOrganizationClient,
   ZkaoApiError,
   getTokenInfo,
   DEFAULT_BASE_URL,
@@ -13,6 +14,10 @@ export {
   type WaitForScanOptions,
   type WaitForTriageRunOptions,
   type ZkaoClientOptions,
+  type ZkaoOrganizationClientOptions,
+  type Organization,
+  type Project,
+  type MoveRepositoryResult,
   type Repository,
   type Scan,
   type ScanDetail,
