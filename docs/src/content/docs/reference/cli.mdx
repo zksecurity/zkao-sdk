@@ -30,7 +30,7 @@ These options work with every command.
 
 | Option | Meaning |
 | --- | --- |
-| `--token <token>` | Project API token. Overrides `ZKAO_API_TOKEN` and saved credentials. |
+| `--token <token>` | Project or organization API token. Overrides `ZKAO_API_TOKEN` and saved credentials. |
 | `--project <id>` | Project id. Overrides `ZKAO_PROJECT_ID` and the active project. |
 | `--base-url <url>` | API base URL, used exactly as given. Prefer `ZKAO_URL` unless you need a non-standard base. |
 | `--json-errors` | Print API errors as JSON on stderr. |
@@ -47,14 +47,16 @@ Each setting is taken from the first source that has it.
 
 | Variable | Meaning |
 | --- | --- |
-| `ZKAO_API_TOKEN` | Project API token (`zkao_proj_...`). |
+| `ZKAO_API_TOKEN` | Project API token (`zkao_proj_...`) or organization token (`zkao_org_...`). |
 | `ZKAO_PROJECT_ID` | Project id. Picks that project's saved token when no token is given. |
 | `ZKAO_URL` | Environment to target. Accepts a host, an origin, or a full API URL, such as `staging.zkao.io`. See [Environments](/environments/). |
 | `ZKAO_NO_UPDATE_CHECK` | Set to any value to turn off the update notice. |
 | `ZKAO_DEBUG` | Set to any value to log update-check failures on stderr. |
 
 The config file stores one token per project and remembers which project is active.
-Each saved project keeps its own base URL, so staging and production projects can live side by side.
+It also stores one token per organization and remembers which organization is active.
+Each saved project and organization keeps its own base URL, so staging and production can live side by side.
+A project's own token is used for that project. Any other project is reached with the active organization's token.
 The file is written with owner-only permissions.
 A login started with `--no-wait` is kept in `~/.zkao/pending-login.json` until it resolves.
 
@@ -79,8 +81,14 @@ The CLI prints a URL and a short code.
 You open the URL, confirm the code matches, pick one or more projects, and approve.
 The CLI saves a token for each approved project and makes the first one active.
 
+With `--org`, the approval page offers a whole organization.
+The CLI then saves one organization token, which reaches every project of that organization.
+It prints `Authorized for every project of organization "<name>" (<id>).`
+Saved project tokens are kept. Pick a project with `zkao projects list` and `zkao config use <projectId>`.
+
 | Option | Meaning |
 | --- | --- |
+| `--org [slugOrId]` | Ask for an organization token. A slug or id preselects the organization. Adds `projects:write` and `repositories:write` to the default scopes. |
 | `--no-browser` | Print the URL instead of opening a browser. |
 | `--no-wait` | Start the login, print the URL and code, and exit. Finish it with `--resume`. |
 | `--resume` | Poll a login started with `--no-wait`. Polls once by default. |
@@ -102,8 +110,9 @@ See [Authentication](/authentication/).
 
 ### `zkao whoami`
 
-Print the token's id, name, scopes, repository allowlist, expiry, and spend limit, plus the project and organization it belongs to.
-Warns on stderr when the token belongs to a different project than the configured one.
+Print the token's id, `kind`, name, scopes, repository allowlist, expiry, and spend limit, plus the project and organization it belongs to.
+For an organization token, `kind` is `organization` and `project` is `null`.
+Warns on stderr when a project token belongs to a different project than the configured one.
 
 ## Config
 
@@ -118,22 +127,91 @@ Save settings to `~/.zkao/config.json`.
 | `--base-url <url>` | API base URL to save. |
 
 A token given without `--project` is looked up with the API and saved under the project it belongs to.
+An organization token is saved under its organization, which becomes the active one.
 A project id given alone switches to that project's saved token.
 
 ### `zkao config show`
 
 Print the resolved settings with the token masked.
 Also lists every saved project with its name, organization, base URL, and whether it is active.
+`savedOrganizations` lists every saved organization the same way. No token is printed.
 
 ### `zkao config use <projectId>`
 
-Make a project with saved credentials the active one. Fails when no token is saved for it.
+Make a project the active one.
+A project with a saved token uses that token.
+Any other project is reached with the active organization's token.
+Fails when neither is saved.
+
+### `zkao config use-org <organization>`
+
+Make a saved organization the active one, by id or slug.
+A project that was reached with the previous organization's token stops being active.
+
+## Projects
+
+These commands need an organization token. Get one with `zkao login --org`.
+A project token is refused with a message that says so.
+They act on the active organization, or on the organization of the token given by `--token` or `ZKAO_API_TOKEN`.
+
+No token can archive or delete a project, manage members, create tokens, or buy credits.
+
+### `zkao projects list`
+
+List the organization's projects. Each has an `id`, `slug`, `name`, `description`, and `repositoryCount`.
+
+| Option | Meaning |
+| --- | --- |
+| `--page <n>` | Page number. |
+| `--limit <n>` | Page size, up to 100. |
+
+### `zkao projects create <name>`
+
+Create a project and print it. Needs the `projects:write` scope.
+The name takes letters, numbers, dashes, and underscores, and is unique in the organization.
+The token reaches the new project at once.
+
+| Option | Meaning |
+| --- | --- |
+| `--description <text>` | What the project is for. |
+
+### `zkao projects rename <projectId> <name>`
+
+Rename a project and print it. Needs the `projects:write` scope. The project's `slug` does not change.
+
+| Option | Meaning |
+| --- | --- |
+| `--description <text>` | Also replace the description. |
 
 ## Repositories
 
 ### `zkao repos`
 
 List the project's repositories. Each has an `id` and a `readiness` of `ready` or `analyzing`.
+
+### `zkao repos add <owner/name>`
+
+Connect a GitHub repository to a project and print it.
+Needs an organization token with the `repositories:write` scope.
+The project is the active one, or the one given by the global `--project <id>`.
+
+The same checks as the dashboard apply.
+A private repository needs the zkao GitHub App installed for it.
+The member who created the token needs access to it on GitHub, with a verified GitHub account.
+A repository already in the project fails with `409`.
+The new repository is `analyzing` at first. Wait with `zkao repos:wait`.
+
+### `zkao repos move <repositoryId>`
+
+Move a repository to another project of the same organization, with its scans and findings.
+Needs an organization token with the `repositories:write` scope.
+
+| Option | Meaning |
+| --- | --- |
+| `--to <projectId>` | The project the repository joins. Required. |
+
+It fails with `409` while the repository has running scans, credits still to settle, or is still being analyzed. The message says which.
+The repository's `slug` can change if the target project already uses it.
 
 ### `zkao repos:wait <repositoryId>`
 

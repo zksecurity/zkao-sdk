@@ -13,7 +13,8 @@ https://zkao.io/api/v1
 ```
 
 Project resources live under `/projects/{projectId}`, for example `/projects/{projectId}/scans`.
-The one exception is `GET /token`, which needs no project id.
+`GET /token` needs no project id.
+The `/organizations/{organizationId}` routes list and create projects and connect and move repositories. They need an organization token.
 Staging uses `https://staging.zkao.io/api/v1`. See [Environments](/environments/).
 
 ## Authentication
@@ -23,6 +24,8 @@ Send a project API token in the `Authorization` header:
 ```
 Authorization: Bearer zkao_proj_<keyId>_<secret>
 ```
+
+An organization token reads `zkao_org_<keyId>_<secret>` and is sent the same way.
 
 A token in the query string is rejected with `400`.
 See [Authentication](/authentication/) for how to get a token and what its scopes allow.

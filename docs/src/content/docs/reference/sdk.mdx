@@ -26,8 +26,8 @@ A client is bound to one project. Every call is scoped to it.
 
 | Option | Type | Meaning |
 | --- | --- | --- |
-| `token` | `string` | Project API token, `zkao_proj_<keyId>_<secret>`. Required. |
-| `projectId` | `string` | Id of the project the token belongs to. Required. |
+| `token` | `string` | Project API token, `zkao_proj_<keyId>_<secret>`, or an organization token, `zkao_org_<keyId>_<secret>`. Required. |
+| `projectId` | `string` | Id of the project to work on. A project token reaches only its own. Required. |
 | `baseUrl` | `string` | API base URL, used exactly as given. Optional. |
 | `fetch` | `typeof fetch` | Custom `fetch`, for tests or proxies. Optional. |
 
@@ -62,10 +62,42 @@ Each method links to its endpoint in the API reference.
 
 | Method | Returns | Meaning |
 | --- | --- | --- |
-| `getTokenInfo()` | `TokenInfo` | The token's scopes, repository allowlist, expiry, spend limit, and its project and organization. [API](/api/operations/gettokeninfo/) |
+| `getTokenInfo()` | `TokenInfo` | The token's `kind`, scopes, repository allowlist, expiry, spend limit, and its project and organization. [API](/api/operations/gettokeninfo/) |
 
 The standalone `getTokenInfo({ token, baseUrl?, fetch? })` does the same without a project id.
-Use it to find which project a token belongs to.
+Use it to find which project or organization a token belongs to.
+`kind` is `"project"` or `"organization"`. For an organization token, `project` is `null` and `organization` names what it reaches.
+
+### Organization
+
+`ZkaoOrganizationClient` is for an organization token.
+It takes `organizationId` instead of `projectId`, and the same `baseUrl` and `fetch` options.
+
+```ts
+import { ZkaoOrganizationClient, getTokenInfo } from "@zksecurity/zkao-sdk";
+
+const token = process.env.ZKAO_API_TOKEN!;
+const { organization } = await getTokenInfo({ token });
+const org = new ZkaoOrganizationClient({ token, organizationId: organization.id });
+
+const project = await org.createProject("widgets");
+const repository = await org.connectRepository(project.id, { owner: "acme", name: "widget" });
+const zkao = org.project(project.id);
+await zkao.waitForRepositoryReady(repository.id);
+```
+
+| Method | Returns | Meaning |
+| --- | --- | --- |
+| `listProjects(opts?)` | `Paginated<Project>` | The organization's projects. `opts` takes `page` and `limit`. [API](/api/operations/listprojects/) |
+| `createProject(name, description?)` | `Project` | Create a project. Needs `projects:write`. [API](/api/operations/createproject/) |
+| `updateProject(projectId, changes)` | `Project` | Change `name`, `description`, or both. The `slug` does not change. Needs `projects:write`. [API](/api/operations/updateproject/) |
+| `connectRepository(projectId, { owner, name })` | `Repository` | Connect a GitHub repository to a project. Needs `repositories:write`. [API](/api/operations/connectrepository/) |
+| `moveRepository(repositoryId, projectId)` | `MoveRepositoryResult` | Move a repository to another project, with its scans and findings. Needs `repositories:write`. [API](/api/operations/moverepository/) |
+| `project(projectId)` | `ZkaoClient` | A client for one project of the organization, with the same token. |
+
+A project token on these methods fails with `403`.
+`moveRepository` fails with `409` while the repository has running scans, credits still to settle, or is still being analyzed.
+No token can manage members, create tokens, archive or delete projects, or buy credits.
 
 ### Repositories
 
@@ -411,10 +443,11 @@ The package exports a named type for each API object.
 | `ContinuousFeatureId`, `ContinuousTesting`, `SetContinuousTestingRequest`, `RemoveContinuousTestingResult`, `AgentQuestion` | Continuous Security analyses, schedules and questions. |
 | `Severity`, `ResolutionStatus`, `ResolutionReason`, `TriageStatus` | Finding enums. |
 | `PublishArtifactResult` | Result of publishing a scan or finding. |
-| `TokenInfo` | The calling token and its project. |
+| `TokenInfo` | The calling token, with its project and organization. |
+| `Organization`, `Project`, `MoveRepositoryResult` | An organization, one of its projects, and the result of moving a repository. |
 | `BillingBalance`, `BillingUsage`, `UsageEvent`, `UsageEventType`, `BillingSummary`, `UsageMonthSummary` | Credit balance and ledger. |
 | `Paginated<T>` | `{ items, page, limit, total }` for list endpoints. |
-| `ZkaoClientOptions`, `WaitForScanOptions`, `WaitForRepositoryReadyOptions` | Option objects. |
+| `ZkaoClientOptions`, `ZkaoOrganizationClientOptions`, `WaitForScanOptions`, `WaitForRepositoryReadyOptions` | Option objects. |
 
 The raw generated types are exported as `components` and `paths`.
 Any schema without a named export is available as `components["schemas"]["<Name>"]`, for example `components["schemas"]["AuditArea"]`.

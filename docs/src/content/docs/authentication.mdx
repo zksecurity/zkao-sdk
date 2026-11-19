@@ -1,15 +1,19 @@
 ---
 title: Authentication
-description: Get a project API token through browser approval or by hand, and understand what its scopes and limits allow.
+description: Get a project or organization API token through browser approval or by hand, and understand what its scopes and limits allow.
 ---
 
 import { Steps, Aside } from "@astrojs/starlight/components";
 
-Every call to the zkao API uses a **project API token**.
-A token belongs to exactly one project.
+Every call to the zkao API uses an API token. There are two kinds.
+
+A **project token** belongs to exactly one project.
 It carries a set of scopes and can be narrowed further to some repositories, an expiry date, and a spend limit.
 
-There are two ways to get one: approve the CLI in your browser, or create a token by hand.
+An **organization token** reaches every project of one organization, including projects created later.
+See [Organization tokens](#organization-tokens).
+
+There are two ways to get either kind: approve the CLI in your browser, or create a token by hand.
 
 ## Browser approval
 
@@ -43,6 +47,34 @@ zkao login --scope read publish
 You can approve several projects in one login. Each gets its own saved token, and the first becomes the active project.
 
 Use `--no-browser` to print the URL without opening a browser.
+
+### A whole organization
+
+```bash
+zkao login --org            # or: zkao login --org <slug or id>
+```
+
+`--org` asks for one organization token instead of a token per project.
+The approval page then offers the whole organization, and a slug or id preselects it.
+Only an owner or admin of the organization can approve it.
+`--org` also requests `projects:write` and `repositories:write`, on top of the default scopes.
+
+When the approver picks the organization, the CLI prints:
+
+```
+Authorized for every project of organization "<name>" (<id>).
+```
+
+The token is saved next to your project tokens. None of them is replaced.
+Then pick a project to work on:
+
+```bash
+zkao projects list            # the organization's projects
+zkao config use <projectId>   # make one active
+```
+
+Or pass `--project <projectId>` to a single command.
+The approver can still pick single projects instead. The CLI then saves project tokens as usual.
 
 ### Agents and CI
 
@@ -109,11 +141,60 @@ A token carries a subset of these scopes:
 | `contacts:write` | Add an advisory contact. |
 | `automations:write` | Select Continuous Security analyses, configure schedules and budgets, and prepare a branch's next analysis. |
 
+Only an organization token can carry these two:
+
+| Scope | Allows |
+| --- | --- |
+| `projects:write` | Create and rename projects. |
+| `repositories:write` | Connect repositories and move them between projects. |
+
 A call that needs a scope the token lacks returns `403 forbidden`.
 
 The two contact scopes are held apart from the others. That list is who learns
 about a vulnerability before the public does, so neither `read` nor
 `advisories:write` reaches it.
+
+## Organization tokens
+
+An organization token looks like this:
+
+```
+zkao_org_<keyId>_<secret>
+```
+
+An owner or admin of the organization creates one in the organization's settings, or approves one with `zkao login --org`.
+
+- It works on every `/projects/{projectId}/...` route, for every project of its organization. Send it the same way as a project token.
+- It reaches projects created after the token was.
+- It has no repository allowlist.
+- A project of another organization returns `404`.
+- Its spend limit and its request limit each count across the whole organization.
+
+It can also call the `/organizations/{organizationId}/...` routes, which a project token cannot:
+
+| Action | CLI | Scope |
+| --- | --- | --- |
+| List the organization's projects | `zkao projects list` | `read` |
+| Create a project | `zkao projects create <name>` | `projects:write` |
+| Rename a project | `zkao projects rename <projectId> <name>` | `projects:write` |
+| Connect a GitHub repository to a project | `zkao repos add <owner/name>` | `repositories:write` |
+| Move a repository to another project | `zkao repos move <repositoryId> --to <projectId>` | `repositories:write` |
+
+A project token that calls one of these routes gets `403`.
+
+Connecting a repository runs the same checks as the dashboard.
+A private repository needs the zkao GitHub App installed for it.
+The member who created the token needs access to it on GitHub, with a verified GitHub account.
+
+No token can manage members, create tokens, archive or delete projects, or buy credits.
+Do those in the app.
+
+With the SDK or plain HTTP, pass the organization token as the token and the project's id as the project id:
+
+```bash
+export ZKAO_API_TOKEN=zkao_org_...
+export ZKAO_PROJECT_ID=<projectId>
+```
 
 ## Limits on a token
 
@@ -126,7 +207,8 @@ The GitHub App must have Contents and Pull requests write permissions for that r
 The default CLI login does not request `regression-tests:write`.
 Grant it explicitly when you want to create test pull requests.
 
-`zkao whoami` (or `GET /token`) returns the token's project, organization, scopes, allowlist, expiry, and spend limit.
+`zkao whoami` (or `GET /token`) returns the token's `kind`, project, organization, scopes, allowlist, expiry, and spend limit.
+For an organization token, `kind` is `organization` and `project` is `null`.
 Any valid token can call it, whatever its scopes.
 
 ## Errors
@@ -134,7 +216,7 @@ Any valid token can call it, whatever its scopes.
 | Status | Meaning |
 | --- | --- |
 | `401 unauthorized` | The token is missing, malformed, expired, or revoked. The response does not say which. |
-| `403 forbidden` | The token is valid but lacks the scope this call needs. |
+| `403 forbidden` | The token is valid but lacks the scope this call needs. Also a project token on an organization route. |
 | `404 not_found` | The resource is outside the token's project or repository allowlist. zkao does not confirm that it exists. |
 
 A token used against another project's id gets a `404` whose message names the token's own project.
@@ -146,11 +228,16 @@ A token passed in the query string is rejected with `400`.
 
 The CLI writes `~/.zkao/config.json` with owner-only permissions.
 It keeps one token per project, so logging in to a second project does not drop the first.
+It keeps organization tokens next to them, one per organization.
+An organization login never replaces a project token.
 
 ```bash
-zkao config show              # active settings and every saved project (tokens masked)
+zkao config show              # active settings, saved projects and organizations (tokens masked)
 zkao config use <projectId>   # switch the active project
+zkao config use-org <org>     # switch the active organization, by id or slug
 ```
+
+`zkao config use <projectId>` also works for a project with no token of its own, when an organization token is saved.
 
 Settings resolve in this order, highest first:
 
@@ -158,9 +245,18 @@ Settings resolve in this order, highest first:
 2. Environment: `ZKAO_API_TOKEN`, `ZKAO_PROJECT_ID`, `ZKAO_URL`.
 3. The saved config file.
 
+From the config file, the CLI picks the token for the project in use like this:
+
+1. The token saved for that project.
+2. Otherwise the token of the active organization, with that organization's base URL.
+
+So a project's own token always wins for that project.
+The organization commands always use the organization token.
+
 ## Revoking a token
 
-Revoke a token under **Project Settings → Integrations**.
+Revoke a project token under **Project Settings → Integrations**.
+Revoke an organization token in the organization's settings.
 It stops working at once.
 A token also stops working when its project or organization is archived.
 

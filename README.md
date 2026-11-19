@@ -23,6 +23,14 @@ the project. Logging in to another project keeps the earlier ones saved:
 `zkao whoami` shows which project and organization the current token belongs
 to.
 
+`zkao login --org` asks for an **organization token** (`zkao_org_…`) instead.
+An owner or admin of the organization approves it. It reaches every project of
+that organization, including later ones, and it can create and rename projects
+and connect and move repositories. Saved project tokens are kept, and a
+project's own token still wins for that project. Pick a project with
+`zkao projects list` and `zkao config use <projectId>`. No token can manage
+members, create tokens, archive or delete projects, or buy credits.
+
 Or create one yourself in zkao under **Project Settings → Integrations**: it is
 scoped to one project, carries a chosen set of permissions (`read`,
 `findings:write`, `guidance:write`, `scans:launch`, `regression-tests:write`, `publish`,
@@ -49,6 +57,14 @@ zkao login                                       # browser approval; saves crede
 zkao whoami                                      # which project the token belongs to
 # or: zkao config set --token zkao_proj_… --project <projectId>
 # or: export ZKAO_API_TOKEN and ZKAO_PROJECT_ID
+
+zkao login --org                                 # one token for every project of an organization
+zkao projects list                               # the organization's projects (organization token)
+zkao projects create <name> --description <text> # create a project (projects:write scope)
+zkao projects rename <projectId> <name>          # rename a project (projects:write scope)
+zkao config use <projectId>                      # switch the active project
+zkao repos add <owner/name> --project <projectId>  # connect a GitHub repository (repositories:write scope)
+zkao repos move <repositoryId> --to <projectId>  # move a repository to another project
 
 zkao repos
 zkao findings list
