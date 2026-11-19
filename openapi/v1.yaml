@@ -43,7 +43,8 @@ info:
     settings. It works on every `/projects/{projectId}/...` route
     of its organization with the scopes above, and it has no repo allowlist.
     A project of another organization responds `404`. Its spend limit and its
-    request limit each count across the whole organization.
+    request limit each count across the whole organization. The spend limit
+    is measured per calendar month in UTC.
 
     Only an organization token may carry these scopes, which the
     `/organizations/{organizationId}/...` routes require:
