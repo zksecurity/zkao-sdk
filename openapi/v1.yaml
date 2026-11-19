@@ -31,11 +31,16 @@ info:
     `GET /token` tells a token which project, and which organization, it
     belongs to.
 
+    A token may also be restricted to a subset of the project's repositories
+    (a repo allowlist). Any resource outside the token's project or repo
+    allowlist responds `404` (never confirmed to exist). Launching a scan
+    requires the project's organization to have prepaid credits.
+
     ## Organization tokens
     An **organization token** reaches every project of one organization,
     including projects created later. An owner or admin of the organization
-    creates one in the organization's settings, or approves one with
-    `zkao login --org`. It works on every `/projects/{projectId}/...` route
+    approves one with `zkao login --org`, and revokes it in the organization's
+    settings. It works on every `/projects/{projectId}/...` route
     of its organization with the scopes above, and it has no repo allowlist.
     A project of another organization responds `404`. Its spend limit and its
     request limit each count across the whole organization.
@@ -47,11 +52,6 @@ info:
 
     No token can manage members, create tokens, archive or delete a project,
     or buy credits.
-
-    A token may also be restricted to a subset of the project's repositories
-    (a repo allowlist). Any resource outside the token's project or repo
-    allowlist responds `404` (never confirmed to exist). Launching a scan
-    requires the project's organization to have prepaid credits.
 
     ## Organizations
     Every project belongs to an **organization**, which holds the prepaid credit
