@@ -63,6 +63,13 @@ token.
      projects in one login, and each gets its own saved token. If it reports
      the login expired, the old URL and code are dead: start again from step 1
      and send the new ones.
+- **Whole organization:** `zkao login --no-wait --no-browser --org [slugOrId]`
+  asks for one organization token (`zkao_org_…`) instead. An owner or admin of
+  the organization approves it. It reaches every project of that organization,
+  including later ones. `--resume` then prints `Authorized for every project of
+  organization "<name>" (<id>).` Pick a project with `zkao projects list` and
+  `zkao config use <projectId>`, or pass `--project <id>` to a command. A
+  project's own saved token still wins for that project.
 - **Pre-made token:** the user creates one under **Project Settings →
   Integrations** (scoped to one project, chosen permissions, optionally
   specific repos), shown once as `zkao_proj_<keyId>_<secret>` together with
@@ -87,9 +94,15 @@ Never print the token back to the user or write it into files.
   `scans:launch`, `publish`, `automations:write`. A `403` means the token lacks the
   scope for that action. Log in again, passing every scope you need to
   `--scope`.
-- A token is bound to one project (and possibly a subset of its repos). Anything
+- A project token is bound to one project (and possibly a subset of its repos). Anything
   outside its scope returns `404` (it is not revealed to exist), not `403`.
   On a project mismatch, the `404` message names the token's own project.
+- An organization token reaches every project of one organization. It can also
+  carry `projects:write` and `repositories:write`. Another organization's
+  projects return `404`. A project token gets a `403` on the organization
+  commands.
+- No token can manage members, create tokens, archive or delete projects, or
+  buy credits.
 - Errors are `{ "error": { "code": "...", "message": "..." } }`. A `401` means the
   token is missing/invalid/expired/revoked.
 
@@ -103,7 +116,14 @@ zkao whoami                                       # the token's project and orga
 zkao config show                                  # active settings and saved projects
 zkao config use <projectId>                       # switch to another saved project
 zkao config set --token <token> --project <id>    # or set credentials directly / use env vars
+zkao login --org [slugOrId]                       # one token for every project of an organization
+zkao config use-org <idOrSlug>                    # switch to another saved organization
+zkao projects list                                # organization token only
+zkao projects create <name> [--description <text>]   # projects:write
+zkao projects rename <projectId> <name>           # projects:write
 zkao repos                                        # list repositories
+zkao repos add <owner/name> [--project <id>]      # repositories:write; then zkao repos:wait
+zkao repos move <repositoryId> --to <projectId>   # repositories:write; 409 while its scans run
 zkao repos:wait <repoId>                          # wait until a repo can be scanned
 zkao presets                                      # scan presets (use a ref to launch)
 zkao scans launch --repo <repoId> --budget <credits> [--preset <ref>] [--branch <b>] [--base <ref>]
