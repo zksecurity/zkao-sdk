@@ -479,7 +479,8 @@ paths:
       summary: Get a repository's Continuous Security schedule
       description: >-
         Requires scope: `read`. Continuous Security scans one branch on a
-        schedule paid from a monthly budget. With no schedule on the branch,
+        schedule paid from credits given on the branch and an optional monthly
+        budget. With no schedule on the branch,
         `enabled` is false and the schedule fields are null. The recommended
         monthly budget supports ongoing analysis. The minimum funds one useful analysis
         step. `availableFeatures` lists the analyses this branch offers.
@@ -520,7 +521,9 @@ paths:
         at least one analysis that can run on its own.
         `enabled: false` pauses the schedule and keeps it. A change re-arms a
         schedule that had stopped. Each run still needs spendable credits when
-        it launches.
+        it launches. A budget above what the organization or the project can
+        fund is saved, and the response lists why in `warnings`. To fund work
+        once instead of every month, give credits.
       parameters:
         - $ref: "#/components/parameters/ProjectId"
         - $ref: "#/components/parameters/RepositoryId"
@@ -606,6 +609,48 @@ paths:
                 required: [preparing]
                 properties:
                   preparing: { type: boolean, enum: [true] }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /projects/{projectId}/repositories/{repositoryId}/continuous-testing/credits:
+    post:
+      tags: [Repositories]
+      operationId: giveContinuousCredits
+      summary: Give zkao credits on a branch
+      description: >-
+        Requires scope: `automations:write`. The credits are spent right away
+        and never repeat. Whatever this month leaves unspent carries into the
+        next. They add to any monthly budget. On a branch with no schedule,
+        this starts Continuous Security funded by these credits alone, with no
+        monthly budget; `enabledFeatures` or `enableFeatures` choose its
+        analyses before it starts. On an existing schedule, the other fields
+        change it as `PUT` does, in the same change: a refused change gives
+        nothing. Giving credits wakes zkao and re-arms a schedule that had
+        stopped. A paused schedule is refused with `409`; resume it first.
+        Each call gives again, so read the branch before retrying a request
+        whose outcome you did not see. The response lists in `warnings`
+        anything that may stop the branch before it uses its credits.
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/RepositoryId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GiveContinuousCreditsRequest" }
+            examples:
+              formalVerificationOnly:
+                summary: Start formal verification alone, funded once
+                value: { branch: main, credits: 30000, enabledFeatures: [formal-verification] }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ContinuousTesting" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
@@ -2921,6 +2966,7 @@ components:
 
     ContinuousFeatureId:
       type: string
+      description: The dependency-analysis switch lets the planner investigate dependency leads on this branch. Mapping, monitoring, and lead collection continue when it is off.
       enum: [bug-hunting, formal-verification, dependency-analysis, weak-key-analysis, security-invariants]
 
     ContinuousTesting:
@@ -2947,6 +2993,8 @@ components:
           recommendedMonthlyCredits,
           minimumMonthlyCredits,
           maximumMonthlyCredits,
+          leftThisMonthCredits,
+          warnings,
         ]
       properties:
         repositoryId: { type: string }
@@ -2967,7 +3015,10 @@ components:
         branch: { type: string }
         monthlyBudgetCredits:
           type: [integer, "null"]
-          description: The configured monthly spending cap. Legacy schedules derive the budget from their cadence and per-run budget.
+          description: The configured monthly spending cap, which refills every month. Null when nothing repeats, as on a branch funded only by given credits. Legacy schedules derive the budget from their cadence and per-run budget.
+        leftThisMonthCredits:
+          type: [integer, "null"]
+          description: What the branch can still spend this month, from given credits and the monthly budget. Given credits left unspent carry into the next month. Null with no schedule.
         cadence:
           type: [string, "null"]
           enum: [daily, weekly, biweekly, monthly, null]
@@ -2994,7 +3045,7 @@ components:
           type: array
           uniqueItems: true
           items: { $ref: "#/components/schemas/ContinuousFeatureId" }
-          description: Selected analyses. A branch with no saved selection defaults to bug hunting when Continuous Security is available. A paused schedule keeps its selection.
+          description: Selected analyses. A new branch starts with all analyses offered by its preset. Existing schedules keep their selection. A paused schedule keeps its selection.
         spentThisMonthCredits:
           type: integer
           description: Credits the branch was charged for Continuous Security since the UTC month began, net of refunds. Counts its analysis steps, change assessments, public-key reviews, agent questions and the planning included in steps.
@@ -3020,6 +3071,64 @@ components:
         maximumMonthlyCredits:
           type: [integer, "null"]
           description: The largest monthly budget currently allowed for the repository. Administrators can raise it.
+        warnings:
+          type: array
+          items: { $ref: "#/components/schemas/ContinuousTestingWarning" }
+          description: What may stop an enabled schedule before it uses what it has. Empty when nothing does, and always empty for a paused schedule.
+
+    ContinuousTestingWarning:
+      type: object
+      required: [code, message, availableCredits, neededCredits]
+      properties:
+        code:
+          type: string
+          enum: [balance_below_step, balance_below_budget, project_limit_below_budget]
+          description: >-
+            `balance_below_step` when the organization's credits cannot fund
+            one analysis step, `balance_below_budget` when they fund a step but
+            are less than the monthly budget or what the branch has left this
+            month, `project_limit_below_budget` when the project's monthly
+            limit for automated scans will stop the branch first.
+        message: { type: string, description: "A sentence to show the user." }
+        availableCredits:
+          type: integer
+          description: What the organization's balance, or the project's monthly limit, still holds.
+        neededCredits:
+          type: integer
+          description: The step, monthly budget or remaining credits it falls short of.
+
+    GiveContinuousCreditsRequest:
+      type: object
+      additionalProperties: false
+      required: [credits]
+      not:
+        properties: { enableFeatures: {}, enabledFeatures: {} }
+        required: [enableFeatures, enabledFeatures]
+      properties:
+        credits:
+          type: integer
+          minimum: 1
+          description: Credits to give, within the returned minimum and maximum monthly budget.
+        branch:
+          type: string
+          description: The branch. Defaults to the repository's default branch.
+        areaKeys:
+          type: array
+          maxItems: 20
+          items: { type: string }
+          description: Replaces the rotation set. An empty array scans the whole repository every run.
+        enableFeatures:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { $ref: "#/components/schemas/ContinuousFeatureId" }
+          description: Adds the listed analyses to the current selection. Mutually exclusive with enabledFeatures.
+        enabledFeatures:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { $ref: "#/components/schemas/ContinuousFeatureId" }
+          description: Replaces the selection with exactly these analyses. Mutually exclusive with enableFeatures.
 
     SetContinuousTestingRequest:
       type: object

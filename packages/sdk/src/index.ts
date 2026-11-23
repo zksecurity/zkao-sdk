@@ -51,6 +51,8 @@ export {
   type ContinuousFeatureId,
   type ContinuousTesting,
   type SetContinuousTestingRequest,
+  type GiveContinuousCreditsRequest,
+  type ContinuousTestingWarning,
   type RemoveContinuousTestingResult,
   type FindingTriageResult,
   type AgentQuestion,

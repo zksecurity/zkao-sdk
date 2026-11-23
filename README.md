@@ -82,6 +82,7 @@ zkao continuous get <repoId>                     # available and enabled analyse
 zkao continuous on <repoId> --branch main --budget <credits> --enable-analysis formal-verification
 zkao continuous set <repoId> --only-analysis formal-verification  # run FV alone on the default branch
 zkao continuous set <repoId> --area <key>        # change the budget or the areas it rotates through
+zkao continuous give <repoId> --credits <credits> --only-analysis formal-verification  # fund work once, never repeated
 zkao continuous off <repoId>                     # pause it
 zkao continuous prepare <repoId>                 # plan the next analysis without running it; spends no credits
 zkao questions list                              # open questions from Continuous Security analyses

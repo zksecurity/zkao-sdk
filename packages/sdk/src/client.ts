@@ -42,6 +42,8 @@ export type DeleteAuditAreaResult = Schemas["DeleteAuditAreaResult"];
 export type ContinuousFeatureId = Schemas["ContinuousFeatureId"];
 export type ContinuousTesting = Schemas["ContinuousTesting"];
 export type SetContinuousTestingRequest = Schemas["SetContinuousTestingRequest"];
+export type GiveContinuousCreditsRequest = Schemas["GiveContinuousCreditsRequest"];
+export type ContinuousTestingWarning = Schemas["ContinuousTestingWarning"];
 export type RemoveContinuousTestingResult =
   Schemas["RemoveContinuousTestingResult"];
 export type FindingTriageResult = Schemas["FindingTriageResult"];
@@ -628,6 +630,23 @@ export class ZkaoClient {
   ): Promise<ContinuousTesting> {
     const res = await this.http.PUT(
       "/projects/{projectId}/repositories/{repositoryId}/continuous-testing",
+      { params: { path: { ...this.path, repositoryId } }, body }
+    );
+    return unwrap(res);
+  }
+
+  /**
+   * Give zkao credits on a branch, spent right away and never repeated
+   * (requires `automations:write`). On a branch with no schedule, this starts
+   * Continuous Security funded by these credits alone. Each call gives again:
+   * read the branch before retrying a request whose outcome is unknown.
+   */
+  async giveContinuousCredits(
+    repositoryId: string,
+    body: GiveContinuousCreditsRequest
+  ): Promise<ContinuousTesting> {
+    const res = await this.http.POST(
+      "/projects/{projectId}/repositories/{repositoryId}/continuous-testing/credits",
       { params: { path: { ...this.path, repositoryId } }, body }
     );
     return unwrap(res);

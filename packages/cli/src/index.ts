@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import { Command, InvalidArgumentError } from "commander";
 import {
   type ContinuousFeatureId,
+  type ContinuousTesting,
   type LaunchScanRequest,
   type ResolutionReason,
   type ResolutionStatus,
@@ -556,6 +557,15 @@ type ContinuousOptions = {
   onlyAnalysis: ContinuousFeatureId[];
 };
 
+/** Prints a schedule, and its warnings on stderr where a person sees them. */
+function continuousResult(result: ContinuousTesting): ContinuousTesting {
+  // Servers before warnings existed omit the field.
+  for (const warning of result.warnings ?? []) {
+    console.error(`Warning: ${warning.message}`);
+  }
+  return result;
+}
+
 /** The schedule fields a command line sets, leaving the rest as they are. */
 function continuousChanges(
   opts: ContinuousOptions
@@ -588,10 +598,12 @@ continuous
   )
   .option("--branch <branch>", "the scheduled branch (default: the repository's default branch)")
   .action((repoId: string, opts: { branch?: string }) =>
-    run((c) =>
-      c.getContinuousTesting(repoId, {
-        ...(opts.branch === undefined ? {} : { branch: opts.branch }),
-      })
+    run(async (c) =>
+      continuousResult(
+        await c.getContinuousTesting(repoId, {
+          ...(opts.branch === undefined ? {} : { branch: opts.branch }),
+        })
+      )
     )
   );
 for (const [name, description, enabled] of [
@@ -635,14 +647,52 @@ for (const [name, description, enabled] of [
       []
     )
     .action((repoId: string, opts: ContinuousOptions) =>
-      run((c) =>
-        c.setContinuousTesting(repoId, {
-          ...(enabled === undefined ? {} : { enabled }),
-          ...continuousChanges(opts),
-        })
+      run(async (c) =>
+        continuousResult(
+          await c.setContinuousTesting(repoId, {
+            ...(enabled === undefined ? {} : { enabled }),
+            ...continuousChanges(opts),
+          })
+        )
       )
     );
 }
+continuous
+  .command("give <repoId>")
+  .description(
+    "Give zkao credits on a branch, spent right away and never repeated. Starts Continuous Security on a branch with no schedule"
+  )
+  .requiredOption("--credits <credits>", "credits to give", toCredits)
+  .option("--branch <branch>", "the branch (default: the repository's default branch)")
+  .option(
+    "--area <key>",
+    "audit area to rotate through, one per run (repeatable; see `zkao areas list`)",
+    collect,
+    []
+  )
+  .option("--whole-repo", "scan the whole repository every run")
+  .option(
+    "--enable-analysis <id>",
+    "add an analysis to the current selection (repeatable). See availableFeatures in continuous get",
+    collect,
+    []
+  )
+  .option(
+    "--only-analysis <id>",
+    "replace the selection with the analyses named by this option (repeatable)",
+    collect,
+    []
+  )
+  .action((repoId: string, opts: ContinuousOptions & { credits: number }) =>
+    run(async (c) =>
+      continuousResult(
+        await c.giveContinuousCredits(repoId, {
+          ...continuousChanges(opts),
+          credits: opts.credits,
+        })
+      )
+    )
+  );
 continuous
   .command("off <repoId>")
   .description("Pause it. The schedule and its settings are kept")

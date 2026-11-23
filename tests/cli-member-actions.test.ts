@@ -16,6 +16,18 @@ beforeAll(() => {
       if (path.endsWith("/continuous-testing")) {
         return Response.json({ repositoryId: "repo", branch: "main" });
       }
+      if (path.endsWith("/continuous-testing/credits")) {
+        return Response.json({
+          repositoryId: "repo",
+          branch: "main",
+          warnings: [{
+            code: "balance_below_budget",
+            message: "Your organization has 2,000 credits available.",
+            availableCredits: 2000,
+            neededCredits: 6000,
+          }],
+        });
+      }
       if (path.endsWith("/prepare")) {
         return Response.json({ preparing: true });
       }
@@ -110,6 +122,23 @@ test("prepare plans the given branch, or the scheduled branch when none is given
       method: "POST",
       path: "/api/v1/projects/project/repositories/repo/continuous-testing/prepare",
       body: { branch: "main" },
+    },
+  ]);
+});
+
+test("continuous give sends the credits and the selection, and prints warnings", async () => {
+  const given = await cli("continuous", "give", "repo", "--branch", "proofs", "--credits", "6000",
+    "--only-analysis", "formal-verification");
+  expect(given.status).toBe(0);
+  expect(given.stderr).toContain("Warning: Your organization has 2,000 credits available.");
+  expect(JSON.parse(given.stdout)).toMatchObject({ branch: "main" });
+  const missing = await cli("continuous", "give", "repo");
+  expect(missing.status).toBe(1);
+  expect(requests).toEqual([
+    {
+      method: "POST",
+      path: "/api/v1/projects/project/repositories/repo/continuous-testing/credits",
+      body: { branch: "proofs", enabledFeatures: ["formal-verification"], credits: 6000 },
     },
   ]);
 });

@@ -205,12 +205,12 @@ export interface paths {
         };
         /**
          * Get a repository's Continuous Security schedule
-         * @description Requires scope: `read`. Continuous Security scans one branch on a schedule paid from a monthly budget. With no schedule on the branch, `enabled` is false and the schedule fields are null. The recommended monthly budget supports ongoing analysis. The minimum funds one useful analysis step. `availableFeatures` lists the analyses this branch offers. `enabledFeatures` lists the branch's selected analyses, including while paused.
+         * @description Requires scope: `read`. Continuous Security scans one branch on a schedule paid from credits given on the branch and an optional monthly budget. With no schedule on the branch, `enabled` is false and the schedule fields are null. The recommended monthly budget supports ongoing analysis. The minimum funds one useful analysis step. `availableFeatures` lists the analyses this branch offers. `enabledFeatures` lists the branch's selected analyses, including while paused.
          */
         get: operations["getContinuousTesting"];
         /**
          * Turn Continuous Security on, change it, or pause it
-         * @description Requires scope: `automations:write`. Every field is optional. To start a schedule, send `enabled: true` with the branch and its authorized monthly budget. A new schedule uses `defaultMonthlyCredits` when no budget is given. The default is a low limit that funds at least one analysis step. When a month's budget is used, automatic analysis waits until the budget is raised or the month resets. The budget sets the interval smoothly from once a month to twice a day. A budget outside the returned minimum and maximum is refused with `400`. Administrators can raise the maximum monthly budget. `areaKeys` replaces the audit areas runs rotate through, one per run. Use `enableFeatures` to add analyses or `enabledFeatures` to replace the selection. Omit both to keep it. A selection sent without `enabled` or `monthlyBudgetCredits` requires an existing schedule and returns `409` if none exists. The resulting selection must include at least one analysis that can run on its own. `enabled: false` pauses the schedule and keeps it. A change re-arms a schedule that had stopped. Each run still needs spendable credits when it launches.
+         * @description Requires scope: `automations:write`. Every field is optional. To start a schedule, send `enabled: true` with the branch and its authorized monthly budget. A new schedule uses `defaultMonthlyCredits` when no budget is given. The default is a low limit that funds at least one analysis step. When a month's budget is used, automatic analysis waits until the budget is raised or the month resets. The budget sets the interval smoothly from once a month to twice a day. A budget outside the returned minimum and maximum is refused with `400`. Administrators can raise the maximum monthly budget. `areaKeys` replaces the audit areas runs rotate through, one per run. Use `enableFeatures` to add analyses or `enabledFeatures` to replace the selection. Omit both to keep it. A selection sent without `enabled` or `monthlyBudgetCredits` requires an existing schedule and returns `409` if none exists. The resulting selection must include at least one analysis that can run on its own. `enabled: false` pauses the schedule and keeps it. A change re-arms a schedule that had stopped. Each run still needs spendable credits when it launches. A budget above what the organization or the project can fund is saved, and the response lists why in `warnings`. To fund work once instead of every month, give credits.
          */
         put: operations["setContinuousTesting"];
         post?: never;
@@ -238,6 +238,26 @@ export interface paths {
          * @description Requires scope: `automations:write`. Plans the branch's next analysis without running it. It works whether automatic analysis is on or off. Preparing spends no credits. A preparation already in progress on the branch is reused. When nothing has changed since the plan was last prepared, the branch's conversation with zkao says so and the plan stays as it is. Responds `400` when the branch does not exist or has no active Continuous Security, and `409` while the repository is still being prepared.
          */
         post: operations["prepareContinuousTesting"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/repositories/{repositoryId}/continuous-testing/credits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Give zkao credits on a branch
+         * @description Requires scope: `automations:write`. The credits are spent right away and never repeat. Whatever this month leaves unspent carries into the next. They add to any monthly budget. On a branch with no schedule, this starts Continuous Security funded by these credits alone, with no monthly budget; `enabledFeatures` or `enableFeatures` choose its analyses before it starts. On an existing schedule, the other fields change it as `PUT` does, in the same change: a refused change gives nothing. Giving credits wakes zkao and re-arms a schedule that had stopped. A paused schedule is refused with `409`; resume it first. Each call gives again, so read the branch before retrying a request whose outcome you did not see. The response lists in `warnings` anything that may stop the branch before it uses its credits.
+         */
+        post: operations["giveContinuousCredits"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1535,7 +1555,10 @@ export interface components {
             key: string;
             deleted: boolean;
         };
-        /** @enum {string} */
+        /**
+         * @description The dependency-analysis switch lets the planner investigate dependency leads on this branch. Mapping, monitoring, and lead collection continue when it is off.
+         * @enum {string}
+         */
         ContinuousFeatureId: "bug-hunting" | "formal-verification" | "dependency-analysis" | "weak-key-analysis" | "security-invariants";
         ContinuousTesting: {
             repositoryId: string;
@@ -1549,8 +1572,10 @@ export interface components {
              */
             state: "active" | "converged" | "budget_reached" | "needs_credits" | "error" | null;
             branch: string;
-            /** @description The configured monthly spending cap. Legacy schedules derive the budget from their cadence and per-run budget. */
+            /** @description The configured monthly spending cap, which refills every month. Null when nothing repeats, as on a branch funded only by given credits. Legacy schedules derive the budget from their cadence and per-run budget. */
             monthlyBudgetCredits: number | null;
+            /** @description What the branch can still spend this month, from given credits and the monthly budget. Given credits left unspent carry into the next month. Null with no schedule. */
+            leftThisMonthCredits: number | null;
             /**
              * @description Legacy fixed cadence. Null for a custom interval or no schedule. Use intervalHours for the actual interval.
              * @enum {string|null}
@@ -1563,7 +1588,7 @@ export interface components {
             areaKeys: string[];
             /** @description Analyses offered on this branch. Empty when Continuous Security is unavailable. */
             availableFeatures: components["schemas"]["ContinuousFeatureId"][];
-            /** @description Selected analyses. A branch with no saved selection defaults to bug hunting when Continuous Security is available. A paused schedule keeps its selection. */
+            /** @description Selected analyses. A new branch starts with all analyses offered by its preset. Existing schedules keep their selection. A paused schedule keeps its selection. */
             enabledFeatures: components["schemas"]["ContinuousFeatureId"][];
             /** @description Credits the branch was charged for Continuous Security since the UTC month began, net of refunds. Counts its analysis steps, change assessments, public-key reviews, agent questions and the planning included in steps. */
             spentThisMonthCredits: number;
@@ -1584,6 +1609,33 @@ export interface components {
             minimumMonthlyCredits: number | null;
             /** @description The largest monthly budget currently allowed for the repository. Administrators can raise it. */
             maximumMonthlyCredits: number | null;
+            /** @description What may stop an enabled schedule before it uses what it has. Empty when nothing does, and always empty for a paused schedule. */
+            warnings: components["schemas"]["ContinuousTestingWarning"][];
+        };
+        ContinuousTestingWarning: {
+            /**
+             * @description `balance_below_step` when the organization's credits cannot fund one analysis step, `balance_below_budget` when they fund a step but are less than the monthly budget or what the branch has left this month, `project_limit_below_budget` when the project's monthly limit for automated scans will stop the branch first.
+             * @enum {string}
+             */
+            code: "balance_below_step" | "balance_below_budget" | "project_limit_below_budget";
+            /** @description A sentence to show the user. */
+            message: string;
+            /** @description What the organization's balance, or the project's monthly limit, still holds. */
+            availableCredits: number;
+            /** @description The step, monthly budget or remaining credits it falls short of. */
+            neededCredits: number;
+        };
+        GiveContinuousCreditsRequest: {
+            /** @description Credits to give, within the returned minimum and maximum monthly budget. */
+            credits: number;
+            /** @description The branch. Defaults to the repository's default branch. */
+            branch?: string;
+            /** @description Replaces the rotation set. An empty array scans the whole repository every run. */
+            areaKeys?: string[];
+            /** @description Adds the listed analyses to the current selection. Mutually exclusive with enabledFeatures. */
+            enableFeatures?: components["schemas"]["ContinuousFeatureId"][];
+            /** @description Replaces the selection with exactly these analyses. Mutually exclusive with enableFeatures. */
+            enabledFeatures?: components["schemas"]["ContinuousFeatureId"][];
         };
         SetContinuousTestingRequest: {
             /** @description False pauses the schedule; true turns it on or resumes it. */
@@ -2367,6 +2419,38 @@ export interface operations {
                         /** @enum {boolean} */
                         preparing: true;
                     };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    giveContinuousCredits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                repositoryId: components["parameters"]["RepositoryId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GiveContinuousCreditsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContinuousTesting"];
                 };
             };
             400: components["responses"]["BadRequest"];
