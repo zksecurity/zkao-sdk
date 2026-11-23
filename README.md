@@ -74,8 +74,8 @@ zkao scans launch --repo <repoId> --budget 500 --preset <ref>
 zkao scans launch --repo <repoId> --preset "builtin:Flash Diff" --base main --commit <sha>  # audit only a change
 zkao scans wait <scanId>                         # block until the scan finishes
 zkao scans cancel <scanId>                       # cancel a running or queued scan
-zkao guidance get <repoId>                       # read a repo's guidance
-zkao guidance set <repoId> <file|->              # update it (guidance:write scope)
+zkao guidance get <repoId>                       # read a repo's guidance and its contentHash
+zkao guidance set <repoId> <file|-> --if-content-hash <hash>  # update it unless it changed since that read (guidance:write scope)
 zkao areas list <repoId>                         # subsystems a scan can be scoped to
 zkao areas add <repoId> "<name>"                 # add a custom area (guidance:write scope)
 zkao continuous get <repoId>                     # available and enabled analyses, schedule and spend

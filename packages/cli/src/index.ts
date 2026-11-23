@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { Command, InvalidArgumentError } from "commander";
@@ -462,50 +463,88 @@ program
 
 // --- guidance --------------------------------------------------------------
 
+type GuidanceWriteOptions = { force?: boolean; ifContentHash?: string };
+
+/** What `guidance get` prints as `contentHash`: the SHA-256 of the content, "" for none. */
+const contentHash = (content: string | null) =>
+  createHash("sha256").update(content ?? "").digest("hex");
+
+function contentHashArg(value: string): string {
+  if (!/^[0-9a-f]{64}$/i.test(value)) {
+    throw new InvalidArgumentError("Expected the contentHash that `zkao guidance get` printed.");
+  }
+  return value.toLowerCase();
+}
+
+function checkGuidanceWriteOptions(opts: GuidanceWriteOptions): void {
+  if (opts.force && opts.ifContentHash !== undefined) {
+    fail("Choose either --force or --if-content-hash.");
+  }
+}
+
+/**
+ * Without --force, the write is a compare-and-set against a read made here.
+ * --if-content-hash stretches the check back to the caller's own earlier read.
+ */
+async function writeGuidance(
+  c: ZkaoClient,
+  repoId: string,
+  content: string | null,
+  opts: GuidanceWriteOptions
+) {
+  if (opts.force) {
+    return c.setRepositoryGuidance(repoId, content);
+  }
+  const current = await c.getRepositoryGuidance(repoId);
+  if (opts.ifContentHash !== undefined && contentHash(current.content) !== opts.ifContentHash) {
+    throw new ZkaoApiError(
+      409,
+      "conflict",
+      `The guidance changed since you read it. Run \`zkao guidance get ${repoId}\`, merge your change into the new content, and retry with its contentHash.`
+    );
+  }
+  return c.setRepositoryGuidance(repoId, content, { expectedContent: current.content });
+}
+
 const guidance = program
   .command("guidance")
   .description("Read and update a repository's guidance");
 guidance
   .command("get <repoId>")
-  .description("Show a repository's configured guidance")
-  .action((repoId: string) => run((c) => c.getRepositoryGuidance(repoId)));
+  .description("Show a repository's configured guidance and its contentHash")
+  .action((repoId: string) =>
+    run(async (c) => {
+      const current = await c.getRepositoryGuidance(repoId);
+      return { ...current, contentHash: contentHash(current.content) };
+    })
+  );
 guidance
   .command("set <repoId> <file|->")
   .description("Set a repository's guidance from a file (or - for stdin)")
   .option(
-    "--force",
-    "overwrite without the safety check that guidance did not change since last read"
+    "--if-content-hash <contentHash>",
+    "refuse if the guidance changed since `zkao guidance get` printed this contentHash",
+    contentHashArg
   )
-  .action((repoId: string, source: string, opts: { force?: boolean }) => {
+  .option("--force", "overwrite without checking for a concurrent change")
+  .action((repoId: string, source: string, opts: GuidanceWriteOptions) => {
+    checkGuidanceWriteOptions(opts);
     const content = readContentArg(source);
-    return run(async (c) => {
-      if (opts.force) {
-        return c.setRepositoryGuidance(repoId, content);
-      }
-      // Read-then-compare-and-set by default so a concurrent edit (a teammate,
-      // or an accepted suggestion) is reported as a conflict instead of being
-      // silently clobbered. Pass --force to skip.
-      const current = await c.getRepositoryGuidance(repoId);
-      return c.setRepositoryGuidance(repoId, content, {
-        expectedContent: current.content,
-      });
-    });
+    return run((c) => writeGuidance(c, repoId, content, opts));
   });
 guidance
   .command("clear <repoId>")
   .description("Remove a repository's guidance")
-  .option("--force", "overwrite without the concurrent-change safety check")
-  .action((repoId: string, opts: { force?: boolean }) =>
-    run(async (c) => {
-      if (opts.force) {
-        return c.setRepositoryGuidance(repoId, null);
-      }
-      const current = await c.getRepositoryGuidance(repoId);
-      return c.setRepositoryGuidance(repoId, null, {
-        expectedContent: current.content,
-      });
-    })
-  );
+  .option(
+    "--if-content-hash <contentHash>",
+    "refuse if the guidance changed since `zkao guidance get` printed this contentHash",
+    contentHashArg
+  )
+  .option("--force", "clear without checking for a concurrent change")
+  .action((repoId: string, opts: GuidanceWriteOptions) => {
+    checkGuidanceWriteOptions(opts);
+    return run((c) => writeGuidance(c, repoId, null, opts));
+  });
 
 // --- areas -----------------------------------------------------------------
 

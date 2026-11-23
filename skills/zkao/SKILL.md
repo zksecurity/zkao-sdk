@@ -143,9 +143,9 @@ zkao findings resolution <findingId> <RESOLVED|WONT_FIX|FALSE_POSITIVE|...> [--n
 zkao findings triage <findingId> <confirmed|false-positive> [--note "<text>"]  # override the AI triage verdict
 zkao findings publish <findingId> [--note <noteId>] [--password]
 zkao scans publish <scanId> [--password]
-zkao guidance get <repoId>                        # show a repo's configured guidance
-zkao guidance set <repoId> <file|->               # set guidance from a file or stdin
-zkao guidance clear <repoId>                      # remove a repo's guidance
+zkao guidance get <repoId>                        # show a repo's configured guidance and its contentHash
+zkao guidance set <repoId> <file|-> --if-content-hash <hash>  # set guidance unless it changed since you read it
+zkao guidance clear <repoId> --if-content-hash <hash>         # remove a repo's guidance
 zkao areas list <repoId> [--branch <branch>]      # subsystems a scan can be scoped to
 zkao areas add <repoId> "<name>" [--description <text>]
 zkao areas rm <repoId> <areaKey>                  # delete a custom area
@@ -264,13 +264,15 @@ to the whole repo belongs in the repository's guidance, which every future scan
 reads.
 
 Read the current guidance with `zkao guidance get <repoId>` and update it with
-`zkao guidance set <repoId> <file|->`. Prefer editing the existing text over
-replacing it: read it first, add your note, and write the merged result back
-(`set` refuses to overwrite a guidance that changed since you read it unless you
-pass `--force`, so a concurrent edit surfaces as a conflict rather than being
-lost). Keep guidance lean, since every line is read on every scan. A guidance
-change is durable and affects all future scans, so when the knowledge is
-substantial or judgment-heavy, propose the text to the user before writing it.
+`zkao guidance set <repoId> <file|-> --if-content-hash <contentHash>`, passing
+the `contentHash` that `get` printed. Prefer editing the existing text over
+replacing it: read it first, add your note, and write the merged result back.
+With `--if-content-hash`, `set` fails with `409 conflict` if anyone changed the
+guidance since your read. Read it again, merge, and retry. Without the flag,
+`set` only catches a change made while the command runs. Keep guidance lean,
+since every line is read on every scan. A guidance change is durable and
+affects all future scans, so when the knowledge is substantial or
+judgment-heavy, propose the text to the user before writing it.
 
 Setting guidance requires a `guidance:write` token; a read-only token can only
 `get` it. Separately, `zkao scans launch --guidance <file|->` sets guidance for

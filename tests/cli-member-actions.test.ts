@@ -1,9 +1,12 @@
 import { afterAll, beforeAll, beforeEach, expect, test } from "bun:test";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const cliPath = join(dirname(fileURLToPath(import.meta.url)), "../packages/cli/dist/index.js");
 let requests: { method: string; path: string; body: unknown }[] = [];
+let storedGuidance: string | null = null;
 let server: ReturnType<typeof Bun.serve>;
 
 beforeAll(() => {
@@ -28,6 +31,11 @@ beforeAll(() => {
           }],
         });
       }
+      if (path.endsWith("/guidance")) {
+        return request.method === "GET"
+          ? Response.json({ repositoryId: "repo", content: storedGuidance, updatedAt: null })
+          : Response.json({ repositoryId: "repo", revisionId: "revision", unchanged: false });
+      }
       if (path.endsWith("/prepare")) {
         return Response.json({ preparing: true });
       }
@@ -51,6 +59,7 @@ afterAll(() => server.stop(true));
 
 beforeEach(() => {
   requests = [];
+  storedGuidance = null;
 });
 
 async function cli(...args: string[]) {
@@ -164,4 +173,45 @@ test("continuous adds analyses, replaces the selection, or leaves it alone", asy
     { method: "PUT", path, body: { branch: "release", enabledFeatures: ["formal-verification"] } },
     { method: "PUT", path, body: { monthlyBudgetCredits: 600 } },
   ]);
+});
+
+test("guidance set refuses guidance changed since the caller read it, and writes against that read", async () => {
+  const file = join(mkdtempSync(join(tmpdir(), "zkao-cli-")), "guidance.md");
+  writeFileSync(file, "Mine.");
+  const path = "/api/v1/projects/project/repositories/repo/guidance";
+  const read = async () => {
+    const result = await cli("guidance", "get", "repo");
+    expect(result.status).toBe(0);
+    return JSON.parse(result.stdout) as { content: string | null; contentHash: string };
+  };
+
+  storedGuidance = "Old.";
+  const before = await read();
+  expect(before.content).toBe("Old.");
+  storedGuidance = "A teammate's edit.";
+  const stale = await cli("guidance", "set", "repo", file, "--if-content-hash", before.contentHash);
+  expect(stale.status).toBe(1);
+  expect(stale.stderr).toContain("Error 409 (conflict): The guidance changed since you read it.");
+
+  const fresh = await read();
+  expect(fresh.contentHash).not.toBe(before.contentHash);
+  const written = await cli("guidance", "set", "repo", file, "--if-content-hash", fresh.contentHash);
+  expect(written.status).toBe(0);
+
+  storedGuidance = null;
+  const none = await read();
+  const cleared = await cli("guidance", "clear", "repo", "--if-content-hash", none.contentHash);
+  expect(cleared.status).toBe(0);
+
+  expect(requests.filter((request) => request.method === "PUT")).toEqual([
+    { method: "PUT", path, body: { content: "Mine.", expectedContent: "A teammate's edit." } },
+    { method: "PUT", path, body: { content: null, expectedContent: null } },
+  ]);
+
+  const both = await cli("guidance", "clear", "repo", "--force", "--if-content-hash", none.contentHash);
+  expect(both.status).toBe(1);
+  expect(both.stderr).toContain("Choose either --force or --if-content-hash.");
+  const malformed = await cli("guidance", "clear", "repo", "--if-content-hash", "2026-11-23");
+  expect(malformed.status).toBe(1);
+  expect(requests).toHaveLength(8);
 });
