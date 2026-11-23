@@ -569,7 +569,7 @@ function continuousResult(result: ContinuousTesting): ContinuousTesting {
 /** The schedule fields a command line sets, leaving the rest as they are. */
 function continuousChanges(
   opts: ContinuousOptions
-): SetContinuousTestingRequest {
+): Omit<SetContinuousTestingRequest, "enabled"> {
   if (opts.wholeRepo && opts.area.length > 0) {
     fail("Pass --area or --whole-repo, not both.");
   }
@@ -664,6 +664,7 @@ continuous
   )
   .requiredOption("--credits <credits>", "credits to give", toCredits)
   .option("--branch <branch>", "the branch (default: the repository's default branch)")
+  .option("--resume", "resume a paused schedule with these credits")
   .option(
     "--area <key>",
     "audit area to rotate through, one per run (repeatable; see `zkao areas list`)",
@@ -683,12 +684,13 @@ continuous
     collect,
     []
   )
-  .action((repoId: string, opts: ContinuousOptions & { credits: number }) =>
+  .action((repoId: string, opts: ContinuousOptions & { credits: number; resume?: boolean }) =>
     run(async (c) =>
       continuousResult(
         await c.giveContinuousCredits(repoId, {
           ...continuousChanges(opts),
           credits: opts.credits,
+          ...(opts.resume ? { enabled: true as const } : {}),
         })
       )
     )

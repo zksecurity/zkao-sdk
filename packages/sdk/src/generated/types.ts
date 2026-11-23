@@ -255,7 +255,7 @@ export interface paths {
         put?: never;
         /**
          * Give zkao credits on a branch
-         * @description Requires scope: `automations:write`. The credits are spent right away and never repeat. Whatever this month leaves unspent carries into the next. They add to any monthly budget. On a branch with no schedule, this starts Continuous Security funded by these credits alone, with no monthly budget; `enabledFeatures` or `enableFeatures` choose its analyses before it starts. On an existing schedule, the other fields change it as `PUT` does, in the same change: a refused change gives nothing. Giving credits wakes zkao and re-arms a schedule that had stopped. A paused schedule is refused with `409`; resume it first. Each call gives again, so read the branch before retrying a request whose outcome you did not see. The response lists in `warnings` anything that may stop the branch before it uses its credits.
+         * @description Requires scope: `automations:write`. The credits are spent right away and never repeat. Whatever this month leaves unspent carries into the next. They add to any monthly budget. On a branch with no schedule, this starts Continuous Security funded by these credits alone, with no monthly budget; `enabledFeatures` or `enableFeatures` choose its analyses before it starts. On an existing schedule, the other fields change it as `PUT` does, in the same change: a refused change gives nothing. Giving credits wakes zkao and re-arms a schedule that had stopped. A paused schedule is refused with `409` unless the request also sends `enabled: true`, which resumes it. Each call gives again, so read the branch before retrying a request whose outcome you did not see. The response lists in `warnings` anything that may stop the branch before it uses its credits.
          */
         post: operations["giveContinuousCredits"];
         delete?: never;
@@ -1574,7 +1574,7 @@ export interface components {
             branch: string;
             /** @description The configured monthly spending cap, which refills every month. Null when nothing repeats, as on a branch funded only by given credits. Legacy schedules derive the budget from their cadence and per-run budget. */
             monthlyBudgetCredits: number | null;
-            /** @description What the branch can still spend this month, from given credits and the monthly budget. Given credits left unspent carry into the next month. Null with no schedule. */
+            /** @description What the branch can still spend this month, from given credits and the monthly budget. Given credits left unspent carry into the next month. Null with no schedule, or for an older schedule without a monthly budget. */
             leftThisMonthCredits: number | null;
             /**
              * @description Legacy fixed cadence. Null for a custom interval or no schedule. Use intervalHours for the actual interval.
@@ -1628,6 +1628,11 @@ export interface components {
         GiveContinuousCreditsRequest: {
             /** @description Credits to give, within the returned minimum and maximum monthly budget. */
             credits: number;
+            /**
+             * @description Resumes a paused schedule with these credits. A paused schedule refuses credits without it.
+             * @enum {boolean}
+             */
+            enabled?: true;
             /** @description The branch. Defaults to the repository's default branch. */
             branch?: string;
             /** @description Replaces the rotation set. An empty array scans the whole repository every run. */

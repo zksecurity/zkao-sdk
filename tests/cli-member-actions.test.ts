@@ -128,7 +128,7 @@ test("prepare plans the given branch, or the scheduled branch when none is given
 
 test("continuous give sends the credits and the selection, and prints warnings", async () => {
   const given = await cli("continuous", "give", "repo", "--branch", "proofs", "--credits", "6000",
-    "--only-analysis", "formal-verification");
+    "--only-analysis", "formal-verification", "--resume");
   expect(given.status).toBe(0);
   expect(given.stderr).toContain("Warning: Your organization has 2,000 credits available.");
   expect(JSON.parse(given.stdout)).toMatchObject({ branch: "main" });
@@ -138,7 +138,7 @@ test("continuous give sends the credits and the selection, and prints warnings",
     {
       method: "POST",
       path: "/api/v1/projects/project/repositories/repo/continuous-testing/credits",
-      body: { branch: "proofs", enabledFeatures: ["formal-verification"], credits: 6000 },
+      body: { branch: "proofs", enabledFeatures: ["formal-verification"], credits: 6000, enabled: true },
     },
   ]);
 });

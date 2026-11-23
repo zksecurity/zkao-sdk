@@ -152,7 +152,7 @@ zkao areas rm <repoId> <areaKey>                  # delete a custom area
 zkao continuous get <repoId> [--branch <branch>]  # available and enabled analyses, schedule, spend and budget limits
 zkao continuous on <repoId> [--branch <branch>] [--budget <credits>] [--enable-analysis <id> | --only-analysis <id>] [--area <key>...]
 zkao continuous set <repoId> [--branch <branch>] [--enable-analysis <id> | --only-analysis <id>] [--budget <credits>] [--area <key>... | --whole-repo]
-zkao continuous give <repoId> --credits <credits> [--branch <branch>] [--enable-analysis <id> | --only-analysis <id>] [--area <key>... | --whole-repo]  # spent right away, never repeated
+zkao continuous give <repoId> --credits <credits> [--branch <branch>] [--resume] [--enable-analysis <id> | --only-analysis <id>] [--area <key>... | --whole-repo]  # spent right away, never repeated
 zkao continuous off <repoId>                      # pause it, keeping its settings
 zkao continuous prepare <repoId> [--branch <branch>]  # plan the next analysis without running it; spends no credits
 zkao continuous rm <repoId>                       # remove the schedule
@@ -237,7 +237,7 @@ Check that `availableFeatures` includes `formal-verification`. Read `enabled`,
 - To start Continuous Security with FV, use `zkao continuous on <repoId> --branch <branch> --budget <authorized-monthly-credits> --enable-analysis formal-verification`.
 - To add FV to a running schedule at its current budget, use `zkao continuous set <repoId> --branch <branch> --enable-analysis formal-verification`.
 - To start an FV-only schedule when the user asks for one, use `zkao continuous on <repoId> --branch <branch> --budget <authorized-monthly-credits> --only-analysis formal-verification`. On an existing schedule, `--only-analysis` replaces the selection.
-- To fund work once instead of every month, use `zkao continuous give <repoId> --branch <branch> --credits <authorized-credits> --only-analysis formal-verification`. On a branch with no schedule, this starts Continuous Security with no monthly budget. Each call gives again, so read the branch before retrying one whose outcome you did not see.
+- To fund work once instead of every month, use `zkao continuous give <repoId> --branch <branch> --credits <authorized-credits> --only-analysis formal-verification`. On a branch with no schedule, this starts Continuous Security with no monthly budget. A paused branch refuses credits unless you pass `--resume` (`enabled: true`), which resumes it. Each call gives again, so read the branch before retrying one whose outcome you did not see.
 
 With MCP, pass `enableFeatures: ["formal-verification"]` to `zkao_set_continuous` to add FV, or `enabledFeatures: ["formal-verification"]` for FV alone.
 To start a schedule, also pass `enabled: true` and the authorized `monthlyBudgetCredits`, or give credits with `zkao_give_continuous_credits`.
