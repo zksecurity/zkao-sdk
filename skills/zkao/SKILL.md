@@ -269,10 +269,12 @@ the `contentHash` that `get` printed. Prefer editing the existing text over
 replacing it: read it first, add your note, and write the merged result back.
 With `--if-content-hash`, `set` fails with `409 conflict` if anyone changed the
 guidance since your read. Read it again, merge, and retry. Without the flag,
-`set` only catches a change made while the command runs. Keep guidance lean,
-since every line is read on every scan. A guidance change is durable and
-affects all future scans, so when the knowledge is substantial or
-judgment-heavy, propose the text to the user before writing it.
+`set` only catches a change made while the command runs. The response's `diff`
+shows what the write replaced: read it to confirm you changed only what you
+meant to, especially after `--force`. Keep guidance lean, since every line is
+read on every scan. A guidance change is durable and affects all future scans,
+so when the knowledge is substantial or judgment-heavy, propose the text to the
+user before writing it.
 
 Setting guidance requires a `guidance:write` token; a read-only token can only
 `get` it. Separately, `zkao scans launch --guidance <file|->` sets guidance for

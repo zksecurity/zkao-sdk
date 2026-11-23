@@ -363,7 +363,8 @@ paths:
         revision). Pass `expectedContent` for an optimistic compare-and-set:
         omit it for last-writer-wins, or send the content you last read (or
         `null` for "currently cleared") to get a `409` instead of clobbering a
-        concurrent change.
+        concurrent change. The response's `diff` shows what the write
+        replaced.
       parameters:
         - $ref: "#/components/parameters/ProjectId"
         - $ref: "#/components/parameters/RepositoryId"
@@ -2892,7 +2893,7 @@ components:
 
     SetGuidanceResult:
       type: object
-      required: [repositoryId, revisionId, unchanged]
+      required: [repositoryId, revisionId, unchanged, diff]
       properties:
         repositoryId: { type: string }
         revisionId:
@@ -2901,6 +2902,12 @@ components:
         unchanged:
           type: boolean
           description: True when the content already matched (no revision recorded).
+        diff:
+          type: string
+          description: >-
+            Unified diff from the guidance this write replaced to the new
+            content, with `before` and `after` as file names. Empty on a no-op
+            write. Read it to confirm the write changed only what you meant to.
 
     AuditArea:
       type: object

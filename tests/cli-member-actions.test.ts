@@ -34,7 +34,12 @@ beforeAll(() => {
       if (path.endsWith("/guidance")) {
         return request.method === "GET"
           ? Response.json({ repositoryId: "repo", content: storedGuidance, updatedAt: null })
-          : Response.json({ repositoryId: "repo", revisionId: "revision", unchanged: false });
+          : Response.json({
+            repositoryId: "repo",
+            revisionId: "revision",
+            unchanged: false,
+            diff: "--- before\n+++ after\n@@ -1,1 +1,1 @@\n-A teammate's edit.\n+Mine.\n",
+          });
       }
       if (path.endsWith("/prepare")) {
         return Response.json({ preparing: true });
@@ -197,6 +202,7 @@ test("guidance set refuses guidance changed since the caller read it, and writes
   expect(fresh.contentHash).not.toBe(before.contentHash);
   const written = await cli("guidance", "set", "repo", file, "--if-content-hash", fresh.contentHash);
   expect(written.status).toBe(0);
+  expect(JSON.parse(written.stdout).diff).toContain("-A teammate's edit.\n+Mine.\n");
 
   storedGuidance = null;
   const none = await read();

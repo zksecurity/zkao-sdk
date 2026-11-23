@@ -513,6 +513,7 @@ export class ZkaoClient {
    * compare-and-set: send the content you last read (or `null` for "currently
    * cleared") to get a `409` instead of clobbering a concurrent change. Writing
    * the same content that is already stored is a no-op (`unchanged: true`).
+   * `diff` is a unified diff from the guidance the write replaced.
    */
   async setRepositoryGuidance(
     repositoryId: string,

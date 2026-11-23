@@ -55,7 +55,9 @@ The committed `zkao.md` is not part of this response.
 
 Writing needs the `guidance:write` scope.
 Each change records a revision.
-Writing the content already stored is a no-op that returns `unchanged: true`.
+The response's `diff` is a unified diff from the guidance the write replaced to the new content.
+Read it to confirm the write changed only what you meant to.
+Writing the content already stored is a no-op that returns `unchanged: true` and an empty `diff`.
 Guidance is limited to 100,000 characters.
 
 <Tabs syncKey="client">

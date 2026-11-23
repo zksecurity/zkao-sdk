@@ -409,6 +409,7 @@ Print a repository's guidance, with `contentHash`, the SHA-256 of its content.
 ### `zkao guidance set <repoId> <file|->`
 
 Set a repository's guidance from a file, or from stdin with `-`. Needs the `guidance:write` scope.
+The output's `diff` shows what the write replaced.
 
 Pass the `contentHash` from your last `zkao guidance get`.
 If someone changed the guidance since then, the write fails with `409 conflict` instead of overwriting their edit.

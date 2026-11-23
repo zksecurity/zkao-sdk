@@ -142,7 +142,7 @@ export interface paths {
         get: operations["getRepositoryGuidance"];
         /**
          * Set or clear a repository's guidance
-         * @description Requires scope: `guidance:write`. Sets `content` as the repository's guidance (or clears it with `null`), recording a revision. Writing the same content that is already stored is a no-op (`unchanged: true`, no revision). Pass `expectedContent` for an optimistic compare-and-set: omit it for last-writer-wins, or send the content you last read (or `null` for "currently cleared") to get a `409` instead of clobbering a concurrent change.
+         * @description Requires scope: `guidance:write`. Sets `content` as the repository's guidance (or clears it with `null`), recording a revision. Writing the same content that is already stored is a no-op (`unchanged: true`, no revision). Pass `expectedContent` for an optimistic compare-and-set: omit it for last-writer-wins, or send the content you last read (or `null` for "currently cleared") to get a `409` instead of clobbering a concurrent change. The response's `diff` shows what the write replaced.
          */
         put: operations["setRepositoryGuidance"];
         post?: never;
@@ -1516,6 +1516,8 @@ export interface components {
             revisionId: string | null;
             /** @description True when the content already matched (no revision recorded). */
             unchanged: boolean;
+            /** @description Unified diff from the guidance this write replaced to the new content, with `before` and `after` as file names. Empty on a no-op write. Read it to confirm the write changed only what you meant to. */
+            diff: string;
         };
         AuditArea: {
             /** @description Stable slug, unique per repository. Pass it in `auditAreaKeys` when launching a scan. */
