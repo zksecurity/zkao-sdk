@@ -152,7 +152,7 @@ zkao areas rm <repoId> <areaKey>                  # delete a custom area
 zkao continuous get <repoId> [--branch <branch>]  # available and enabled analyses, schedule, spend and budget limits
 zkao continuous on <repoId> [--branch <branch>] [--budget <credits>] [--enable-analysis <id> | --only-analysis <id>] [--area <key>...]
 zkao continuous set <repoId> [--branch <branch>] [--enable-analysis <id> | --only-analysis <id>] [--budget <credits>] [--area <key>... | --whole-repo]
-zkao continuous give <repoId> --credits <credits> [--branch <branch>] [--resume] [--enable-analysis <id> | --only-analysis <id>] [--area <key>... | --whole-repo]  # spent right away, never repeated
+zkao continuous give <repoId> --credits <credits> [--branch <branch>] [--resume] [--enable-analysis <id> | --only-analysis <id>] [--area <key>... | --whole-repo]  # non-recurring allowance, available immediately
 zkao continuous off <repoId>                      # pause it, keeping its settings
 zkao continuous prepare <repoId> [--branch <branch>]  # plan the next analysis without running it; spends no credits
 zkao continuous rm <repoId>                       # remove the schedule
@@ -176,6 +176,29 @@ A `zkao: version X is available` line on stderr means this file is behind the
 API too. Install the newer CLI and refresh this skill from
 `https://github.com/zksecurity/zkao-sdk`: recent releases may add commands and
 capabilities described nowhere here.
+
+## Share correct web links
+
+Prefer the API-provided `webUrl` from scan list items, scan detail, or the
+launch response. The SDK and CLI preserve it. It is the canonical absolute
+frontend URL: share it unchanged. Older servers may omit it; do not assume
+this field is deployed merely because these instructions mention it.
+
+Never turn an `/api/v1/...` path into a web link or invent a project-level
+scan route. If `webUrl` is absent, use a verified link from the app. Only when
+the frontend origin and actual organization, project, and repository **slugs**
+are all known and the route is verified may you fall back to:
+
+```
+https://zkao.io/orgs/<orgSlug>/projects/<projectSlug>/repos/<repoSlug>/scans/<scanId>
+https://staging.zkao.io/orgs/<orgSlug>/projects/<projectSlug>/repos/<repoSlug>/scans/<scanId>
+```
+
+Repository IDs, GitHub owner/name, and project names are not substitutes for
+web slugs. Match the environment; never append `/api/v1` to the frontend origin.
+If the repository slug or route cannot be verified, report the scan ID rather
+than guess a clickable link. When verifying a URL, an authentication redirect
+alone does not prove that the destination exists.
 
 ## Common workflows
 
@@ -243,7 +266,19 @@ With MCP, pass `enableFeatures: ["formal-verification"]` to `zkao_set_continuous
 To start a schedule, also pass `enabled: true` and the authorized `monthlyBudgetCredits`, or give credits with `zkao_give_continuous_credits`.
 Omitting both feature fields preserves the selection. Writes need `automations:write`.
 Confirm that the response has `enabled: true` and lists `formal-verification` in `enabledFeatures` before reporting it active.
-Tell the user each entry in the response's `warnings`: it names a balance or project limit that will stop the branch before it uses its credits.
+Tell the user each entry in the response's `warnings`: it names a balance or project limit that may stop the branch before it uses its credits.
+
+A one-off `give` adds a non-recurring **allowance**, available immediately. It
+is not an organization credit purchase, a prepayment, or a reservation of the
+whole amount, and it does not guarantee spending down to zero. A finished run
+can spend less than its limit; what remains may not fund another whole step.
+Read `spentThisMonthCredits`, `leftThisMonthCredits`, run status, and the
+organization's `availableCredits` / `reservedCredits` separately. Do not call
+an allowance exhausted just because a run completed. `enabled: true`, `active`,
+and empty `warnings` do not prove another step can run or explain why it is idle.
+If no precise blocking reason is exposed, say so rather than invent one. Never
+silently give more credits, resume, or change a schedule to consume leftovers;
+those are additional actions requiring user authorization.
 
 **Answer questions from Continuous Security**
 

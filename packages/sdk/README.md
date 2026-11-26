@@ -21,6 +21,10 @@ const scan = await zkao.waitForScan(scanId, { onPoll: (s) => console.log(s.statu
 const findings = await zkao.listFindings({ scanId });
 ```
 
+Scan list, detail, and launch responses may include `webUrl`, the canonical
+absolute browser link. Share it unchanged rather than deriving a UI route from
+the API path. It is optional for compatibility with older servers.
+
 Every method is fully typed from the OpenAPI spec. Non-2xx responses throw
 `ZkaoApiError` (with `.status` and `.code`). The base URL comes from the
 `baseUrl` option, else `ZKAO_URL`, else production.

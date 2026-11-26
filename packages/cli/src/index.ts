@@ -699,7 +699,7 @@ for (const [name, description, enabled] of [
 continuous
   .command("give <repoId>")
   .description(
-    "Give zkao credits on a branch, spent right away and never repeated. Starts Continuous Security on a branch with no schedule"
+    "Give a non-recurring branch allowance, available immediately. Starts Continuous Security on a branch with no schedule"
   )
   .requiredOption("--credits <credits>", "credits to give", toCredits)
   .option("--branch <branch>", "the branch (default: the repository's default branch)")

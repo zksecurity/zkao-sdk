@@ -285,6 +285,26 @@ In the API, the `guidance` field has three states:
 Guidance is limited to 100,000 characters.
 See [Repository guidance](/guides/guidance/) for the standing layer.
 
+## Share a scan link
+
+Use the response's `webUrl` for a browser link. Scan list items, scan detail,
+and scan launch responses provide this canonical absolute URL on servers that
+support it. The SDK and CLI pass it through unchanged.
+
+```ts
+const scan = await zkao.getScan(scanId);
+if (scan.webUrl) console.log(scan.webUrl);
+else console.log(`Scan ID: ${scan.id}`); // Older server: do not guess a URL.
+```
+
+A web scan belongs to a repository. Its route is
+`/orgs/<orgSlug>/projects/<projectSlug>/repos/<repoSlug>/scans/<scanId>` on the
+frontend origin (`https://zkao.io` in production, `https://staging.zkao.io` on
+staging). Do not derive it from `/api/v1` or substitute IDs for slugs. If an
+older server omits `webUrl`, copy a verified app link; construct a fallback
+only when the actual slugs, frontend origin, and route are verified.
+An authentication redirect alone does not verify a destination.
+
 ## Follow a scan
 
 A scan moves through these statuses:
