@@ -637,9 +637,11 @@ export class ZkaoClient {
   }
 
   /**
-   * Give zkao credits on a branch, spent right away and never repeated
+   * Give a non-recurring branch allowance, available immediately
    * (requires `automations:write`). On a branch with no schedule, this starts
-   * Continuous Security funded by these credits alone. Each call gives again:
+   * Continuous Security funded by these credits alone. This does not purchase,
+   * reserve, or immediately charge the allowance, or guarantee exhaustion; a
+   * remainder may not fund another whole step. Each call gives again:
    * read the branch before retrying a request whose outcome is unknown.
    */
   async giveContinuousCredits(

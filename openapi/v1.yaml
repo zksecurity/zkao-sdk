@@ -622,9 +622,13 @@ paths:
       operationId: giveContinuousCredits
       summary: Give zkao credits on a branch
       description: >-
-        Requires scope: `automations:write`. The credits are spent right away
-        and never repeat. Whatever this month leaves unspent carries into the
-        next. They add to any monthly budget. On a branch with no schedule,
+        Requires scope: `automations:write`. Gives a non-recurring allowance
+        that is available for work immediately, not prepaid usage or an
+        organization-balance top-up. Giving does not itself reserve or charge
+        the whole allowance, or guarantee it will be exhausted. Remaining
+        credits may not fund another whole analysis step. Whatever this month
+        leaves unspent carries into the next. They add to any monthly budget.
+        On a branch with no schedule,
         this starts Continuous Security funded by these credits alone, with no
         monthly budget; `enabledFeatures` or `enableFeatures` choose its
         analyses before it starts. On an existing schedule, the other fields
@@ -633,8 +637,9 @@ paths:
         stopped. A paused schedule is refused with `409` unless the request
         also sends `enabled: true`, which resumes it.
         Each call gives again, so read the branch before retrying a request
-        whose outcome you did not see. The response lists in `warnings`
-        anything that may stop the branch before it uses its credits.
+        whose outcome you did not see. The response lists external balance and project-limit constraints in
+        `warnings`. An empty list does not guarantee another step can run or
+        that the allowance will be exhausted.
       parameters:
         - $ref: "#/components/parameters/ProjectId"
         - $ref: "#/components/parameters/RepositoryId"
@@ -2195,6 +2200,15 @@ components:
       required: [id, status, repositoryId, createdAt]
       properties:
         id: { type: string }
+        webUrl:
+          type: string
+          format: uri
+          readOnly: true
+          description: >-
+            Absolute canonical link to this scan in the web app, including its
+            repository route and the correct frontend origin. Use it unchanged
+            when sharing a scan; do not derive a web URL from an API path.
+            Optional for compatibility with servers predating this field.
         status: { $ref: "#/components/schemas/ScanStatus" }
         failureCode:
           type: [string, "null"]
@@ -2850,6 +2864,15 @@ components:
       required: [scanId, queued, creditBudget, buildsOverview]
       properties:
         scanId: { type: string }
+        webUrl:
+          type: string
+          format: uri
+          readOnly: true
+          description: >-
+            Absolute canonical link to this scan in the web app, including its
+            repository route and the correct frontend origin. Use it unchanged
+            when sharing a scan; do not derive a web URL from an API path.
+            Optional for compatibility with servers predating this field.
         queued: { type: boolean }
         creditBudget:
           type: integer

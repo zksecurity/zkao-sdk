@@ -255,7 +255,7 @@ export interface paths {
         put?: never;
         /**
          * Give zkao credits on a branch
-         * @description Requires scope: `automations:write`. The credits are spent right away and never repeat. Whatever this month leaves unspent carries into the next. They add to any monthly budget. On a branch with no schedule, this starts Continuous Security funded by these credits alone, with no monthly budget; `enabledFeatures` or `enableFeatures` choose its analyses before it starts. On an existing schedule, the other fields change it as `PUT` does, in the same change: a refused change gives nothing. Giving credits wakes zkao and re-arms a schedule that had stopped. A paused schedule is refused with `409` unless the request also sends `enabled: true`, which resumes it. Each call gives again, so read the branch before retrying a request whose outcome you did not see. The response lists in `warnings` anything that may stop the branch before it uses its credits.
+         * @description Requires scope: `automations:write`. Gives a non-recurring allowance that is available for work immediately, not prepaid usage or an organization-balance top-up. Giving does not itself reserve or charge the whole allowance, or guarantee it will be exhausted. Remaining credits may not fund another whole analysis step. Whatever this month leaves unspent carries into the next. They add to any monthly budget. On a branch with no schedule, this starts Continuous Security funded by these credits alone, with no monthly budget; `enabledFeatures` or `enableFeatures` choose its analyses before it starts. On an existing schedule, the other fields change it as `PUT` does, in the same change: a refused change gives nothing. Giving credits wakes zkao and re-arms a schedule that had stopped. A paused schedule is refused with `409` unless the request also sends `enabled: true`, which resumes it. Each call gives again, so read the branch before retrying a request whose outcome you did not see. The response lists external balance and project-limit constraints in `warnings`. An empty list does not guarantee another step can run or that the allowance will be exhausted.
          */
         post: operations["giveContinuousCredits"];
         delete?: never;
@@ -1104,6 +1104,11 @@ export interface components {
         };
         Scan: {
             id: string;
+            /**
+             * Format: uri
+             * @description Absolute canonical link to this scan in the web app, including its repository route and the correct frontend origin. Use it unchanged when sharing a scan; do not derive a web URL from an API path. Optional for compatibility with servers predating this field.
+             */
+            readonly webUrl?: string;
             status: components["schemas"]["ScanStatus"];
             /**
              * @description An actionable setup failure for a failed scan. Null for other statuses and internal failures. Restore a project member's GitHub access or approve the App permissions before launching again.
@@ -1488,6 +1493,11 @@ export interface components {
         };
         LaunchScanResult: {
             scanId: string;
+            /**
+             * Format: uri
+             * @description Absolute canonical link to this scan in the web app, including its repository route and the correct frontend origin. Use it unchanged when sharing a scan; do not derive a web URL from an API path. Optional for compatibility with servers predating this field.
+             */
+            readonly webUrl?: string;
             queued: boolean;
             /** @description The budget the scan was launched with, in credits. */
             creditBudget: number;

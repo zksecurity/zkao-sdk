@@ -38,6 +38,23 @@ So the balance has three numbers:
 
 Active scans in other projects of the organization reduce `availableCredits` too.
 
+## One-off Continuous Security allowances
+
+`continuous give` (`giveContinuousCredits` in the SDK) gives a branch a
+non-recurring allowance, available for work immediately. It does not buy
+organization credits, prepay usage, or reserve the whole allowance from the
+organization's balance. Actual work is charged as it runs; unused allowance
+carries forward and is not a promise to spend down to zero.
+
+After a run spends less than its limit, the remainder may not fund another
+whole analysis step. Read branch `spentThisMonthCredits` and
+`leftThisMonthCredits` separately from the organization's reservations and
+available balance. A completed run does not mean the allowance was exhausted.
+An `active` schedule or empty `warnings` also does not establish that another
+step can run. If the API does not expose its blocking reason, report that gap.
+Giving more, resuming, or changing a schedule requires explicit authorization;
+do not top up a branch merely to use its remainder.
+
 ## Check the balance
 
 <Tabs syncKey="client">
